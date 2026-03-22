@@ -157,6 +157,18 @@ function uploadForm() {
                     if (this.statusHtml.includes('completed') || this.statusHtml.includes('failed')) {
                         clearInterval(this.pollTimer);
                         this.pollTimer = null;
+                        // Show action links directly
+                        this.statusHtml += `
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <a href="/api/jobs/${jobId}/download"
+                                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+                                   Download SRT
+                                </a>
+                                <a href="/history"
+                                   class="inline-flex items-center px-3 py-1.5 bg-gray-600 text-white rounded-md text-sm font-medium hover:bg-gray-700">
+                                   View History
+                                </a>
+                            </div>`;
                     }
                 } catch (e) {
                     console.error('Polling error:', e);
