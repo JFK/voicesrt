@@ -32,7 +32,7 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else '-' }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2" x-data="{ showMeta: false }">
+                <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                     {% if job.srt_path %}
                     <a href="/api/jobs/{{ job.id }}/download"
                        class="text-blue-600 hover:text-blue-800 font-medium">SRT</a>
@@ -44,48 +44,8 @@
                     {% endif %}
 
                     {% if job.youtube_title %}
-                    <button @click="showMeta = !showMeta"
+                    <button onclick="showMetaModal('{{ job.id }}')"
                             class="text-yellow-600 hover:text-yellow-800 font-medium">Meta</button>
-                    <div x-show="showMeta" x-cloak
-                         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-                         @click.self="showMeta = false">
-                        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg font-bold">YouTube Metadata</h3>
-                                <button @click="showMeta = false" class="text-gray-400 hover:text-gray-600">&times;</button>
-                            </div>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Title</label>
-                                    <div class="mt-1 flex">
-                                        <input type="text" value="{{ job.youtube_title }}" readonly
-                                               class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50">
-                                        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value)"
-                                                class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Description</label>
-                                    <textarea id="desc-{{ job.id }}" readonly rows="10"
-                                              class="mt-1 w-full rounded-md border-gray-300 text-sm p-2 border bg-gray-50">{{ job.youtube_description }}</textarea>
-                                    <button onclick="navigator.clipboard.writeText(document.getElementById('desc-{{ job.id }}').value)"
-                                            class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy</button>
-                                </div>
-                                {% if job.youtube_tags %}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Tags</label>
-                                    {% set tags_list = job.youtube_tags | replace('[', '') | replace(']', '') | replace('"', '') %}
-                                    <div class="mt-1 flex">
-                                        <input type="text" value="{{ tags_list }}" readonly
-                                               class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50">
-                                        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value)"
-                                                class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
                     {% endif %}
 
                     {% if job.srt_path and job.status in ('completed', 'failed') %}
@@ -108,6 +68,18 @@
     </table>
 </div>
 
+<!-- Meta Modal -->
+<div id="meta-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+     onclick="if(event.target===this)this.style.display='none'">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">YouTube Metadata</h3>
+            <button onclick="document.getElementById('meta-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+        <div id="meta-content" class="space-y-4"></div>
+    </div>
+</div>
+
 <!-- Quiz Modal -->
 <div id="quiz-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
@@ -121,6 +93,43 @@
 </div>
 
 <script>
+async function showMetaModal(jobId) {
+    const modal = document.getElementById('meta-modal');
+    const content = document.getElementById('meta-content');
+    modal.style.display = 'flex';
+
+    const res = await fetch(`/api/jobs/${jobId}`);
+    const job = await res.json();
+    const tags = (() => { try { return JSON.parse(job.youtube_tags || '[]').join(', '); } catch(e) { return ''; } })();
+
+    content.innerHTML = `
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <div class="flex">
+                <input type="text" value="${job.youtube_title || ''}" readonly
+                       class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50" id="meta-title">
+                <button onclick="navigator.clipboard.writeText(document.getElementById('meta-title').value)"
+                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea readonly rows="10" id="meta-desc"
+                      class="w-full rounded-md border-gray-300 text-sm p-2 border bg-gray-50">${job.youtube_description || ''}</textarea>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('meta-desc').value)"
+                    class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy</button>
+        </div>
+        ${tags ? `<div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+            <div class="flex">
+                <input type="text" value="${tags}" readonly
+                       class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50" id="meta-tags">
+                <button onclick="navigator.clipboard.writeText(document.getElementById('meta-tags').value)"
+                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
+            </div>
+        </div>` : ''}`;
+}
+
 async function generateQuiz(jobId) {
     const modal = document.getElementById('quiz-modal');
     const content = document.getElementById('quiz-content');
