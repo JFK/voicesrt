@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Upload - VoiceSRT{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto" x-data="uploadForm()">
+<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="restoreFromUrl()">
     <h1 class="text-2xl font-bold text-gray-900 mb-6">Upload</h1>
 
     <!-- Upload Form (hidden during processing) -->
@@ -146,6 +146,29 @@ function uploadForm() {
             if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
             if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
             this.elapsed = 0;
+            history.replaceState(null, '', '/');
+        },
+        async restoreFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const jobId = params.get('job');
+            if (!jobId) return;
+            try {
+                const res = await fetch(`/api/jobs/${jobId}`);
+                if (!res.ok) return;
+                const job = await res.json();
+                this.jobId = jobId;
+                this.fileName = job.filename || '';
+                if (job.status === 'completed' || job.status === 'failed') {
+                    // Already done, show result
+                    const statusRes = await fetch(`/api/jobs/${jobId}/status`, { headers: { 'HX-Request': 'true' } });
+                    this.statusHtml = await statusRes.text();
+                    this.isDone = true;
+                    this.isCompleted = job.status === 'completed';
+                } else {
+                    // Still processing, resume polling
+                    this.startPolling(jobId);
+                }
+            } catch (e) { /* invalid job id, ignore */ }
         },
         async submitForm() {
             if (!this.file) return;
@@ -167,6 +190,8 @@ function uploadForm() {
                 });
                 const data = await res.json();
                 this.jobId = data.id;
+                // Update URL so user can bookmark/refresh to check status
+                history.replaceState(null, '', '/?job=' + data.id);
                 this.startPolling(data.id);
             } catch (e) {
                 alert('Upload failed: ' + e.message);
