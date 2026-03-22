@@ -1,4 +1,4 @@
-from src.services.srt import _wrap_text, generate_srt, seconds_to_srt_time
+from src.services.srt import generate_srt, seconds_to_srt_time
 
 
 def test_seconds_to_srt_time_zero():
@@ -21,8 +21,8 @@ def test_generate_srt(sample_segments):
     result = generate_srt(sample_segments)
     assert "00:00:00,000 --> 00:00:02,500" in result
     assert "00:00:03,000 --> 00:00:05,800" in result
-    assert "Hello" in result
-    assert "Python" in result
+    assert "Hello, welcome to the video." in result
+    assert "Today we will discuss Python." in result
 
 
 def test_generate_srt_skips_empty():
@@ -37,26 +37,12 @@ def test_generate_srt_skips_empty():
     assert "3\n" not in result
 
 
-def test_wrap_text_short():
-    assert _wrap_text("短いテキスト") == "短いテキスト"
-
-
-def test_wrap_text_long():
-    text = "これは非常に長いテキストで、字幕として表示するには改行が必要です。"
-    result = _wrap_text(text)
-    lines = result.split("\n")
-    assert len(lines) >= 2
-    for line in lines:
-        assert len(line) <= 30  # some tolerance for break position
-
-
-def test_wrap_text_exact_limit():
-    text = "a" * 26
-    assert _wrap_text(text) == text
-
-
-def test_wrap_text_with_punctuation():
-    text = "今日は天気がいいですね、明日も晴れるといいですね。これは長いです。"
-    result = _wrap_text(text)
-    lines = result.split("\n")
-    assert len(lines) >= 2
+def test_generate_srt_no_newlines_in_text():
+    """SRT text should be clean single-line for editing software compatibility."""
+    segments = [
+        {"start": 0.0, "end": 5.0, "text": "This is a long sentence that should remain on one line without wrapping"},
+    ]
+    result = generate_srt(segments)
+    text_line = result.strip().split("\n")[2]
+    assert "\n" not in text_line
+    assert text_line == "This is a long sentence that should remain on one line without wrapping"
