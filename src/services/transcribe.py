@@ -39,9 +39,13 @@ async def _get_model(session: AsyncSession, provider: str) -> str:
 
 async def process_transcription(job: Job, session: AsyncSession) -> None:
     """Main transcription pipeline: extract audio -> transcribe -> SRT -> metadata."""
-    mp4_path = settings.uploads_dir / f"{job.id}.mp4"
-    if not mp4_path.exists():
-        raise FileNotFoundError(f"Upload file not found: {mp4_path}")
+    # Find uploaded file (any supported extension)
+    upload_path = None
+    for f in settings.uploads_dir.glob(f"{job.id}.*"):
+        upload_path = f
+        break
+    if not upload_path or not upload_path.exists():
+        raise FileNotFoundError(f"Upload file not found for job {job.id}")
 
     api_key = await _get_api_key(session, job.provider)
     audio_path: Path | None = None
@@ -53,10 +57,10 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         if job.provider == "whisper":
             audio_path = settings.audio_dir / f"{job.id}.wav"
-            duration = await extract_audio(mp4_path, audio_path)
+            duration = await extract_audio(upload_path, audio_path)
         else:
             audio_path = settings.audio_dir / f"{job.id}.mp3"
-            duration = await extract_audio_mp3(mp4_path, audio_path)
+            duration = await extract_audio_mp3(upload_path, audio_path)
 
         job.audio_duration = duration
         await session.commit()

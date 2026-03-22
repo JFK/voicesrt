@@ -81,11 +81,15 @@ async def create_job(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     session: AsyncSession = Depends(get_session),
 ):
-    if not file.filename or not file.filename.lower().endswith(".mp4"):
-        raise HTTPException(status_code=400, detail="Only MP4 files are supported")
+    SUPPORTED_EXTENSIONS = {".mp4", ".mp3", ".wav", ".mov", ".avi", ".mkv", ".m4a", ".flac", ".ogg", ".webm"}
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    ext = Path(file.filename).suffix.lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported format. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
 
     job_id = str(uuid.uuid4())
-    upload_path = settings.uploads_dir / f"{job_id}.mp4"
+    upload_path = settings.uploads_dir / f"{job_id}{ext}"
     upload_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Stream file to disk to handle large files without OOM
@@ -325,8 +329,9 @@ async def delete_job(job_id: str, session: AsyncSession = Depends(get_session)):
         if path_str:
             Path(path_str).unlink(missing_ok=True)
 
-    for pattern in [f"{job.id}.mp4", f"{job.id}.wav", f"{job.id}.mp3"]:
-        for d in [settings.uploads_dir, settings.audio_dir]:
-            (d / pattern).unlink(missing_ok=True)
+    # Clean up upload and audio files (any extension)
+    for d in [settings.uploads_dir, settings.audio_dir]:
+        for f in d.glob(f"{job.id}.*"):
+            f.unlink(missing_ok=True)
 
     return {"deleted": True}
