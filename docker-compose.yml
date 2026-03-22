@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: videosrt
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    restart: unless-stopped

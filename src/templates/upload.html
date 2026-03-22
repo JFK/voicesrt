@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Upload - VideoSRT{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto" x-data="uploadForm()">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Upload MP4</h1>
+
+    <form @submit.prevent="submitForm" class="space-y-6 bg-white shadow rounded-lg p-6">
+        <!-- File Drop Zone -->
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+             :class="{ 'border-blue-500 bg-blue-50': dragover }"
+             @dragover.prevent="dragover = true"
+             @dragleave.prevent="dragover = false"
+             @drop.prevent="handleDrop($event)">
+            <input type="file" accept=".mp4" @change="handleFile($event)" class="hidden" id="fileInput">
+            <div x-show="!file">
+                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <p class="mt-2 text-sm text-gray-600">
+                    <label for="fileInput" class="cursor-pointer text-blue-600 hover:text-blue-500 font-medium">Click to upload</label>
+                    or drag and drop
+                </p>
+                <p class="mt-1 text-xs text-gray-500">MP4 files only</p>
+            </div>
+            <div x-show="file" class="text-sm text-gray-700">
+                <p class="font-medium" x-text="file?.name"></p>
+                <p class="text-gray-500" x-text="formatSize(file?.size)"></p>
+                <button type="button" @click="file = null" class="mt-2 text-red-600 hover:text-red-500 text-xs">Remove</button>
+            </div>
+        </div>
+
+        <!-- Options -->
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                <select x-model="provider" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
+                    <option value="whisper">OpenAI Whisper</option>
+                    <option value="gemini">Google Gemini</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                <select x-model="language" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
+                    <option value="">Auto Detect</option>
+                    <option value="ja">Japanese</option>
+                    <option value="en">English</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ko">Korean</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex items-center">
+            <input type="checkbox" x-model="enableMetadata" id="enableMetadata"
+                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <label for="enableMetadata" class="ml-2 text-sm text-gray-700">
+                Generate YouTube metadata (title, description, chapters)
+            </label>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit"
+                :disabled="!file || uploading"
+                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium">
+            <span x-show="!uploading">Upload & Process</span>
+            <span x-show="uploading">Uploading...</span>
+        </button>
+    </form>
+
+    <!-- Status -->
+    <div x-show="jobId" class="mt-6 bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-2">Processing</h2>
+        <div hx-get="" :hx-get="'/api/jobs/' + jobId + '/status'"
+             hx-trigger="every 2s" hx-swap="innerHTML"
+             id="job-status">
+            <div class="flex items-center space-x-2">
+                <div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                <span class="text-sm text-gray-600">Starting...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function uploadForm() {
+    return {
+        file: null,
+        provider: 'whisper',
+        language: '',
+        enableMetadata: false,
+        uploading: false,
+        jobId: null,
+        dragover: false,
+
+        handleFile(e) {
+            this.file = e.target.files[0];
+        },
+        handleDrop(e) {
+            this.dragover = false;
+            const f = e.dataTransfer.files[0];
+            if (f && f.name.toLowerCase().endsWith('.mp4')) {
+                this.file = f;
+            }
+        },
+        formatSize(bytes) {
+            if (!bytes) return '';
+            const mb = bytes / (1024 * 1024);
+            return mb.toFixed(1) + ' MB';
+        },
+        async submitForm() {
+            if (!this.file) return;
+            this.uploading = true;
+
+            const formData = new FormData();
+            formData.append('file', this.file);
+
+            const params = new URLSearchParams();
+            params.set('provider', this.provider);
+            if (this.language) params.set('language', this.language);
+            params.set('enable_metadata', this.enableMetadata);
+
+            try {
+                const res = await fetch('/api/jobs?' + params.toString(), {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                this.jobId = data.id;
+                // Trigger HTMX polling
+                this.$nextTick(() => {
+                    const el = document.getElementById('job-status');
+                    if (el) htmx.process(el);
+                });
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            } finally {
+                this.uploading = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

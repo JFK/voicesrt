@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}History - VideoSRT{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">Job History</h1>
+
+<div class="bg-white shadow rounded-lg overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for job in jobs %}
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ job.filename }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ job.provider }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {% if job.audio_duration %}{{ "%.1f"|format(job.audio_duration) }}s{% else %}-{% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span hx-get="/api/jobs/{{ job.id }}/status" hx-trigger="every 3s [this.dataset.poll !== 'false']"
+                          data-poll="{{ 'true' if job.status not in ('completed', 'failed') else 'false' }}">
+                        {% include "partials/job_status.html" %}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else '-' }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2" x-data="{ showMeta: false }">
+                    {% if job.srt_path %}
+                    <a href="/api/jobs/{{ job.id }}/download"
+                       class="text-blue-600 hover:text-blue-800 font-medium">SRT</a>
+                    {% endif %}
+
+                    {% if job.output_video_path %}
+                    <a href="/api/jobs/{{ job.id }}/download-video"
+                       class="text-green-600 hover:text-green-800 font-medium">Video</a>
+                    {% endif %}
+
+                    {% if job.status == 'completed' and job.srt_path %}
+                    <button @click="embedJob('{{ job.id }}')"
+                            class="text-purple-600 hover:text-purple-800 font-medium">Embed</button>
+                    {% endif %}
+
+                    {% if job.youtube_title %}
+                    <button @click="showMeta = !showMeta"
+                            class="text-yellow-600 hover:text-yellow-800 font-medium">Meta</button>
+                    <div x-show="showMeta" x-cloak
+                         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+                         @click.self="showMeta = false">
+                        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-bold">YouTube Metadata</h3>
+                                <button @click="showMeta = false" class="text-gray-400 hover:text-gray-600">&times;</button>
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Title</label>
+                                    <div class="mt-1 flex">
+                                        <input type="text" value="{{ job.youtube_title }}" readonly
+                                               class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50">
+                                        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value)"
+                                                class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                                    <div class="mt-1">
+                                        <textarea readonly rows="10"
+                                                  class="w-full rounded-md border-gray-300 text-sm p-2 border bg-gray-50">{{ job.youtube_description }}</textarea>
+                                        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value)"
+                                                class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy Description</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="Delete this job?"
+                            hx-target="closest tr" hx-swap="outerHTML"
+                            class="text-red-600 hover:text-red-800 font-medium">Del</button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not jobs %}
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">No jobs yet. Upload an MP4 to get started.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+async function embedJob(jobId) {
+    const embed_srt = confirm('Embed subtitles into video?');
+    const embed_logo = confirm('Add logo overlay?');
+
+    if (!embed_srt && !embed_logo) return;
+
+    const params = new URLSearchParams();
+    params.set('embed_srt', embed_srt);
+    params.set('embed_logo', embed_logo);
+
+    await fetch(`/api/jobs/${jobId}/embed?${params}`, { method: 'POST' });
+    location.reload();
+}
+</script>
+{% endblock %}
