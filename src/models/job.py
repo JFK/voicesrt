@@ -23,6 +23,8 @@ class Job(Base):
     youtube_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     youtube_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     youtube_tags: Mapped[str | None] = mapped_column(Text, nullable=True)
+    catchphrases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quiz: Mapped[str | None] = mapped_column(Text, nullable=True)
     enable_metadata: Mapped[bool] = mapped_column(Boolean, default=False)
     enable_refine: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

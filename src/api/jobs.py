@@ -283,9 +283,12 @@ async def _generate_meta_job(job_id: str, custom_prompt: str | None = None, fixe
 @router.post("/{job_id}/generate-catchphrase")
 async def generate_catchphrase_endpoint(
     job_id: str,
+    regenerate: bool = False,
     session: AsyncSession = Depends(get_session),
 ):
-    """Generate thumbnail catchphrase suggestions from SRT."""
+    """Generate or retrieve thumbnail catchphrase suggestions."""
+    import json as json_mod
+
     from src.services.catchphrase import generate_catchphrases
     from src.services.cost import estimate_llm_cost, log_cost
     from src.services.transcribe import _get_api_key, _get_model
@@ -293,6 +296,10 @@ async def generate_catchphrase_endpoint(
     job = await _get_job_or_404(session, job_id)
     if not job.srt_path:
         raise HTTPException(status_code=400, detail="No SRT file available")
+
+    # Return cached if available and not regenerating
+    if job.catchphrases and not regenerate:
+        return {"catchphrases": json_mod.loads(job.catchphrases), "cached": True}
 
     try:
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
@@ -303,6 +310,10 @@ async def generate_catchphrase_endpoint(
         phrases, input_tokens, output_tokens = await generate_catchphrases(
             srt_content, api_key, provider_name, model
         )
+
+        # Save to DB
+        job.catchphrases = json_mod.dumps(phrases, ensure_ascii=False)
+        await session.commit()
 
         cost = estimate_llm_cost(input_tokens, output_tokens, model, provider_name)
         await log_cost(
@@ -319,9 +330,12 @@ async def generate_catchphrase_endpoint(
 @router.post("/{job_id}/generate-quiz")
 async def generate_quiz_endpoint(
     job_id: str,
+    regenerate: bool = False,
     session: AsyncSession = Depends(get_session),
 ):
-    """Generate YouTube quiz from SRT content."""
+    """Generate or retrieve YouTube quiz."""
+    import json as json_mod
+
     from src.services.cost import estimate_llm_cost, log_cost
     from src.services.quiz import generate_quiz
     from src.services.transcribe import _get_api_key, _get_model
@@ -329,6 +343,10 @@ async def generate_quiz_endpoint(
     job = await _get_job_or_404(session, job_id)
     if not job.srt_path:
         raise HTTPException(status_code=400, detail="No SRT file available")
+
+    # Return cached if available and not regenerating
+    if job.quiz and not regenerate:
+        return {"quiz": json_mod.loads(job.quiz), "cached": True}
 
     try:
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
@@ -339,6 +357,10 @@ async def generate_quiz_endpoint(
         quiz, input_tokens, output_tokens = await generate_quiz(
             srt_content, api_key, provider_name, model
         )
+
+        # Save to DB
+        job.quiz = json_mod.dumps(quiz, ensure_ascii=False)
+        await session.commit()
 
         cost = estimate_llm_cost(input_tokens, output_tokens, model, provider_name)
         await log_cost(
