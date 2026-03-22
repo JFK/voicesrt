@@ -105,10 +105,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
 
 def _cleanup_temp_files(job_id: str, audio_path: Path | None) -> None:
-    """Remove temporary upload and audio files."""
-    mp4_path = settings.uploads_dir / f"{job_id}.mp4"
-    mp4_path.unlink(missing_ok=True)
-
+    """Remove temporary audio files. MP4 is kept for video embedding."""
     if audio_path:
         audio_path.unlink(missing_ok=True)
         # Clean up chunks

@@ -81,10 +81,12 @@ async def _embed_job(job_id: str, do_srt: bool, do_logo: bool) -> None:
         try:
             job.status = "editing_video"
             await session.commit()
+            logger.info("Starting video embed for job %s (srt=%s, logo=%s)", job_id, do_srt, do_logo)
             output_path = await embed_video(job, do_srt, do_logo)
             job.output_video_path = str(output_path)
             job.status = "completed"
             await session.commit()
+            logger.info("Video embed completed for job %s: %s", job_id, output_path)
         except Exception as e:
             logger.exception("Video embedding failed for job %s", job_id)
             job.status = "failed"
