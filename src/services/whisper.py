@@ -1,7 +1,11 @@
 from pathlib import Path
 from typing import Any
 
+import logging
+
 import openai
+
+logger = logging.getLogger(__name__)
 
 
 async def transcribe_with_whisper(
@@ -28,12 +32,23 @@ async def transcribe_with_whisper(
         response = await client.audio.transcriptions.create(**kwargs)
 
     segments = []
-    if hasattr(response, "segments") and response.segments:
-        for seg in response.segments:
-            segments.append({
-                "start": seg.start if hasattr(seg, "start") else seg["start"],
-                "end": seg.end if hasattr(seg, "end") else seg["end"],
-                "text": (seg.text if hasattr(seg, "text") else seg["text"]).strip(),
-            })
+    raw_segments = getattr(response, "segments", None)
+    logger.info("Whisper response type: %s, segments type: %s", type(response).__name__, type(raw_segments).__name__ if raw_segments else "None")
+    if raw_segments:
+        if len(raw_segments) > 0:
+            logger.info("First segment type: %s, value: %s", type(raw_segments[0]).__name__, repr(raw_segments[0])[:200])
+        for seg in raw_segments:
+            if isinstance(seg, dict):
+                segments.append({
+                    "start": seg["start"],
+                    "end": seg["end"],
+                    "text": seg["text"].strip(),
+                })
+            else:
+                segments.append({
+                    "start": seg.start,
+                    "end": seg.end,
+                    "text": seg.text.strip(),
+                })
 
     return segments

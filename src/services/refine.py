@@ -26,11 +26,42 @@ Do NOT change:
 - The meaning or intent of what was said
 - Segments that are already correct
 
-Return ONLY a JSON array with the corrected segments. Same format as input.
-Each element: {{"start": float, "end": float, "text": "corrected text"}}
+You MUST return a JSON object with a "segments" key containing the corrected array.
+Format: {{"segments": [{{"start": 0.0, "end": 2.5, "text": "corrected text"}}, ...]}}
 {glossary_section}
 Input segments:
 {segments_json}"""
+
+
+def _extract_segments(result: object) -> list[dict]:
+    """Extract segments list from various LLM response formats."""
+    if isinstance(result, list):
+        # Direct array
+        segments = result
+    elif isinstance(result, dict):
+        # Try common wrapper keys
+        for key in ("segments", "data", "results", "subtitles"):
+            if key in result and isinstance(result[key], list):
+                segments = result[key]
+                break
+        else:
+            raise RuntimeError(f"Cannot find segments array in response: {list(result.keys())}")
+    else:
+        raise RuntimeError(f"Unexpected response type: {type(result).__name__}")
+
+    # Validate each segment has required fields
+    validated = []
+    for seg in segments:
+        if isinstance(seg, dict) and "start" in seg and "end" in seg and "text" in seg:
+            validated.append({
+                "start": float(seg["start"]),
+                "end": float(seg["end"]),
+                "text": str(seg["text"]).strip(),
+            })
+        else:
+            logger.warning("Skipping invalid segment: %s", repr(seg)[:100])
+
+    return validated
 
 
 async def refine_with_llm(
@@ -73,19 +104,18 @@ async def _refine_openai(prompt: str, api_key: str, model: str) -> tuple[list[di
         response_format={"type": "json_object"},
     )
 
-    text = response.choices[0].message.content or "[]"
+    text = response.choices[0].message.content or "{}"
     try:
         result = json.loads(text)
-        # Handle {"segments": [...]} wrapper that some models return
-        if isinstance(result, dict) and "segments" in result:
-            result = result["segments"]
     except json.JSONDecodeError as e:
         raise RuntimeError(f"LLM returned invalid JSON during refinement: {e}. Response: {text[:200]}")
+
+    segments = _extract_segments(result)
 
     input_tokens = response.usage.prompt_tokens if response.usage else 0
     output_tokens = response.usage.completion_tokens if response.usage else 0
 
-    return result, input_tokens, output_tokens
+    return segments, input_tokens, output_tokens
 
 
 async def _refine_gemini(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
@@ -103,10 +133,10 @@ async def _refine_gemini(prompt: str, api_key: str, model: str) -> tuple[list[di
     text = strip_markdown_fence(response.text)
     try:
         result = json.loads(text)
-        if isinstance(result, dict) and "segments" in result:
-            result = result["segments"]
     except json.JSONDecodeError as e:
         raise RuntimeError(f"Gemini returned invalid JSON during refinement: {e}. Response: {text[:200]}")
+
+    segments = _extract_segments(result)
 
     input_tokens = 0
     output_tokens = 0
@@ -114,4 +144,4 @@ async def _refine_gemini(prompt: str, api_key: str, model: str) -> tuple[list[di
         input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
         output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
 
-    return result, input_tokens, output_tokens
+    return segments, input_tokens, output_tokens

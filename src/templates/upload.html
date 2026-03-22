@@ -79,7 +79,7 @@
     <!-- Status -->
     <div x-show="jobId" class="mt-6 bg-white shadow rounded-lg p-6">
         <h2 class="text-lg font-medium text-gray-900 mb-2">Processing</h2>
-        <div id="job-status">
+        <div id="job-status" x-html="statusHtml">
             <div class="flex items-center space-x-2">
                 <div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
                 <span class="text-sm text-gray-600">Starting...</span>
@@ -96,6 +96,8 @@ function uploadForm() {
         language: '',
         enableRefine: true,
         enableMetadata: false,
+        statusHtml: '',
+        pollTimer: null,
         uploading: false,
         jobId: null,
         dragover: false,
@@ -135,21 +137,31 @@ function uploadForm() {
                 });
                 const data = await res.json();
                 this.jobId = data.id;
-                // Set up HTMX polling now that we have a job ID
-                this.$nextTick(() => {
-                    const el = document.getElementById('job-status');
-                    if (el) {
-                        el.setAttribute('hx-get', '/api/jobs/' + data.id + '/status');
-                        el.setAttribute('hx-trigger', 'every 2s [document.querySelector("[data-poll=\\"false\\"]") === null]');
-                        el.setAttribute('hx-swap', 'innerHTML');
-                        htmx.process(el);
-                    }
-                });
+                // Start polling for status updates
+                this.startPolling(data.id);
             } catch (e) {
                 alert('Upload failed: ' + e.message);
             } finally {
                 this.uploading = false;
             }
+        },
+        startPolling(jobId) {
+            if (this.pollTimer) clearInterval(this.pollTimer);
+            this.pollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/jobs/${jobId}/status`, {
+                        headers: { 'HX-Request': 'true' }
+                    });
+                    this.statusHtml = await res.text();
+                    // Stop polling if completed or failed
+                    if (this.statusHtml.includes('completed') || this.statusHtml.includes('failed')) {
+                        clearInterval(this.pollTimer);
+                        this.pollTimer = null;
+                    }
+                } catch (e) {
+                    console.error('Polling error:', e);
+                }
+            }, 2000);
         }
     };
 }
