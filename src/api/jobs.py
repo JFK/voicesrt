@@ -204,13 +204,15 @@ async def generate_meta(
         raise HTTPException(status_code=400, detail="No SRT file available")
 
     custom_prompt = None
+    fixed_footer = ""
     try:
         body = await request.json()
         custom_prompt = body.get("custom_prompt")
+        fixed_footer = body.get("fixed_footer", "")
     except Exception:
         pass
 
-    background_tasks.add_task(_generate_meta_job, job_id, custom_prompt)
+    background_tasks.add_task(_generate_meta_job, job_id, custom_prompt, fixed_footer)
     return {"status": "generating_metadata"}
 
 
@@ -240,7 +242,7 @@ async def optimize_prompt(
     return {"optimized_prompt": optimized}
 
 
-async def _generate_meta_job(job_id: str, custom_prompt: str | None = None) -> None:
+async def _generate_meta_job(job_id: str, custom_prompt: str | None = None, fixed_footer: str = "") -> None:
     """Background task: generate YouTube metadata from existing SRT."""
     from src.services.transcribe import _get_api_key, _run_metadata_generation
 
@@ -258,6 +260,11 @@ async def _generate_meta_job(job_id: str, custom_prompt: str | None = None) -> N
             api_key = await _get_api_key(session, job.provider)
             await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt)
 
+            # Append fixed footer to description (not processed by AI)
+            if fixed_footer and fixed_footer.strip() and job.youtube_description:
+                job.youtube_description = job.youtube_description.rstrip() + "\n\n" + fixed_footer.strip()
+                await session.commit()
+
             job.status = "completed"
             await session.commit()
             logger.info("Metadata generated for job %s", job_id)
@@ -266,6 +273,42 @@ async def _generate_meta_job(job_id: str, custom_prompt: str | None = None) -> N
             job.status = "failed"
             job.error_message = f"Metadata generation failed: {str(e)[:400]}"
             await session.commit()
+
+
+@router.post("/{job_id}/generate-quiz")
+async def generate_quiz_endpoint(
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate YouTube quiz from SRT content."""
+    from src.services.cost import estimate_llm_cost, log_cost
+    from src.services.quiz import generate_quiz
+    from src.services.transcribe import _get_api_key, _get_model
+
+    job = await _get_job_or_404(session, job_id)
+    if not job.srt_path:
+        raise HTTPException(status_code=400, detail="No SRT file available")
+
+    try:
+        srt_content = Path(job.srt_path).read_text(encoding="utf-8")
+        api_key = await _get_api_key(session, job.provider)
+        model = await _get_model(session, job.provider)
+        provider_name = "openai" if job.provider == "whisper" else "gemini"
+
+        quiz, input_tokens, output_tokens = await generate_quiz(
+            srt_content, api_key, provider_name, model
+        )
+
+        cost = estimate_llm_cost(input_tokens, output_tokens, model, provider_name)
+        await log_cost(
+            session, job.id, provider_name, model, "quiz_generation", cost,
+            input_tokens=input_tokens, output_tokens=output_tokens,
+        )
+
+        return {"quiz": quiz}
+    except Exception as e:
+        logger.exception("Quiz generation failed for job %s", job_id)
+        return {"quiz": None, "error": str(e)[:300]}
 
 
 @router.delete("/{job_id}")

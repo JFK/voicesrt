@@ -76,8 +76,9 @@
                                 {% if job.youtube_tags %}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Tags</label>
+                                    {% set tags_list = job.youtube_tags | replace('[', '') | replace(']', '') | replace('"', '') %}
                                     <div class="mt-1 flex">
-                                        <input type="text" value="{{ job.youtube_tags }}" readonly
+                                        <input type="text" value="{{ tags_list }}" readonly
                                                class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50">
                                         <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value)"
                                                 class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
@@ -87,6 +88,11 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
+
+                    {% if job.srt_path and job.status in ('completed', 'failed') %}
+                    <button onclick="generateQuiz('{{ job.id }}')"
+                            class="text-emerald-600 hover:text-emerald-800 font-medium">Quiz</button>
                     {% endif %}
 
                     <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="Delete this job?"
@@ -104,4 +110,53 @@
     </table>
 </div>
 
+<!-- Quiz Modal -->
+<div id="quiz-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">YouTube Quiz</h3>
+            <button onclick="document.getElementById('quiz-modal').style.display='none'" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div id="quiz-content">
+        </div>
+    </div>
+</div>
+
+<script>
+async function generateQuiz(jobId) {
+    const modal = document.getElementById('quiz-modal');
+    const content = document.getElementById('quiz-content');
+    modal.style.display = 'flex';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">Generating quiz...</span></div>';
+
+    try {
+        const res = await fetch(`/api/jobs/${jobId}/generate-quiz`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.quiz) {
+            let html = '<div class="space-y-4">';
+            data.quiz.forEach((q, i) => {
+                html += `<div class="border rounded-lg p-3">
+                    <p class="font-medium text-sm mb-2">${i+1}. ${q.question}</p>
+                    <ul class="space-y-1">`;
+                q.options.forEach((opt, j) => {
+                    const isAnswer = j === q.answer_index;
+                    html += `<li class="text-sm ${isAnswer ? 'text-green-700 font-medium' : 'text-gray-600'}">
+                        ${String.fromCharCode(65+j)}. ${opt} ${isAnswer ? '(correct)' : ''}
+                    </li>`;
+                });
+                html += '</ul></div>';
+            });
+            html += '</div>';
+            html += `<button onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(data.quiz)}, null, 2)); this.textContent='Copied!'"
+                      class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">Copy Quiz JSON</button>`;
+            content.innerHTML = html;
+        } else {
+            content.innerHTML = '<p class="text-red-600 text-sm">Failed: ' + (data.error || 'Unknown error') + '</p>';
+        }
+    } catch (e) {
+        content.innerHTML = '<p class="text-red-600 text-sm">Failed: ' + e.message + '</p>';
+    }
+}
+</script>
 {% endblock %}

@@ -5,11 +5,12 @@
     <h1 class="text-2xl font-bold text-gray-900 mb-2">YouTube Metadata</h1>
     <p class="text-sm text-gray-500 mb-6">{{ job.filename }} ({{ "%.1f"|format(job.audio_duration) }}s)</p>
 
-    <!-- Step 1: Context Input -->
+    <!-- Step 1: Context & Prompt Editor -->
     <div x-show="step === 'edit'" class="space-y-4">
+        <!-- Channel & Video Info -->
         <div class="bg-white shadow rounded-lg p-6">
             <h2 class="text-lg font-medium text-gray-900 mb-4">Channel & Video Info</h2>
-            <p class="text-sm text-gray-500 mb-4">Provide context to generate better metadata. All fields are optional.</p>
+            <p class="text-sm text-gray-500 mb-4">Saved across sessions. Used by Optimize AI.</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -37,14 +38,34 @@
                            placeholder="e.g., Beginners, Developers">
                 </div>
             </div>
-            <div>
+            <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
                 <textarea x-model="context.notes" rows="2"
                           class="w-full rounded-md border-gray-300 text-sm p-2 border"
-                          placeholder="Any specific instructions for metadata generation..."></textarea>
+                          placeholder="e.g., Past video description sample, style preferences..."></textarea>
             </div>
         </div>
 
+        <!-- Description Template & Fixed Footer -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Description Settings</h2>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description Template</label>
+                <p class="text-xs text-gray-500 mb-1">Structure guide for generated descriptions. Included in the prompt.</p>
+                <textarea x-model="context.descriptionTemplate" rows="4"
+                          class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"
+                          placeholder="1. Hook (first 3 lines)&#10;2. Chapter index (00:00 format)&#10;3. Summary&#10;4. Hashtags"></textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Fixed Footer</label>
+                <p class="text-xs text-gray-500 mb-1">Always appended to the end of the description (links, SNS, etc). Not processed by AI.</p>
+                <textarea x-model="context.fixedFooter" rows="4"
+                          class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"
+                          placeholder="&#10;---&#10;Channel: https://youtube.com/@mychannel&#10;Twitter: https://twitter.com/myhandle&#10;#hashtag1 #hashtag2"></textarea>
+            </div>
+        </div>
+
+        <!-- Prompt -->
         <div class="bg-white shadow rounded-lg p-6">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-medium text-gray-900">Prompt</h2>
@@ -95,7 +116,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea x-model="result.description" readonly rows="12"
+                    <textarea x-model="result.description" readonly rows="14"
                               class="w-full rounded-md border-gray-300 text-sm p-2 border bg-gray-50"></textarea>
                     <button @click="copyText(result.description)"
                             class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy Description</button>
@@ -107,8 +128,8 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" x-text="tag"></span>
                         </template>
                     </div>
-                    <button @click="copyText(result.tags.join(', '))"
-                            class="px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy Tags</button>
+                    <button @click="copyText(result.tags.join(','))"
+                            class="px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy Tags (YouTube format)</button>
                 </div>
             </div>
         </div>
@@ -156,6 +177,8 @@ Return a JSON object:
             speakers: '',
             audience: '',
             notes: '',
+            descriptionTemplate: '',
+            fixedFooter: '',
         },
         prompt: defaultPrompt,
         defaultPrompt: defaultPrompt,
@@ -165,13 +188,6 @@ Return a JSON object:
         toast: '',
 
         init() {
-            // Load saved context from settings
-            fetch('/api/settings/glossary').then(r => r.json()).then(d => {
-                // glossary is for transcription, but channel context is separate
-            });
-            fetch('/api/settings/general').then(r => r.json()).then(d => {
-                // Load saved meta prompt if exists
-            });
             this.loadSavedContext();
         },
 
@@ -185,7 +201,7 @@ Return a JSON object:
                 if (data.prompt) {
                     this.prompt = data.prompt;
                 }
-            } catch (e) { /* first time, no saved context */ }
+            } catch (e) { /* first time */ }
         },
 
         async saveContext() {
@@ -234,9 +250,11 @@ Return a JSON object:
                 const res = await fetch(`/api/jobs/${this.jobId}/generate-meta`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ custom_prompt: this.prompt })
+                    body: JSON.stringify({
+                        custom_prompt: this.prompt,
+                        fixed_footer: this.context.fixedFooter
+                    })
                 });
-                // Poll for result
                 const poll = setInterval(async () => {
                     const r = await fetch(`/api/jobs/${this.jobId}`);
                     const job = await r.json();

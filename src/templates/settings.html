@@ -41,14 +41,18 @@
         </div>
     </div>
 
-    <!-- Model Selection -->
+    <!-- LLM Models -->
     <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Models</h2>
-        <p class="text-sm text-gray-500 mb-4">Models used for YouTube metadata generation. Choose a preset or set custom models.</p>
+        <h2 class="text-lg font-medium text-gray-900 mb-2">LLM Models</h2>
+        <p class="text-sm text-gray-500 mb-4">
+            Configure models per purpose.
+            <a href="https://openai.com/api/pricing/" target="_blank" class="text-blue-600 hover:underline">OpenAI Pricing</a> |
+            <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" class="text-blue-600 hover:underline">Gemini Pricing</a>
+        </p>
 
         <!-- Presets -->
         <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Presets</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Quick Presets</label>
             <div class="flex space-x-2">
                 <button @click="applyPreset('quality')"
                         class="px-4 py-2 bg-purple-100 text-purple-700 border border-purple-300 rounded-md text-sm hover:bg-purple-200 font-medium">
@@ -66,26 +70,42 @@
             <p class="mt-2 text-xs text-gray-500" x-text="presetDescription"></p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Metadata / Refine models (by purpose) -->
+        <h3 class="text-sm font-medium text-gray-700 mb-2 mt-4">Metadata & Refine (LLM)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI Model</label>
+                <label class="block text-xs text-gray-500 mb-1">OpenAI</label>
                 <div class="flex space-x-2">
                     <input type="text" x-model="models.openai"
                            class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
                     <button @click="saveModel('openai', models.openai)"
-                            class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">Save</button>
+                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">Save</button>
                 </div>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini Model</label>
+                <label class="block text-xs text-gray-500 mb-1">Gemini</label>
                 <div class="flex space-x-2">
                     <input type="text" x-model="models.gemini"
                            class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
                     <button @click="saveModel('gemini', models.gemini)"
-                            class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">Save</button>
+                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">Save</button>
                 </div>
             </div>
         </div>
+
+        <h3 class="text-sm font-medium text-gray-700 mb-2">Refine Models (SRT post-processing)</h3>
+        <p class="text-xs text-gray-500 mb-2">Smaller/cheaper models recommended for refine.</p>
+        <template x-for="(info, key) in generalSettings" :key="key">
+            <div x-show="key.startsWith('refine_model')" class="mb-2">
+                <label class="block text-xs text-gray-500 mb-1" x-text="info.label"></label>
+                <div class="flex space-x-2">
+                    <input type="text" x-model="info.value"
+                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
+                    <button @click="saveGeneral(key, info.value)"
+                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">Save</button>
+                </div>
+            </div>
+        </template>
     </div>
 
     <!-- General Settings -->
@@ -93,7 +113,7 @@
         <h2 class="text-lg font-medium text-gray-900 mb-4">General</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <template x-for="(info, key) in generalSettings" :key="key">
-                <div>
+                <div x-show="!key.startsWith('refine_model')">
                     <label class="block text-sm font-medium text-gray-700 mb-1" x-text="info.label"></label>
                     <div class="flex space-x-2">
                         <input type="text" x-model="info.value"
