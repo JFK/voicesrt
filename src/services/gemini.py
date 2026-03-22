@@ -40,7 +40,10 @@ Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]"""
     )
 
     text = strip_markdown_fence(response.text)
-    segments = json.loads(text)
+    try:
+        segments = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Gemini returned invalid JSON: {e}. Response: {text[:200]}")
 
     input_tokens = 0
     output_tokens = 0

@@ -8,8 +8,10 @@
     'failed': 'bg-red-100 text-red-800',
 } %}
 {% set color = status_colors.get(job.status, 'bg-gray-100 text-gray-800') %}
+{% set is_done = job.status in ('completed', 'failed') %}
+<div {% if is_done %}hx-swap-oob="true" id="job-status-container" data-poll="false"{% endif %}>
 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ color }}">
-    {% if job.status not in ('completed', 'failed') %}
+    {% if not is_done %}
     <span class="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
     {% endif %}
     {{ job.status }}
@@ -17,3 +19,11 @@
 {% if job.error_message %}
 <p class="text-xs text-red-600 mt-1">{{ job.error_message }}</p>
 {% endif %}
+{% if job.status == 'completed' %}
+<div class="mt-2 space-x-2">
+    {% if job.srt_path %}
+    <a href="/api/jobs/{{ job.id }}/download" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Download SRT</a>
+    {% endif %}
+</div>
+{% endif %}
+</div>

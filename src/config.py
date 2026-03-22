@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     default_openai_model: str = "gpt-5.4"
     default_gemini_model: str = "gemini-3.1-flash-lite"
 
+    # Upload settings
+    max_upload_size_gb: int = 10
+
     # Whisper settings
     whisper_chunk_duration_sec: int = 600  # 10 minutes
 

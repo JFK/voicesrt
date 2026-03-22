@@ -74,11 +74,15 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         save_srt(srt_content, srt_path)
         job.srt_path = str(srt_path)
 
-        # Step 4: Generate metadata if enabled
+        # Step 4: Generate metadata if enabled (non-fatal)
         if job.enable_metadata:
             job.status = "generating_metadata"
             await session.commit()
-            await _run_metadata_generation(job, session, srt_content, api_key)
+            try:
+                await _run_metadata_generation(job, session, srt_content, api_key)
+            except Exception as e:
+                logger.warning("Metadata generation failed for job %s: %s", job.id, e)
+                job.error_message = f"SRT generated, but metadata failed: {str(e)[:300]}"
 
         # Done
         job.status = "completed"

@@ -129,7 +129,7 @@ function uploadForm() {
                     const el = document.getElementById('job-status');
                     if (el) {
                         el.setAttribute('hx-get', '/api/jobs/' + data.id + '/status');
-                        el.setAttribute('hx-trigger', 'every 2s');
+                        el.setAttribute('hx-trigger', 'every 2s [document.querySelector("[data-poll=\\"false\\"]") === null]');
                         el.setAttribute('hx-swap', 'innerHTML');
                         htmx.process(el);
                     }

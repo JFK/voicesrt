@@ -1,7 +1,9 @@
+import logging
 import re
 import uuid
 from pathlib import Path
 
+import aiofiles
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
@@ -12,7 +14,11 @@ from src.database import async_session, get_session
 from src.models import Job
 from src.templating import templates
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+MAX_UPLOAD_SIZE = settings.max_upload_size_gb * 1024 * 1024 * 1024
 
 # Sanitize filenames to prevent path traversal
 _SAFE_FILENAME_RE = re.compile(r"[^\w\s\-.]", re.UNICODE)
@@ -43,6 +49,7 @@ async def _process_job(job_id: str) -> None:
         try:
             await process_transcription(job, session)
         except Exception as e:
+            logger.exception("Job %s failed", job_id)
             job.status = "failed"
             job.error_message = str(e)[:500]
             await session.commit()
@@ -53,7 +60,10 @@ async def _embed_job(job_id: str, do_srt: bool, do_logo: bool) -> None:
     from src.services.video_edit import embed_video
 
     async with async_session() as session:
-        job = await _get_job_or_404(session, job_id)
+        result = await session.execute(select(Job).where(Job.id == job_id))
+        job = result.scalar_one_or_none()
+        if not job:
+            return
         try:
             job.status = "editing_video"
             await session.commit()
@@ -62,6 +72,7 @@ async def _embed_job(job_id: str, do_srt: bool, do_logo: bool) -> None:
             job.status = "completed"
             await session.commit()
         except Exception as e:
+            logger.exception("Video embedding failed for job %s", job_id)
             job.status = "failed"
             job.error_message = f"Video editing failed: {str(e)[:400]}"
             await session.commit()
@@ -83,14 +94,28 @@ async def create_job(
     upload_path = settings.uploads_dir / f"{job_id}.mp4"
     upload_path.parent.mkdir(parents=True, exist_ok=True)
 
-    content = await file.read()
-    upload_path.write_bytes(content)
+    # Stream file to disk to handle large files without OOM
+    file_size = 0
+    try:
+        async with aiofiles.open(upload_path, "wb") as out:
+            while chunk := await file.read(8 * 1024 * 1024):  # 8MB chunks
+                file_size += len(chunk)
+                if file_size > MAX_UPLOAD_SIZE:
+                    await out.close()
+                    upload_path.unlink(missing_ok=True)
+                    raise HTTPException(status_code=413, detail=f"File too large. Max size is {MAX_UPLOAD_SIZE // (1024**3)}GB")
+                await out.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        upload_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
     try:
         job = Job(
             id=job_id,
             filename=_safe_filename(file.filename),
-            file_size=len(content),
+            file_size=file_size,
             provider=provider,
             language=language,
             enable_metadata=enable_metadata,
@@ -162,7 +187,7 @@ async def download_srt(job_id: str, session: AsyncSession = Depends(get_session)
     if not job.srt_path:
         raise HTTPException(status_code=404, detail="SRT file not found")
 
-    srt_file = Path(job.srt_path)
+    srt_file = Path(job.srt_path).resolve()
     if not srt_file.exists():
         raise HTTPException(status_code=404, detail="SRT file not found on disk")
 
@@ -176,7 +201,7 @@ async def download_video(job_id: str, session: AsyncSession = Depends(get_sessio
     if not job.output_video_path:
         raise HTTPException(status_code=404, detail="Edited video not found")
 
-    video_file = Path(job.output_video_path)
+    video_file = Path(job.output_video_path).resolve()
     if not video_file.exists():
         raise HTTPException(status_code=404, detail="Video file not found on disk")
 
@@ -207,15 +232,17 @@ async def embed_subtitles(
 async def delete_job(job_id: str, session: AsyncSession = Depends(get_session)):
     job = await _get_job_or_404(session, job_id)
 
-    # Clean up files
+    # Delete DB record first, then clean up files
+    await session.delete(job)
+    await session.commit()
+
+    # Clean up files (best effort)
     for path_str in [job.srt_path, job.output_video_path]:
         if path_str:
             Path(path_str).unlink(missing_ok=True)
 
-    for pattern in [f"{job_id}.mp4", f"{job_id}.wav", f"{job_id}.mp3"]:
+    for pattern in [f"{job.id}.mp4", f"{job.id}.wav", f"{job.id}.mp3"]:
         for d in [settings.uploads_dir, settings.audio_dir]:
             (d / pattern).unlink(missing_ok=True)
 
-    await session.delete(job)
-    await session.commit()
     return {"deleted": True}

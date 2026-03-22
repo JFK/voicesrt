@@ -80,7 +80,10 @@ async def _generate_openai(prompt: str, api_key: str, model: str) -> tuple[dict,
     )
 
     text = response.choices[0].message.content or "{}"
-    metadata = json.loads(text)
+    try:
+        metadata = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"OpenAI returned invalid JSON: {e}. Response: {text[:200]}")
 
     input_tokens = response.usage.prompt_tokens if response.usage else 0
     output_tokens = response.usage.completion_tokens if response.usage else 0
@@ -89,16 +92,23 @@ async def _generate_openai(prompt: str, api_key: str, model: str) -> tuple[dict,
 
 
 async def _generate_gemini(prompt: str, api_key: str, model: str) -> tuple[dict, int, int]:
+    import asyncio
+
     from google import genai
 
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
+    # Run synchronous Gemini client in thread pool to avoid blocking event loop
+    response = await asyncio.to_thread(
+        client.models.generate_content,
         model=model,
         contents=f"{METADATA_SYSTEM_PROMPT}\n\n{prompt}",
     )
 
     text = strip_markdown_fence(response.text)
-    metadata = json.loads(text)
+    try:
+        metadata = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Gemini returned invalid JSON: {e}. Response: {text[:200]}")
 
     input_tokens = 0
     output_tokens = 0
