@@ -1,23 +1,23 @@
 [project]
 name = "voicesrt"
 version = "0.1.0"
-description = "MP4 to SRT subtitle generator with YouTube metadata and video editing"
+description = "AI-powered SRT subtitle generator from video/audio files with YouTube metadata and quiz generation"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.34.0",
-    "jinja2>=3.1.0",
-    "python-multipart>=0.0.18",
-    "sqlalchemy>=2.0.0",
-    "aiosqlite>=0.20.0",
-    "aiofiles>=24.1.0",
-    "openai>=1.54.0",
-    "google-genai>=1.0.0",
-    "cryptography>=42.0.0",
-    "pydantic>=2.9.0",
-    "pydantic-settings>=2.6.0",
-    "alembic>=1.13.0",
+    "fastapi>=0.115.0,<1.0.0",
+    "uvicorn[standard]>=0.34.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.18,<1.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
+    "aiosqlite>=0.20.0,<1.0.0",
+    "aiofiles>=24.1.0,<26.0.0",
+    "openai>=1.54.0,<3.0.0",
+    "google-genai>=1.0.0,<2.0.0",
+    "cryptography>=42.0.0,<48.0.0",
+    "pydantic>=2.9.0,<3.0.0",
+    "pydantic-settings>=2.6.0,<3.0.0",
+    "alembic>=1.13.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
