@@ -68,7 +68,9 @@ async def generate_youtube_metadata(
         return await _generate_gemini(prompt, api_key, model)
 
 
-OPTIMIZE_PROMPT = """You are a YouTube SEO expert. Improve the following metadata generation prompt based on the channel context provided.
+OPTIMIZE_PROMPT = """\
+You are a YouTube SEO expert. Improve the following metadata generation prompt \
+based on the channel context provided.
 
 Make the prompt more specific and effective for generating:
 - Click-worthy titles (with SEO keywords)

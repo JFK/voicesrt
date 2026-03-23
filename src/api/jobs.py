@@ -93,12 +93,13 @@ async def create_job(
         valid = ", ".join(VALID_REFINE_MODES)
         raise HTTPException(status_code=400, detail=f"Invalid refine_mode. Must be one of: {valid}")
 
-    SUPPORTED_EXTENSIONS = {".mp4", ".mp3", ".wav", ".mov", ".avi", ".mkv", ".m4a", ".flac", ".ogg", ".webm"}
+    supported = {".mp4", ".mp3", ".wav", ".mov", ".avi", ".mkv", ".m4a", ".flac", ".ogg", ".webm"}
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
     ext = Path(file.filename).suffix.lower()
-    if ext not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Unsupported format. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
+    if ext not in supported:
+        fmts = ", ".join(sorted(supported))
+        raise HTTPException(status_code=400, detail=f"Unsupported format. Supported: {fmts}")
 
     job_id = str(uuid.uuid4())
     upload_path = settings.uploads_dir / f"{job_id}{ext}"
@@ -114,7 +115,8 @@ async def create_job(
                 if file_size > max_size:
                     await out.close()
                     upload_path.unlink(missing_ok=True)
-                    raise HTTPException(status_code=413, detail=f"File too large. Max size is {max_size // (1024**3)}GB")
+                    max_gb = max_size // (1024**3)
+                    raise HTTPException(status_code=413, detail=f"File too large. Max: {max_gb}GB")
                 await out.write(chunk)
     except HTTPException:
         raise
