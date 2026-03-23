@@ -19,7 +19,7 @@ engine = create_async_engine(settings.db_url, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def init_db() -> None:
+def ensure_dirs() -> None:
     for d in [
         settings.data_dir / "db",
         settings.uploads_dir,
@@ -30,7 +30,9 @@ async def init_db() -> None:
     ]:
         d.mkdir(parents=True, exist_ok=True)
 
-    # Run Alembic migrations (creates tables + applies schema changes)
+
+def run_migrations() -> None:
+    """Run Alembic migrations synchronously."""
     from alembic.config import Config
 
     from alembic import command
@@ -38,7 +40,9 @@ async def init_db() -> None:
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
 
-    # Load custom pricing from DB
+
+async def init_db() -> None:
+    """Load pricing cache on startup (migrations handled by start.sh)."""
     from src.services.cost import load_pricing_from_db
 
     async with async_session() as session:

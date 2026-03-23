@@ -13,8 +13,7 @@ DEFAULT_WHISPER_COST_PER_MINUTE = 0.006
 
 DEFAULT_PRICING = {
     "whisper-1": {"input_per_1m": 0.0, "output_per_1m": 0.0, "per_minute": 0.006},
-    "gemini-3.1-flash-lite": {"input_per_1m": 0.25, "output_per_1m": 1.50},
-    "gemini-3.1-pro": {"input_per_1m": 1.25, "output_per_1m": 10.00},
+    "gemini-2.5-flash-lite": {"input_per_1m": 0.10, "output_per_1m": 0.40},
     "gemini-2.5-flash": {"input_per_1m": 0.15, "output_per_1m": 0.60},
     "gemini-2.5-pro": {"input_per_1m": 1.25, "output_per_1m": 10.00},
     "gpt-5.4": {"input_per_1m": 2.50, "output_per_1m": 15.00},
@@ -58,7 +57,7 @@ def estimate_whisper_cost(duration_sec: float) -> float:
     return (duration_sec / 60.0) * per_min
 
 
-def estimate_gemini_cost(duration_sec: float, output_tokens: int, model: str = "gemini-3.1-flash-lite") -> float:
+def estimate_gemini_cost(duration_sec: float, output_tokens: int, model: str = "gemini-2.5-flash") -> float:
     pricing = get_model_pricing(model)
     input_tokens = duration_sec * GEMINI_AUDIO_TOKENS_PER_SECOND
     input_cost = (input_tokens / 1_000_000) * pricing.get("input_per_1m", 0)

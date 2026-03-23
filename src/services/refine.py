@@ -183,12 +183,17 @@ async def _refine_gemini(prompt: str, api_key: str, model: str) -> tuple[list[di
     import asyncio
 
     from google import genai
+    from google.genai.types import GenerateContentConfig
 
     client = genai.Client(api_key=api_key)
     response = await asyncio.to_thread(
         client.models.generate_content,
         model=model,
         contents=f"{REFINE_SYSTEM_PROMPT}\n\n{prompt}",
+        config=GenerateContentConfig(
+            max_output_tokens=65536,
+            response_mime_type="application/json",
+        ),
     )
 
     result = parse_json_response(response.text, context="Gemini refinement")

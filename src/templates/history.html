@@ -9,6 +9,7 @@
             <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_file') }}</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_provider') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_mode') }}</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_duration') }}</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_status') }}</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_created') }}</th>
@@ -20,6 +21,7 @@
             <tr>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ job.filename }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ job.provider }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ job.refine_mode or '-' }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {% if job.audio_duration %}{{ "%.1f"|format(job.audio_duration) }}s{% else %}-{% endif %}
                 </td>
@@ -63,7 +65,7 @@
             {% endfor %}
             {% if not jobs %}
             <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">{{ t('history.no_jobs') }}</td>
+                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">{{ t('history.no_jobs') }}</td>
             </tr>
             {% endif %}
         </tbody>

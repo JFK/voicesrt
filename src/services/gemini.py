@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from google import genai
+from google.genai.types import GenerateContentConfig
 
 from src.services.utils import extract_gemini_tokens, parse_json_response
 
@@ -44,6 +45,10 @@ Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]{glossary_hint
     response = client.models.generate_content(
         model=model,
         contents=[uploaded, prompt],
+        config=GenerateContentConfig(
+            max_output_tokens=65536,
+            response_mime_type="application/json",
+        ),
     )
 
     segments = parse_json_response(response.text, context="Gemini transcription")

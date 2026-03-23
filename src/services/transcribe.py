@@ -234,7 +234,7 @@ async def _run_refinement(
     refine_key = f"general.refine_model_{provider_name}"
     result = await session.execute(select(Setting).where(Setting.key == refine_key))
     setting = result.scalar_one_or_none()
-    default_model = "gpt-5.4-nano" if provider_name == "openai" else "gemini-3.1-flash-lite"
+    default_model = "gpt-5.4-nano" if provider_name == "openai" else "gemini-2.5-flash-lite"
     refine_model = setting.value if setting else default_model
 
     refine_mode = job.refine_mode or "standard"

@@ -133,7 +133,7 @@ async def set_model(provider: str, body: ModelInput, session: AsyncSession = Dep
 GENERAL_SETTINGS = {
     "max_upload_size_gb": {"default": str(app_settings.max_upload_size_gb), "label": "Max Upload Size (GB)"},
     "refine_model_openai": {"default": "gpt-5.4-nano", "label": "Refine Model (OpenAI)"},
-    "refine_model_gemini": {"default": "gemini-3.1-flash-lite", "label": "Refine Model (Gemini)"},
+    "refine_model_gemini": {"default": "gemini-2.5-flash-lite", "label": "Refine Model (Gemini)"},
 }
 
 
