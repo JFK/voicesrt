@@ -1,8 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Upload - VoiceSRT{% endblock %}
+{% block title %}{{ t('upload.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="restoreFromUrl()">
-    <h1 class="text-2xl font-bold text-gray-900 mb-6">Upload</h1>
+<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="restoreFromUrl()"
+     data-i18n-starting="{{ t('upload.starting') }}"
+     data-i18n-elapsed="{{ t('upload.elapsed') }}"
+     data-i18n-upload-failed="{{ t('upload.upload_failed') }}">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">{{ t('upload.title') }}</h1>
 
     <!-- Upload Form (hidden during processing) -->
     <form x-show="!jobId" @submit.prevent="submitForm" class="space-y-6 bg-white shadow rounded-lg p-6">
@@ -18,85 +21,118 @@
                     <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <p class="mt-2 text-sm text-gray-600">
-                    <label for="fileInput" class="cursor-pointer text-blue-600 hover:text-blue-500 font-medium">Click to upload</label>
-                    or drag and drop
+                    <label for="fileInput" class="cursor-pointer text-blue-600 hover:text-blue-500 font-medium">{{ t('upload.click_to_upload') }}</label>
+                    {{ t('upload.or_drag_drop') }}
                 </p>
                 <p class="mt-1 text-xs text-gray-500">MP4, MP3, WAV, MOV, AVI, MKV, M4A, FLAC, OGG, WebM</p>
             </div>
             <div x-show="file" class="text-sm text-gray-700">
                 <p class="font-medium" x-text="file?.name"></p>
                 <p class="text-gray-500" x-text="formatSize(file?.size)"></p>
-                <button type="button" @click="file = null" class="mt-2 text-red-600 hover:text-red-500 text-xs">Remove</button>
+                <button type="button" @click="file = null" class="mt-2 text-red-600 hover:text-red-500 text-xs">{{ t('upload.remove') }}</button>
             </div>
         </div>
 
         <!-- Options -->
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('upload.provider') }}</label>
                 <select x-model="provider" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
                     <option value="whisper">OpenAI Whisper</option>
                     <option value="gemini">Google Gemini</option>
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('upload.language') }}</label>
                 <select x-model="language" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
-                    <option value="">Auto Detect</option>
-                    <option value="ja">Japanese</option>
-                    <option value="en">English</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ko">Korean</option>
+                    <option value="">{{ t('upload.auto_detect') }}</option>
+                    <option value="ja">{{ t('upload.lang_ja') }}</option>
+                    <option value="en">{{ t('upload.lang_en') }}</option>
+                    <option value="zh">{{ t('upload.lang_zh') }}</option>
+                    <option value="ko">{{ t('upload.lang_ko') }}</option>
                 </select>
             </div>
         </div>
 
+        <!-- Glossary -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('upload.glossary') }}</label>
+            <textarea x-model="glossary" rows="3"
+                      placeholder="{{ t('upload.glossary_placeholder') }}"
+                      class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border font-mono"></textarea>
+            <p class="mt-1 text-xs text-gray-500">{{ t('upload.glossary_hint') }}</p>
+        </div>
+
+        <!-- Refine -->
         <div class="flex items-center">
             <input type="checkbox" x-model="enableRefine" id="enableRefine"
                    class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
             <label for="enableRefine" class="ml-2 text-sm text-gray-700">
-                LLM post-processing (fix proper nouns, punctuation, fillers)
+                {{ t('upload.enable_refine') }}
             </label>
+        </div>
+
+        <!-- Refine Mode -->
+        <div x-show="enableRefine" x-transition class="ml-6">
+            <div class="flex items-center mb-1">
+                <label class="block text-sm font-medium text-gray-700">{{ t('upload.refine_mode') }}</label>
+                <div class="relative inline-block group ml-1">
+                    <span class="cursor-help text-gray-400 hover:text-gray-600 text-sm">?</span>
+                    <div class="invisible group-hover:visible absolute z-10 w-72 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg -top-2 left-6">
+                        <p class="mb-2"><span class="font-semibold">Verbatim:</span> {{ t('upload.refine_verbatim_desc') }}</p>
+                        <p class="mb-2"><span class="font-semibold">Standard:</span> {{ t('upload.refine_standard_desc') }}</p>
+                        <p><span class="font-semibold">Caption:</span> {{ t('upload.refine_caption_desc') }}</p>
+                    </div>
+                </div>
+            </div>
+            <select x-model="refineMode" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
+                <option value="verbatim">{{ t('upload.refine_verbatim') }}</option>
+                <option value="standard">{{ t('upload.refine_standard') }}</option>
+                <option value="caption">{{ t('upload.refine_caption') }}</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500" x-show="refineMode === 'verbatim'">{{ t('upload.refine_verbatim_desc') }}</p>
+            <p class="mt-1 text-xs text-gray-500" x-show="refineMode === 'standard'">{{ t('upload.refine_standard_desc') }}</p>
+            <p class="mt-1 text-xs text-gray-500" x-show="refineMode === 'caption'">{{ t('upload.refine_caption_desc') }}</p>
         </div>
 
         <!-- Submit -->
         <button type="submit"
                 :disabled="!file || uploading"
                 class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium">
-            <span x-show="!uploading">Upload & Process</span>
-            <span x-show="uploading">Uploading...</span>
+            <span x-show="!uploading">{{ t('upload.submit') }}</span>
+            <span x-show="uploading">{{ t('upload.uploading') }}</span>
         </button>
     </form>
 
     <!-- Processing Status -->
     <div x-show="jobId" class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-3">Processing</h2>
+        <h2 class="text-lg font-medium text-gray-900 mb-3">{{ t('upload.processing') }}</h2>
         <p class="text-sm text-gray-500 mb-3" x-text="fileName"></p>
 
         <!-- Status badge -->
         <div id="job-status" x-html="statusHtml">
             <div class="flex items-center space-x-2">
                 <div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                <span class="text-sm text-gray-600">Starting...</span>
+                <span class="text-sm text-gray-600" x-text="$root.dataset.i18nStarting"></span>
             </div>
         </div>
-        <p x-show="!isDone && elapsed > 0" class="mt-2 text-xs text-gray-400" x-text="'Elapsed: ' + elapsed + 's'"></p>
+        <p x-show="!isDone && elapsed > 0" class="mt-2 text-xs text-gray-400" x-text="$root.dataset.i18nElapsed + ' ' + elapsed + 's'"></p>
 
         <!-- Action buttons (shown when done) -->
         <div x-show="isDone" class="mt-4 flex flex-wrap gap-2">
             <a :href="'/api/jobs/' + jobId + '/download'"
                x-show="isCompleted"
                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
-                Download SRT
+                {{ t('upload.download_srt') }}
             </a>
 
             <a href="/history"
                class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md text-sm font-medium hover:bg-gray-700">
-                View History
+                {{ t('upload.view_history') }}
             </a>
             <button @click="reset()"
                     class="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">
-                Upload Another
+                {{ t('upload.upload_another') }}
             </button>
         </div>
     </div>
@@ -110,6 +146,8 @@ function uploadForm() {
         provider: 'whisper',
         language: '',
         enableRefine: true,
+        refineMode: 'standard',
+        glossary: '',
         statusHtml: '',
         pollTimer: null,
         elapsedTimer: null,
@@ -177,11 +215,13 @@ function uploadForm() {
 
             const formData = new FormData();
             formData.append('file', this.file);
+            if (this.glossary.trim()) formData.append('glossary', this.glossary.trim());
 
             const params = new URLSearchParams();
             params.set('provider', this.provider);
             if (this.language) params.set('language', this.language);
             params.set('enable_refine', this.enableRefine);
+            if (this.enableRefine) params.set('refine_mode', this.refineMode);
 
             try {
                 const res = await fetch('/api/jobs?' + params.toString(), {
@@ -194,7 +234,7 @@ function uploadForm() {
                 history.replaceState(null, '', '/?job=' + data.id);
                 this.startPolling(data.id);
             } catch (e) {
-                alert('Upload failed: ' + e.message);
+                alert(this.$root.dataset.i18nUploadFailed + ' ' + e.message);
             } finally {
                 this.uploading = false;
             }

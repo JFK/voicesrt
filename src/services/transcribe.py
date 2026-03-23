@@ -65,18 +65,25 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         job.audio_duration = duration
         await session.commit()
 
+        # Merge global glossary (from Settings) with per-job glossary
+        result = await session.execute(select(Setting).where(Setting.key == "glossary"))
+        glossary_setting = result.scalar_one_or_none()
+        global_glossary = glossary_setting.value if glossary_setting else ""
+        job_glossary = job.glossary or ""
+        combined_glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
+
         # Step 2: Transcribe
         job.status = "transcribing"
         await session.commit()
 
-        segments = await _run_transcription(job, session, audio_path, api_key, duration)
+        segments = await _run_transcription(job, session, audio_path, api_key, duration, combined_glossary)
 
         # Step 3: LLM post-processing (refine) if enabled
         if job.enable_refine:
             job.status = "refining"
             await session.commit()
             try:
-                segments = await _run_refinement(job, session, segments, api_key)
+                segments = await _run_refinement(job, session, segments, api_key, combined_glossary)
             except Exception as e:
                 logger.warning("Refinement failed for job %s: %s", job.id, e)
                 job.error_message = f"Refinement failed, using raw transcription: {str(e)[:300]}"
@@ -117,11 +124,15 @@ def _cleanup_temp_files(job_id: str, audio_path: Path | None) -> None:
 
 
 async def _run_transcription(
-    job: Job, session: AsyncSession, audio_path: Path, api_key: str, duration: float
+    job: Job, session: AsyncSession, audio_path: Path, api_key: str, duration: float,
+    glossary: str = "",
 ) -> list[dict]:
     """Run transcription with the configured provider and log cost."""
+    # Build Whisper prompt from glossary (extract terms as hints)
+    whisper_prompt = _build_whisper_prompt(glossary) if glossary else None
+
     if job.provider == "whisper":
-        segments = await _transcribe_whisper(audio_path, api_key, job.language)
+        segments = await _transcribe_whisper(audio_path, api_key, job.language, whisper_prompt)
         cost = estimate_whisper_cost(duration)
         await log_cost(session, job.id, "whisper", "whisper-1", "transcription", cost, audio_duration=duration)
     else:
@@ -129,7 +140,7 @@ async def _run_transcription(
         from src.services.gemini import transcribe_with_gemini
 
         segments, input_tokens, output_tokens = await transcribe_with_gemini(
-            audio_path, api_key, job.language, model
+            audio_path, api_key, job.language, model, glossary
         )
         cost = estimate_gemini_cost(duration, output_tokens, model)
         await log_cost(
@@ -140,19 +151,39 @@ async def _run_transcription(
     return segments
 
 
-async def _transcribe_whisper(audio_path: Path, api_key: str, language: str | None) -> list[dict]:
+def _build_whisper_prompt(glossary: str) -> str:
+    """Extract terms from glossary lines (term:reading) as comma-separated hints for Whisper."""
+    terms = []
+    for line in glossary.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Extract both the term and reading
+        if ":" in line or "：" in line:
+            parts = line.replace("：", ":").split(":", 1)
+            terms.append(parts[0].strip())
+            if parts[1].strip():
+                terms.append(parts[1].strip())
+        else:
+            terms.append(line)
+    return "、".join(terms) if terms else ""
+
+
+async def _transcribe_whisper(
+    audio_path: Path, api_key: str, language: str | None, prompt: str | None = None
+) -> list[dict]:
     """Transcribe with Whisper, handling chunking for large files."""
     from src.services.whisper import transcribe_with_whisper
 
     chunks = await split_audio(audio_path)
     if len(chunks) == 1:
-        return await transcribe_with_whisper(audio_path, api_key, language)
+        return await transcribe_with_whisper(audio_path, api_key, language, prompt)
 
     all_segments: list[dict] = []
     offset = 0.0
     for chunk_path in chunks:
         chunk_duration = await get_audio_duration(chunk_path)
-        segments = await transcribe_with_whisper(chunk_path, api_key, language)
+        segments = await transcribe_with_whisper(chunk_path, api_key, language, prompt)
         # Apply offset without mutating original segments
         for seg in segments:
             all_segments.append({
@@ -191,7 +222,8 @@ async def _run_metadata_generation(
 
 
 async def _run_refinement(
-    job: Job, session: AsyncSession, segments: list[dict], api_key: str
+    job: Job, session: AsyncSession, segments: list[dict], api_key: str,
+    glossary: str = "",
 ) -> list[dict]:
     """Refine segments using LLM post-processing and log cost."""
     from src.services.refine import refine_with_llm
@@ -202,15 +234,23 @@ async def _run_refinement(
     refine_key = f"general.refine_model_{provider_name}"
     result = await session.execute(select(Setting).where(Setting.key == refine_key))
     setting = result.scalar_one_or_none()
-    refine_model = setting.value if setting else ("gpt-5.4-nano" if provider_name == "openai" else "gemini-3.1-flash-lite")
+    default_model = "gpt-5.4-nano" if provider_name == "openai" else "gemini-3.1-flash-lite"
+    refine_model = setting.value if setting else default_model
 
-    # Get glossary
-    result = await session.execute(select(Setting).where(Setting.key == "glossary"))
-    glossary_setting = result.scalar_one_or_none()
-    glossary = glossary_setting.value if glossary_setting else ""
+    refine_mode = job.refine_mode or "standard"
+
+    # Load custom prompts from DB
+    custom_prompts = {}
+    for mode in ("verbatim", "standard", "caption"):
+        key = f"general.refine_prompt_{mode}"
+        result = await session.execute(select(Setting).where(Setting.key == key))
+        setting = result.scalar_one_or_none()
+        if setting:
+            custom_prompts[mode] = setting.value
 
     refined, input_tokens, output_tokens = await refine_with_llm(
-        segments, api_key, provider_name, refine_model, glossary
+        segments, api_key, provider_name, refine_model, glossary, refine_mode,
+        custom_prompts=custom_prompts or None,
     )
 
     cost = estimate_llm_cost(input_tokens, output_tokens, refine_model, provider_name)

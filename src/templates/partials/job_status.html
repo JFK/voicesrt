@@ -14,7 +14,7 @@
     {% if not is_done %}
     <span class="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
     {% endif %}
-    {{ job.status }}
+    {{ t('status.' + job.status) if t is defined else job.status }}
 </span>
 {% if job.error_message %}
 <p class="text-xs text-red-600 mt-1 max-w-xs truncate" title="{{ job.error_message }}">{{ job.error_message }}</p>

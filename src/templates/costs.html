@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Costs - VoiceSRT{% endblock %}
+{% block title %}{{ t('costs.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 mb-6">Cost Dashboard</h1>
+<h1 class="text-2xl font-bold text-gray-900 mb-6">{{ t('costs.heading') }}</h1>
 
 <div x-data="costDashboard()" x-init="loadCosts()">
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-white shadow rounded-lg p-6">
-            <p class="text-sm text-gray-500">Total Cost</p>
+            <p class="text-sm text-gray-500">{{ t('costs.total_cost') }}</p>
             <p class="text-3xl font-bold text-gray-900" x-text="'$' + data.total.toFixed(4)">$0.00</p>
         </div>
         <template x-for="(cost, provider) in data.by_provider" :key="provider">
@@ -20,12 +20,12 @@
 
     <!-- Monthly Breakdown -->
     <div class="bg-white shadow rounded-lg p-6 mb-6" x-show="data.by_month.length > 0">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Monthly Costs</h2>
+        <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('costs.monthly_costs') }}</h2>
         <table class="min-w-full divide-y divide-gray-200">
             <thead>
                 <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_month') }}</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_cost') }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -41,17 +41,17 @@
 
     <!-- Recent Logs -->
     <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Recent API Calls</h2>
+        <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('costs.recent_api_calls') }}</h2>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead>
                     <tr>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Operation</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_provider') }}</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_model') }}</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_operation') }}</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_duration') }}</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_cost') }}</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ t('costs.col_date') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -68,7 +68,7 @@
                 </tbody>
             </table>
         </div>
-        <p x-show="data.recent.length === 0" class="text-sm text-gray-500 text-center py-4">No API calls yet.</p>
+        <p x-show="data.recent.length === 0" class="text-sm text-gray-500 text-center py-4">{{ t('costs.no_api_calls') }}</p>
     </div>
 </div>
 

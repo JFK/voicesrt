@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,6 +71,9 @@ async def _process_job(job_id: str) -> None:
 
 
 
+VALID_REFINE_MODES = {"verbatim", "standard", "caption"}
+
+
 @router.post("")
 async def create_job(
     file: UploadFile,
@@ -78,9 +81,18 @@ async def create_job(
     language: str | None = None,
     enable_metadata: bool = False,
     enable_refine: bool = False,
+    refine_mode: str | None = Query(None),
+    glossary: str | None = Form(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     session: AsyncSession = Depends(get_session),
 ):
+    if glossary and len(glossary) > 5000:
+        raise HTTPException(status_code=400, detail="Glossary too long. Max 5000 characters.")
+
+    if refine_mode and refine_mode not in VALID_REFINE_MODES:
+        valid = ", ".join(VALID_REFINE_MODES)
+        raise HTTPException(status_code=400, detail=f"Invalid refine_mode. Must be one of: {valid}")
+
     SUPPORTED_EXTENSIONS = {".mp4", ".mp3", ".wav", ".mov", ".avi", ".mkv", ".m4a", ".flac", ".ogg", ".webm"}
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
@@ -119,6 +131,8 @@ async def create_job(
             language=language,
             enable_metadata=enable_metadata,
             enable_refine=enable_refine,
+            glossary=glossary.strip() if glossary else None,
+            refine_mode=refine_mode,
         )
         session.add(job)
         await session.commit()
@@ -176,7 +190,9 @@ async def get_job_status(job_id: str, request: Request, session: AsyncSession = 
     job = await _get_job_or_404(session, job_id)
 
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(request, "partials/job_status.html", {"job": job})
+        from src.templating import get_lang, get_translator
+        t = get_translator(get_lang(request))
+        return templates.TemplateResponse(request, "partials/job_status.html", {"job": job, "t": t})
 
     return {"status": job.status, "error_message": job.error_message}
 

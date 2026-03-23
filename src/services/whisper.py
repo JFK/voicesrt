@@ -1,7 +1,6 @@
+import logging
 from pathlib import Path
 from typing import Any
-
-import logging
 
 import openai
 
@@ -12,6 +11,7 @@ async def transcribe_with_whisper(
     audio_path: Path,
     api_key: str,
     language: str | None = None,
+    prompt: str | None = None,
 ) -> list[dict]:
     """Transcribe audio using OpenAI Whisper API.
 
@@ -26,6 +26,12 @@ async def transcribe_with_whisper(
     }
     if language:
         kwargs["language"] = language
+    if prompt:
+        # Whisper prompt is limited to ~224 tokens; truncate if needed
+        if len(prompt) > 800:
+            logger.warning("Whisper prompt truncated from %d to 800 chars", len(prompt))
+            prompt = prompt[:800]
+        kwargs["prompt"] = prompt
 
     with open(audio_path, "rb") as f:
         kwargs["file"] = f

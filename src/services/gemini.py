@@ -13,6 +13,7 @@ async def transcribe_with_gemini(
     api_key: str,
     language: str | None = None,
     model: str = "gemini-2.5-flash",
+    glossary: str = "",
 ) -> tuple[list[dict], int, int]:
     """Transcribe audio using Google Gemini API.
 
@@ -23,6 +24,13 @@ async def transcribe_with_gemini(
     uploaded = client.files.upload(file=str(audio_path))
 
     lang_hint = f" The audio is in {language}." if language else ""
+    glossary_hint = ""
+    if glossary.strip():
+        glossary_hint = f"""
+
+Use this glossary for accurate transcription of proper nouns and technical terms:
+{glossary.strip()}
+"""
     prompt = f"""Transcribe this audio file with precise timestamps.{lang_hint}
 
 Return ONLY a JSON array, no other text or markdown. Each element must have:
@@ -31,7 +39,7 @@ Return ONLY a JSON array, no other text or markdown. Each element must have:
 - "text": the spoken text for that segment
 
 Keep segments at natural sentence boundaries, roughly 1-10 seconds each.
-Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]"""
+Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]{glossary_hint}"""
 
     response = client.models.generate_content(
         model=model,

@@ -116,6 +116,7 @@ async def optimize_meta_prompt(
         return response.choices[0].message.content or current_prompt
     else:
         import asyncio
+
         from google import genai
         client = genai.Client(api_key=api_key)
         response = await asyncio.to_thread(

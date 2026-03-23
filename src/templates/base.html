@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" class="h-full bg-gray-50">
+<html lang="{{ lang }}" class="h-full bg-gray-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,21 +22,26 @@
                         <div class="ml-10 flex items-baseline space-x-4">
                             <a href="/"
                                class="{% if active_page == 'upload' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} rounded-md px-3 py-2 text-sm font-medium">
-                                Upload
+                                {{ t('nav.upload') }}
                             </a>
                             <a href="/history"
                                class="{% if active_page == 'history' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} rounded-md px-3 py-2 text-sm font-medium">
-                                History
+                                {{ t('nav.history') }}
                             </a>
                             <a href="/costs"
                                class="{% if active_page == 'costs' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} rounded-md px-3 py-2 text-sm font-medium">
-                                Costs
+                                {{ t('nav.costs') }}
                             </a>
                             <a href="/settings"
                                class="{% if active_page == 'settings' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} rounded-md px-3 py-2 text-sm font-medium">
-                                Settings
+                                {{ t('nav.settings') }}
                             </a>
                         </div>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm">
+                        <a href="/lang/en" class="text-gray-300 hover:text-white px-2 py-1 rounded {% if lang == 'en' %}bg-gray-700 text-white{% endif %}">EN</a>
+                        <span class="text-gray-500">|</span>
+                        <a href="/lang/ja" class="text-gray-300 hover:text-white px-2 py-1 rounded {% if lang == 'ja' %}bg-gray-700 text-white{% endif %}">JA</a>
                     </div>
                 </div>
             </div>

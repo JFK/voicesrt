@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}History - VoiceSRT{% endblock %}
+{% block title %}{{ t('history.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 mb-6">Job History</h1>
+<h1 class="text-2xl font-bold text-gray-900 mb-6">{{ t('history.heading') }}</h1>
 
 <div class="bg-white shadow rounded-lg overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_file') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_provider') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_duration') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_status') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_created') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_actions') }}</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -40,30 +40,30 @@
 
                     {% if job.srt_path and job.status in ('completed', 'failed') %}
                     <a href="/meta/{{ job.id }}"
-                       class="text-yellow-600 hover:text-yellow-800 font-medium">{% if job.youtube_title %}Edit Meta{% else %}Gen Meta{% endif %}</a>
+                       class="text-yellow-600 hover:text-yellow-800 font-medium">{% if job.youtube_title %}{{ t('history.edit_meta') }}{% else %}{{ t('history.gen_meta') }}{% endif %}</a>
                     {% endif %}
 
                     {% if job.youtube_title %}
                     <button onclick="showMetaModal('{{ job.id }}')"
-                            class="text-yellow-600 hover:text-yellow-800 font-medium">Meta</button>
+                            class="text-yellow-600 hover:text-yellow-800 font-medium">{{ t('history.meta') }}</button>
                     {% endif %}
 
                     {% if job.srt_path and job.status in ('completed', 'failed') %}
                     <button onclick="generateCatchphrase('{{ job.id }}')"
-                            class="text-pink-600 hover:text-pink-800 font-medium">Thumb</button>
+                            class="text-pink-600 hover:text-pink-800 font-medium">{{ t('history.thumb') }}</button>
                     <button onclick="generateQuiz('{{ job.id }}')"
-                            class="text-emerald-600 hover:text-emerald-800 font-medium">Quiz</button>
+                            class="text-emerald-600 hover:text-emerald-800 font-medium">{{ t('history.quiz') }}</button>
                     {% endif %}
 
-                    <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="Delete this job?"
+                    <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="{{ t('history.delete_confirm') }}"
                             hx-target="closest tr" hx-swap="outerHTML"
-                            class="text-red-600 hover:text-red-800 font-medium">Del</button>
+                            class="text-red-600 hover:text-red-800 font-medium">{{ t('history.del') }}</button>
                 </td>
             </tr>
             {% endfor %}
             {% if not jobs %}
             <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">No jobs yet. Upload a media file to get started.</td>
+                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">{{ t('history.no_jobs') }}</td>
             </tr>
             {% endif %}
         </tbody>
@@ -75,7 +75,7 @@
      onclick="if(event.target===this)this.style.display='none'">
     <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold">YouTube Metadata</h3>
+            <h3 class="text-lg font-bold">{{ t('history.youtube_metadata') }}</h3>
             <button onclick="document.getElementById('meta-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div id="meta-content" class="space-y-4"></div>
@@ -87,7 +87,7 @@
      onclick="if(event.target===this)this.style.display='none'">
     <div class="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold">Thumbnail Catchphrases</h3>
+            <h3 class="text-lg font-bold">{{ t('history.thumbnail_catchphrases') }}</h3>
             <button onclick="document.getElementById('catchphrase-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div id="catchphrase-content"></div>
@@ -98,7 +98,7 @@
 <div id="quiz-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold">YouTube Quiz</h3>
+            <h3 class="text-lg font-bold">{{ t('history.youtube_quiz') }}</h3>
             <button onclick="document.getElementById('quiz-modal').style.display='none'" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
         <div id="quiz-content">
@@ -118,28 +118,28 @@ async function showMetaModal(jobId) {
 
     content.innerHTML = `
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('history.label_title') }}</label>
             <div class="flex">
                 <input type="text" value="${job.youtube_title || ''}" readonly
                        class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50" id="meta-title">
                 <button onclick="navigator.clipboard.writeText(document.getElementById('meta-title').value)"
-                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
+                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
             </div>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('history.label_description') }}</label>
             <textarea readonly rows="10" id="meta-desc"
                       class="w-full rounded-md border-gray-300 text-sm p-2 border bg-gray-50">${job.youtube_description || ''}</textarea>
             <button onclick="navigator.clipboard.writeText(document.getElementById('meta-desc').value)"
-                    class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">Copy</button>
+                    class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
         </div>
         ${tags ? `<div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('history.label_tags') }}</label>
             <div class="flex">
                 <input type="text" value="${tags}" readonly
                        class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50" id="meta-tags">
                 <button onclick="navigator.clipboard.writeText(document.getElementById('meta-tags').value)"
-                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">Copy</button>
+                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
             </div>
         </div>` : ''}`;
 }
@@ -148,7 +148,7 @@ async function generateCatchphrase(jobId, regenerate = false) {
     const modal = document.getElementById('catchphrase-modal');
     const content = document.getElementById('catchphrase-content');
     modal.style.display = 'flex';
-    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-pink-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">Loading...</span></div>';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-pink-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t('history.loading') }}</span></div>';
 
     try {
         const url = `/api/jobs/${jobId}/generate-catchphrase` + (regenerate ? '?regenerate=true' : '');
@@ -156,7 +156,7 @@ async function generateCatchphrase(jobId, regenerate = false) {
         const data = await res.json();
 
         if (data.catchphrases) {
-            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">Saved result</p>' : '';
+            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t('history.saved_result') }}</p>' : '';
             html += '<div class="space-y-2">';
             data.catchphrases.forEach(p => {
                 html += `<div class="flex items-center justify-between border rounded-lg p-3">
@@ -164,19 +164,19 @@ async function generateCatchphrase(jobId, regenerate = false) {
                         <span class="font-bold text-lg">${p.text}</span>
                         <span class="ml-2 text-xs text-gray-400">${p.style || ''}</span>
                     </div>
-                    <button onclick="navigator.clipboard.writeText('${p.text.replace(/'/g, "\\'")}'); this.textContent='Copied!'"
-                            class="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs hover:bg-gray-200">Copy</button>
+                    <button onclick="navigator.clipboard.writeText('${p.text.replace(/'/g, "\\'")}'); this.textContent='{{ t('history.copied') }}'"
+                            class="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
                 </div>`;
             });
             html += '</div>';
             html += `<button onclick="generateCatchphrase('${jobId}', true)"
-                      class="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">Regenerate</button>`;
+                      class="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">{{ t('history.regenerate') }}</button>`;
             content.innerHTML = html;
         } else {
-            content.innerHTML = '<p class="text-red-600 text-sm">Failed: ' + (data.error || 'Unknown error') + '</p>';
+            content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + (data.error || 'Unknown error') + '</p>';
         }
     } catch (e) {
-        content.innerHTML = '<p class="text-red-600 text-sm">Failed: ' + e.message + '</p>';
+        content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + e.message + '</p>';
     }
 }
 
@@ -184,7 +184,7 @@ async function generateQuiz(jobId, regenerate = false) {
     const modal = document.getElementById('quiz-modal');
     const content = document.getElementById('quiz-content');
     modal.style.display = 'flex';
-    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">Loading...</span></div>';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t('history.loading') }}</span></div>';
 
     try {
         const url = `/api/jobs/${jobId}/generate-quiz` + (regenerate ? '?regenerate=true' : '');
@@ -192,7 +192,7 @@ async function generateQuiz(jobId, regenerate = false) {
         const data = await res.json();
 
         if (data.quiz) {
-            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">Saved result</p>' : '';
+            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t('history.saved_result') }}</p>' : '';
             html += '<div class="space-y-4">';
             data.quiz.forEach((q, i) => {
                 html += `<div class="border rounded-lg p-3">
@@ -201,24 +201,24 @@ async function generateQuiz(jobId, regenerate = false) {
                 q.options.forEach((opt, j) => {
                     const isAnswer = j === q.answer_index;
                     html += `<li class="text-sm ${isAnswer ? 'text-green-700 font-medium' : 'text-gray-600'}">
-                        ${String.fromCharCode(65+j)}. ${opt} ${isAnswer ? '(correct)' : ''}
+                        ${String.fromCharCode(65+j)}. ${opt} ${isAnswer ? '{{ t('history.correct') }}' : ''}
                     </li>`;
                 });
                 html += '</ul></div>';
             });
             html += '</div>';
             html += `<div class="mt-4 flex space-x-2">
-                <button onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(data.quiz)}, null, 2)); this.textContent='Copied!'"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">Copy JSON</button>
+                <button onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(data.quiz)}, null, 2)); this.textContent='{{ t('history.copied') }}'"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">{{ t('history.copy_json') }}</button>
                 <button onclick="generateQuiz('${jobId}', true)"
-                        class="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">Regenerate</button>
+                        class="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">{{ t('history.regenerate') }}</button>
             </div>`;
             content.innerHTML = html;
         } else {
-            content.innerHTML = '<p class="text-red-600 text-sm">Failed: ' + (data.error || 'Unknown error') + '</p>';
+            content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + (data.error || 'Unknown error') + '</p>';
         }
     } catch (e) {
-        content.innerHTML = '<p class="text-red-600 text-sm">Failed: ' + e.message + '</p>';
+        content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + e.message + '</p>';
     }
 }
 </script>

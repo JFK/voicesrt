@@ -4,8 +4,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database import Base
-from src.database import utcnow
+from src.database import Base, utcnow
 
 
 class Job(Base):
@@ -27,5 +26,7 @@ class Job(Base):
     quiz: Mapped[str | None] = mapped_column(Text, nullable=True)
     enable_metadata: Mapped[bool] = mapped_column(Boolean, default=False)
     enable_refine: Mapped[bool] = mapped_column(Boolean, default=False)
+    glossary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refine_mode: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)

@@ -237,6 +237,52 @@ async def set_pricing(request: Request, session: AsyncSession = Depends(get_sess
     return {"saved": True}
 
 
+@router.get("/refine-prompts")
+async def get_refine_prompts(session: AsyncSession = Depends(get_session)):
+    """Get custom refine prompts (empty string means use default)."""
+    from src.api.jobs import VALID_REFINE_MODES
+    from src.services.refine import _PROMPT_MAP
+
+    result = {}
+    for mode in VALID_REFINE_MODES:
+        db_key = f"general.refine_prompt_{mode}"
+        r = await session.execute(select(Setting).where(Setting.key == db_key))
+        setting = r.scalar_one_or_none()
+        result[mode] = {
+            "custom": setting.value if setting else "",
+            "default": _PROMPT_MAP[mode],
+        }
+    return result
+
+
+@router.put("/refine-prompts/{mode}")
+async def set_refine_prompt(mode: str, body: GeneralSettingInput, session: AsyncSession = Depends(get_session)):
+    from src.api.jobs import VALID_REFINE_MODES
+
+    if mode not in VALID_REFINE_MODES:
+        raise HTTPException(status_code=400, detail=f"Mode must be one of: {', '.join(VALID_REFINE_MODES)}")
+    db_key = f"general.refine_prompt_{mode}"
+    await _upsert_setting(session, db_key, body.value)
+    await session.commit()
+    return {"mode": mode, "saved": True}
+
+
+@router.delete("/refine-prompts/{mode}")
+async def reset_refine_prompt(mode: str, session: AsyncSession = Depends(get_session)):
+    """Reset a refine prompt to default by deleting the custom override."""
+    from src.api.jobs import VALID_REFINE_MODES
+
+    if mode not in VALID_REFINE_MODES:
+        raise HTTPException(status_code=400, detail=f"Mode must be one of: {', '.join(VALID_REFINE_MODES)}")
+    db_key = f"general.refine_prompt_{mode}"
+    result = await session.execute(select(Setting).where(Setting.key == db_key))
+    setting = result.scalar_one_or_none()
+    if setting:
+        await session.delete(setting)
+        await session.commit()
+    return {"mode": mode, "reset": True}
+
+
 def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return "****"

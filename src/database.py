@@ -31,8 +31,9 @@ async def init_db() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
     # Run Alembic migrations (creates tables + applies schema changes)
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
