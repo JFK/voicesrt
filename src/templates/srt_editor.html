@@ -116,7 +116,12 @@ function srtEditor() {
                 const data = await res.json();
                 this.segments = data.segments;
                 this.verifiedIndices = data.verified_indices || [];
-                this.verifyReasons = data.verify_reasons || {};
+                // JSON keys are strings, convert to int-keyed object
+                const rawReasons = data.verify_reasons || {};
+                this.verifyReasons = {};
+                for (const [k, v] of Object.entries(rawReasons)) {
+                    this.verifyReasons[parseInt(k)] = v;
+                }
             } catch (e) {
                 console.error(e);
             } finally {
@@ -166,12 +171,12 @@ function srtEditor() {
             if (this.suggestions[idx]) {
                 this.segments[idx].text = this.suggestions[idx].text;
                 this.dirty = true;
-                delete this.suggestions[idx];
+                this.suggestions = {...this.suggestions, [idx]: null};
             }
         },
 
         dismissSuggestion(idx) {
-            delete this.suggestions[idx];
+            this.suggestions = {...this.suggestions, [idx]: null};
         },
 
         formatTime(seconds) {

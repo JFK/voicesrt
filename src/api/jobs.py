@@ -433,8 +433,13 @@ async def update_segments(job_id: str, request: Request, session: AsyncSession =
 
     body = await request.json()
     segments = body.get("segments", [])
-    if not segments:
+    if not segments or not isinstance(segments, list):
         raise HTTPException(status_code=400, detail="No segments provided")
+
+    # Validate segment structure
+    for i, seg in enumerate(segments):
+        if not isinstance(seg, dict) or "start" not in seg or "end" not in seg or "text" not in seg:
+            raise HTTPException(status_code=400, detail=f"Invalid segment at index {i}")
 
     srt_content = generate_srt(segments)
     srt_path = Path(job.srt_path).resolve()
