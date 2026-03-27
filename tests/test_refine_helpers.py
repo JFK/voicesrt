@@ -1,6 +1,6 @@
 """Tests for refine.py helper functions (_extract_segments, _extract_corrections)."""
 
-from src.services.refine import _extract_segments, _extract_corrections
+from src.services.refine import _extract_corrections, _extract_segments
 
 
 class TestExtractSegments:
@@ -49,6 +49,7 @@ class TestExtractSegments:
 
     def test_no_segments_key_raises(self):
         import pytest
+
         with pytest.raises(RuntimeError, match="Cannot find segments"):
             _extract_segments({"unknown_key": []})
 

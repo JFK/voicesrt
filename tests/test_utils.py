@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.utils import parse_json_response, strip_markdown_fence, _repair_truncated_json
+from src.services.utils import _repair_truncated_json, parse_json_response, strip_markdown_fence
 
 
 class TestStripMarkdownFence:
@@ -14,7 +14,7 @@ class TestStripMarkdownFence:
         assert strip_markdown_fence(text) == '{"key": "value"}'
 
     def test_plain_fence(self):
-        text = '```\n[1, 2, 3]\n```'
+        text = "```\n[1, 2, 3]\n```"
         assert strip_markdown_fence(text) == "[1, 2, 3]"
 
     def test_no_closing_fence(self):

@@ -52,9 +52,7 @@ async def test_generate_metadata_openai():
 async def test_generate_metadata_with_tone_ref():
     from src.services.metadata import generate_youtube_metadata
 
-    response = _mock_openai_response(
-        '{"title": "Toned Title", "description": "desc", "tags": [], "chapters": []}'
-    )
+    response = _mock_openai_response('{"title": "Toned Title", "description": "desc", "tags": [], "chapters": []}')
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
     mock_openai = MagicMock()
@@ -89,9 +87,7 @@ async def test_generate_catchphrases_openai():
     mock_openai.AsyncOpenAI.return_value = mock_client
 
     with patch.dict("sys.modules", {"openai": mock_openai}):
-        phrases, input_tokens, _ = await generate_catchphrases(
-            "test srt content", "fake-key", "openai", "gpt-5.4"
-        )
+        phrases, input_tokens, _ = await generate_catchphrases("test srt content", "fake-key", "openai", "gpt-5.4")
 
     assert len(phrases) == 2
     assert phrases[0]["text"] == "Catch!"
