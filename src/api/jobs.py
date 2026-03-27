@@ -233,7 +233,11 @@ async def download_vtt(job_id: str, session: AsyncSession = Depends(get_session)
 
     from fastapi.responses import Response
 
-    return Response(content=vtt_content, media_type="text/vtt", headers={"Content-Disposition": f'attachment; filename="{download_name}"'})
+    return Response(
+        content=vtt_content,
+        media_type="text/vtt",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
 
 
 @router.post("/{job_id}/generate-meta")
