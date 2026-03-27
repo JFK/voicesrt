@@ -1,8 +1,8 @@
 # VoiceSRT
 
-AI-powered SRT subtitle generator with YouTube metadata, catchphrase, and quiz generation.
+[日本語](README.ja.md)
 
-動画・音声ファイルからAI文字起こしでSRT字幕を生成し、YouTubeメタデータ・キャッチコピー・クイズも一括作成するWebアプリケーション。
+AI-powered SRT subtitle generator with YouTube metadata, catchphrase, and quiz generation.
 
 ## Features
 
