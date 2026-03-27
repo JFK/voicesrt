@@ -230,15 +230,30 @@ async def generate_meta(
 
     custom_prompt = None
     fixed_footer = ""
+    use_tone_ref = True
     try:
         body = await request.json()
         custom_prompt = body.get("custom_prompt")
         fixed_footer = body.get("fixed_footer", "")
+        use_tone_ref = body.get("use_tone_ref", True)
     except Exception:
         pass
 
-    background_tasks.add_task(_generate_meta_job, job_id, custom_prompt, fixed_footer)
+    tone_references = await _get_tone_references(session) if use_tone_ref else None
+
+    background_tasks.add_task(_generate_meta_job, job_id, custom_prompt, fixed_footer, tone_references)
     return {"status": "generating_metadata"}
+
+
+async def _get_tone_references(session: AsyncSession) -> str | None:
+    """Fetch tone references from settings, or None if empty."""
+    from src.models import Setting
+
+    result = await session.execute(select(Setting).where(Setting.key == "tone_references"))
+    setting = result.scalar_one_or_none()
+    if setting and setting.value and setting.value.strip():
+        return setting.value.strip()
+    return None
 
 
 @router.post("/{job_id}/optimize-prompt")
@@ -255,6 +270,9 @@ async def optimize_prompt(
     body = await request.json()
     context = body.get("context", {})
     current_prompt = body.get("current_prompt", "")
+    use_tone_ref = body.get("use_tone_ref", True)
+
+    tone_references = await _get_tone_references(session) if use_tone_ref else None
 
     api_key = await _get_api_key(session, job.provider)
     model = await _get_model(session, job.provider)
@@ -263,11 +281,15 @@ async def optimize_prompt(
         current_prompt, context, api_key,
         get_provider_name(job.provider),
         model,
+        tone_references,
     )
     return {"optimized_prompt": optimized}
 
 
-async def _generate_meta_job(job_id: str, custom_prompt: str | None = None, fixed_footer: str = "") -> None:
+async def _generate_meta_job(
+    job_id: str, custom_prompt: str | None = None, fixed_footer: str = "",
+    tone_references: str | None = None,
+) -> None:
     """Background task: generate YouTube metadata from existing SRT."""
     from src.services.transcribe import _get_api_key, _run_metadata_generation
 
@@ -283,7 +305,7 @@ async def _generate_meta_job(job_id: str, custom_prompt: str | None = None, fixe
 
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
             api_key = await _get_api_key(session, job.provider)
-            await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt)
+            await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt, tone_references)
 
             # Append fixed footer to description (not processed by AI)
             if fixed_footer and fixed_footer.strip() and job.youtube_description:

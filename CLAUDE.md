@@ -79,7 +79,8 @@ src/
 │   ├── transcribe.py # Orchestrator
 │   ├── srt.py       # SRT generation
 │   ├── metadata.py  # YouTube metadata generation
-
+│   ├── catchphrase.py # Thumbnail catchphrase generation
+│   ├── quiz.py      # YouTube quiz generation
 │   ├── crypto.py    # API key encryption
 │   ├── cost.py      # Cost calculation
 │   └── utils.py     # Shared utilities

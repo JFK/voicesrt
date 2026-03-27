@@ -52,15 +52,30 @@ async def generate_youtube_metadata(
     provider: str,
     model: str,
     custom_prompt: str | None = None,
+    tone_references: str | None = None,
 ) -> tuple[dict, int, int]:
     """Generate YouTube metadata from SRT content.
 
     Returns (metadata_dict, input_tokens, output_tokens).
     """
+    tone_section = ""
+    if tone_references:
+        tone_section = (
+            "\n\n## Tone Reference (match this style)\n"
+            "The following are titles and descriptions from previously published videos.\n"
+            "Match their tone, writing style, and formatting conventions:\n\n"
+            f"{tone_references}"
+        )
+
     if custom_prompt:
-        prompt = custom_prompt + f"\n\n---\n\nTranscription:\n{srt_content}"
+        prompt = custom_prompt + tone_section + f"\n\n---\n\nTranscription:\n{srt_content}"
     else:
-        prompt = METADATA_USER_PROMPT.format(srt_content=srt_content)
+        if tone_section:
+            # Insert tone section before the transcription divider
+            base = METADATA_USER_PROMPT.split("\n---\n\nTranscription:\n{srt_content}")[0]
+            prompt = base + tone_section + f"\n\n---\n\nTranscription:\n{srt_content}"
+        else:
+            prompt = METADATA_USER_PROMPT.format(srt_content=srt_content)
 
     if get_provider_name(provider) == "openai":
         return await _generate_openai(prompt, api_key, model)
@@ -83,7 +98,7 @@ Channel context:
 - Speakers: {speakers}
 - Target audience: {audience}
 - Notes: {notes}
-
+{tone_ref_section}
 Current prompt:
 {current_prompt}
 
@@ -96,8 +111,16 @@ async def optimize_meta_prompt(
     api_key: str,
     provider: str,
     model: str,
+    tone_references: str | None = None,
 ) -> str:
     """Use LLM to optimize the metadata generation prompt."""
+    tone_ref_section = ""
+    if tone_references:
+        tone_ref_section = (
+            "\nPrevious video metadata (for tone reference):\n"
+            f"{tone_references}\n"
+        )
+
     prompt = OPTIMIZE_PROMPT.format(
         channel_name=context.get("channelName", ""),
         genre=context.get("genre", ""),
@@ -105,6 +128,7 @@ async def optimize_meta_prompt(
         audience=context.get("audience", ""),
         notes=context.get("notes", ""),
         current_prompt=current_prompt,
+        tone_ref_section=tone_ref_section,
     )
 
     if provider == "openai":

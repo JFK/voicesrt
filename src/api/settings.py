@@ -283,6 +283,20 @@ async def reset_refine_prompt(mode: str, session: AsyncSession = Depends(get_ses
     return {"mode": mode, "reset": True}
 
 
+@router.get("/tone-references")
+async def get_tone_references(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(Setting).where(Setting.key == "tone_references"))
+    setting = result.scalar_one_or_none()
+    return {"tone_references": setting.value if setting else ""}
+
+
+@router.put("/tone-references")
+async def set_tone_references(body: GeneralSettingInput, session: AsyncSession = Depends(get_session)):
+    await _upsert_setting(session, "tone_references", body.value)
+    await session.commit()
+    return {"saved": True}
+
+
 def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return "****"

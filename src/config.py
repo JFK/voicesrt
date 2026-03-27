@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # Default LLM models
     default_openai_model: str = "gpt-5.4"
-    default_gemini_model: str = "gemini-3.0-flash"
+    default_gemini_model: str = "gemini-3-flash-preview"
 
     # Upload settings
     max_upload_size_gb: int = 10

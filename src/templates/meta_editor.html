@@ -44,6 +44,15 @@
                           class="w-full rounded-md border-gray-300 text-sm p-2 border"
                           placeholder="{{ t('meta.additional_notes_placeholder') }}"></textarea>
             </div>
+            <!-- Tone Reference Toggle -->
+            <div class="flex items-center justify-between pt-3 border-t border-gray-200">
+                <div class="flex items-center">
+                    <input type="checkbox" x-model="useToneRef" id="tone-ref-toggle"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="tone-ref-toggle" class="ml-2 text-sm font-medium text-gray-700">{{ t('meta.use_tone_ref') }}</label>
+                </div>
+                <a href="/settings#tone-references" class="text-xs text-blue-600 hover:text-blue-800">{{ t('meta.tone_ref_link') }} &rarr;</a>
+            </div>
         </div>
 
         <!-- Description Template & Fixed Footer -->
@@ -180,6 +189,7 @@ Return a JSON object:
             descriptionTemplate: '',
             fixedFooter: '',
         },
+        useToneRef: true,
         prompt: defaultPrompt,
         defaultPrompt: defaultPrompt,
         optimizing: false,
@@ -224,7 +234,8 @@ Return a JSON object:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         context: this.context,
-                        current_prompt: this.prompt
+                        current_prompt: this.prompt,
+                        use_tone_ref: this.useToneRef
                     })
                 });
                 const data = await res.json();
@@ -248,7 +259,8 @@ Return a JSON object:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         custom_prompt: this.prompt,
-                        fixed_footer: this.context.fixedFooter
+                        fixed_footer: this.context.fixedFooter,
+                        use_tone_ref: this.useToneRef
                     })
                 });
                 const poll = setInterval(async () => {

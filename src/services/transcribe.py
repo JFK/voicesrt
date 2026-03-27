@@ -213,13 +213,14 @@ async def _transcribe_whisper(
 async def _run_metadata_generation(
     job: Job, session: AsyncSession, srt_content: str, api_key: str,
     custom_prompt: str | None = None,
+    tone_references: str | None = None,
 ) -> None:
     """Generate YouTube metadata using LLM and log cost."""
     from src.services.metadata import generate_youtube_metadata
 
     model = await _get_model(session, job.provider)
     result, input_tokens, output_tokens = await generate_youtube_metadata(
-        srt_content, api_key, job.provider, model, custom_prompt
+        srt_content, api_key, job.provider, model, custom_prompt, tone_references
     )
 
     job.youtube_title = result.get("title", "")

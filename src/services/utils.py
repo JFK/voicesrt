@@ -21,8 +21,35 @@ def _repair_truncated_json(text: str) -> dict | list:
     last_complete = text.rfind("}")
     while last_complete > 0:
         candidate = text[:last_complete + 1].rstrip().rstrip(",")
-        # Try closing as array
-        for suffix in ["]", "]}"]:
+
+        # Count unmatched brackets to build the right closing suffix
+        open_brackets: list[str] = []
+        in_string = False
+        escape = False
+        for ch in candidate:
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch in ("{", "["):
+                open_brackets.append(ch)
+            elif ch == "}" and open_brackets and open_brackets[-1] == "{":
+                open_brackets.pop()
+            elif ch == "]" and open_brackets and open_brackets[-1] == "[":
+                open_brackets.pop()
+
+        # Build closing suffix from remaining open brackets (reversed)
+        close_map = {"{": "}", "[": "]"}
+        suffix = "".join(close_map[b] for b in reversed(open_brackets))
+
+        if suffix:
             attempt = candidate + suffix
             try:
                 result = json.loads(attempt)
@@ -30,6 +57,15 @@ def _repair_truncated_json(text: str) -> dict | list:
                     return result
             except json.JSONDecodeError:
                 pass
+
+        # Also try without suffix (candidate might already be complete)
+        try:
+            result = json.loads(candidate)
+            if isinstance(result, (list, dict)):
+                return result
+        except json.JSONDecodeError:
+            pass
+
         last_complete = text.rfind("}", 0, last_complete)
     raise json.JSONDecodeError("Could not repair JSON", text, 0)
 

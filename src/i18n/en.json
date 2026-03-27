@@ -1,7 +1,7 @@
 {
   "nav": {
     "upload": "Upload",
-    "history": "History",
+    "history": "Uploads",
     "costs": "Costs",
     "settings": "Settings"
   },
@@ -33,7 +33,7 @@
     "processing": "Processing",
     "starting": "Starting...",
     "download_srt": "Download SRT",
-    "view_history": "View History",
+    "view_history": "View Uploads",
     "upload_another": "Upload Another",
     "remove": "Remove",
     "elapsed": "Elapsed:",
@@ -42,8 +42,8 @@
     "enable_verify_desc": "Re-read full transcript after refine to catch inconsistencies in names, kanji, and places"
   },
   "history": {
-    "title": "Job History",
-    "heading": "Job History",
+    "title": "Upload History",
+    "heading": "Upload History",
     "col_file": "File",
     "col_provider": "Provider",
     "col_mode": "Mode",
@@ -54,14 +54,15 @@
     "edit_meta": "Edit Meta",
     "gen_meta": "Gen Meta",
     "meta": "Meta",
-    "thumb": "Thumb",
+    "catchphrase": "Catchphrase",
     "quiz": "Quiz",
     "srt_editor": "Edit",
     "del": "Del",
-    "delete_confirm": "Delete this job?",
-    "no_jobs": "No jobs yet. Upload a media file to get started.",
+    "download": "DL",
+    "delete_confirm": "Delete this upload and all generated data?",
+    "no_jobs": "No uploads yet. Upload a media file to get started.",
     "youtube_metadata": "YouTube Metadata",
-    "thumbnail_catchphrases": "Thumbnail Catchphrases",
+    "thumbnail_catchphrases": "Catchphrases",
     "youtube_quiz": "YouTube Quiz",
     "label_title": "Title",
     "label_description": "Description",
@@ -94,8 +95,8 @@
     "quality": "Quality",
     "balanced": "Balanced",
     "budget": "Budget",
-    "preset_quality": "Quality: gpt-5.4 + gemini-3.1-pro \u2014 Best accuracy, highest cost",
-    "preset_balanced": "Balanced: gpt-5.4-mini + gemini-3.0-flash \u2014 Good quality, reasonable cost",
+    "preset_quality": "Quality: gpt-5.4 + gemini-3.1-pro-preview \u2014 Best accuracy, highest cost",
+    "preset_balanced": "Balanced: gpt-5.4-mini + gemini-3-flash-preview \u2014 Good quality, reasonable cost",
     "preset_budget": "Budget: gpt-5.4-nano + gemini-2.5-flash-lite \u2014 Lowest cost",
     "metadata_refine": "Metadata & Refine (LLM)",
     "refine_models": "Refine Models (SRT post-processing)",
@@ -123,7 +124,12 @@
     "save_prompt": "Save Prompt",
     "reset_default": "Reset to default",
     "prompt_saved": "Prompt saved",
-    "prompt_reset": "Prompt reset to default"
+    "prompt_reset": "Prompt reset to default",
+    "tone_references": "Reference Posts",
+    "tone_references_desc": "Register previously posted YouTube titles and descriptions. Used as tone reference during metadata generation.",
+    "tone_references_placeholder": "---\nTitle: Video Title\nDescription: First few lines of the description...\n---",
+    "save_tone_references": "Save Reference Posts",
+    "tone_references_saved": "Reference posts saved"
   },
   "costs": {
     "title": "Cost Dashboard",
@@ -170,7 +176,9 @@
     "generating": "Generating...",
     "generated_metadata": "Generated Metadata",
     "regenerate": "Regenerate",
-    "back_to_history": "Back to History",
+    "back_to_history": "Back to Uploads",
+    "use_tone_ref": "Match tone with reference posts",
+    "tone_ref_link": "Edit reference posts in Settings",
     "label_title": "Title",
     "label_description": "Description",
     "label_tags": "Tags",
@@ -194,7 +202,7 @@
     "suggestion": "AI Suggestion",
     "accept": "Accept",
     "dismiss": "Dismiss",
-    "back_to_history": "Back to History"
+    "back_to_history": "Back to Uploads"
   },
   "status": {
     "pending": "Pending",

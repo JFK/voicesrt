@@ -46,13 +46,13 @@ def test_get_nested_non_string_returns_default():
 def test_get_translator_en():
     t = get_translator("en")
     assert t("nav.upload") == "Upload"
-    assert t("nav.history") == "History"
+    assert t("nav.history") == "Uploads"
 
 
 def test_get_translator_ja():
     t = get_translator("ja")
     assert t("nav.upload") == "アップロード"
-    assert t("nav.history") == "履歴"
+    assert t("nav.history") == "アップロード履歴"
 
 
 def test_get_translator_fallback_to_en():

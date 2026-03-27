@@ -131,25 +131,7 @@
                 <span class="text-sm text-gray-600" x-text="$root.dataset.i18nStarting"></span>
             </div>
         </div>
-        <p x-show="!isDone && elapsed > 0" class="mt-2 text-xs text-gray-400" x-text="$root.dataset.i18nElapsed + ' ' + elapsed + 's'"></p>
-
-        <!-- Action buttons (shown when done) -->
-        <div x-show="isDone" class="mt-4 flex flex-wrap gap-2">
-            <a :href="'/api/jobs/' + jobId + '/download'"
-               x-show="isCompleted"
-               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
-                {{ t('upload.download_srt') }}
-            </a>
-
-            <a href="/history"
-               class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md text-sm font-medium hover:bg-gray-700">
-                {{ t('upload.view_history') }}
-            </a>
-            <button @click="reset()"
-                    class="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">
-                {{ t('upload.upload_another') }}
-            </button>
-        </div>
+        <p x-show="elapsed > 0" class="mt-2 text-xs text-gray-400" x-text="$root.dataset.i18nElapsed + ' ' + elapsed + 's'"></p>
     </div>
 </div>
 
@@ -170,8 +152,6 @@ function uploadForm() {
         elapsed: 0,
         uploading: false,
         jobId: null,
-        isDone: false,
-        isCompleted: false,
         dragover: false,
 
         handleFile(e) {
@@ -195,8 +175,6 @@ function uploadForm() {
             this.fileName = '';
             this.jobId = null;
             this.statusHtml = '';
-            this.isDone = false;
-            this.isCompleted = false;
             if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
             if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
             this.elapsed = 0;
@@ -213,11 +191,8 @@ function uploadForm() {
                 this.jobId = jobId;
                 this.fileName = job.filename || '';
                 if (job.status === 'completed' || job.status === 'failed') {
-                    // Already done, show result
-                    const statusRes = await fetch(`/api/jobs/${jobId}/status`, { headers: { 'HX-Request': 'true' } });
-                    this.statusHtml = await statusRes.text();
-                    this.isDone = true;
-                    this.isCompleted = job.status === 'completed';
+                    window.location.href = '/history';
+                    return;
                 } else {
                     // Still processing, resume polling
                     this.startPolling(jobId);
@@ -272,8 +247,7 @@ function uploadForm() {
                         clearInterval(this.pollTimer);
                         this.pollTimer = null;
                         if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
-                        this.isDone = true;
-                        this.isCompleted = this.statusHtml.includes('completed');
+                        window.location.href = '/history';
                     }
                 } catch (e) {
                     console.error('Polling error:', e);

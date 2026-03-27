@@ -13,62 +13,87 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_duration') }}</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_status') }}</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_created') }}</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_actions') }}</th>
             </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-            {% for job in jobs %}
+        {% for job in jobs %}
+        <tbody class="border-b border-gray-200" id="job-{{ job.id }}">
+            <!-- Row 1: Info -->
             <tr>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ job.filename }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ job.provider }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ job.refine_mode or '-' }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-900 font-medium">{{ job.filename }}</td>
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">{{ job.provider }}</td>
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">{{ job.refine_mode or '-' }}</td>
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">
                     {% if job.audio_duration %}{{ "%.1f"|format(job.audio_duration) }}s{% else %}-{% endif %}
                 </td>
-                <td class="px-6 py-4 max-w-[200px]">
+                <td class="px-6 pt-4 pb-2 max-w-[200px]">
                     <span hx-get="/api/jobs/{{ job.id }}/status" hx-trigger="every 3s [this.dataset.poll !== 'false']"
                           data-poll="{{ 'true' if job.status not in ('completed', 'failed') else 'false' }}">
                         {% include "partials/job_status.html" %}
                     </span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">
                     {{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else '-' }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                    {% if job.srt_path %}
-                    <a href="/srt/{{ job.id }}"
-                       class="text-blue-600 hover:text-blue-800 font-medium">{{ t('history.srt_editor') }}</a>
-                    {% endif %}
+            </tr>
+            <!-- Row 2: Actions -->
+            <tr>
+                <td colspan="6" class="px-6 pb-4 pt-1 text-sm">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- SRT group -->
+                        {% if job.srt_path %}
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs text-gray-400 mr-1">SRT</span>
+                            <a href="/srt/{{ job.id }}"
+                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">{{ t('history.srt_editor') }}</a>
+                            <a href="/api/jobs/{{ job.id }}/download"
+                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">{{ t('history.download') }}</a>
+                        </div>
+                        {% endif %}
 
-                    {% if job.srt_path and job.status in ('completed', 'failed') %}
-                    <a href="/meta/{{ job.id }}"
-                       class="text-yellow-600 hover:text-yellow-800 font-medium">{% if job.youtube_title %}{{ t('history.edit_meta') }}{% else %}{{ t('history.gen_meta') }}{% endif %}</a>
-                    {% endif %}
+                        <!-- YouTube group -->
+                        {% if job.srt_path and job.status in ('completed', 'failed') %}
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs text-gray-400 mr-1">YouTube</span>
+                            <a href="/meta/{{ job.id }}"
+                               class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.youtube_title %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+                                <span class="w-1.5 h-1.5 rounded-full {% if job.youtube_title %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
+                                {{ t('history.meta') }}
+                            </a>
+                            {% if job.youtube_title %}
+                            <button onclick="showMetaModal('{{ job.id }}')"
+                                    class="inline-flex items-center rounded-full px-1.5 py-1 text-xs font-medium border bg-green-50 text-green-700 border-green-200 hover:bg-green-100" title="{{ t('history.meta') }}">&#9654;</button>
+                            {% endif %}
+                            <button onclick="generateCatchphrase('{{ job.id }}')"
+                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.catchphrases %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+                                <span class="w-1.5 h-1.5 rounded-full {% if job.catchphrases %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
+                                {{ t('history.catchphrase') }}
+                            </button>
+                            <button onclick="generateQuiz('{{ job.id }}')"
+                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.quiz %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+                                <span class="w-1.5 h-1.5 rounded-full {% if job.quiz %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
+                                {{ t('history.quiz') }}
+                            </button>
+                        </div>
+                        {% endif %}
 
-                    {% if job.youtube_title %}
-                    <button onclick="showMetaModal('{{ job.id }}')"
-                            class="text-yellow-600 hover:text-yellow-800 font-medium">{{ t('history.meta') }}</button>
-                    {% endif %}
-
-                    {% if job.srt_path and job.status in ('completed', 'failed') %}
-                    <button onclick="generateCatchphrase('{{ job.id }}')"
-                            class="text-pink-600 hover:text-pink-800 font-medium">{{ t('history.thumb') }}</button>
-                    <button onclick="generateQuiz('{{ job.id }}')"
-                            class="text-emerald-600 hover:text-emerald-800 font-medium">{{ t('history.quiz') }}</button>
-                    {% endif %}
-
-                    <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="{{ t('history.delete_confirm') }}"
-                            hx-target="closest tr" hx-swap="outerHTML"
-                            class="text-red-600 hover:text-red-800 font-medium">{{ t('history.del') }}</button>
+                        <!-- Delete -->
+                        <div class="flex items-center ml-auto">
+                            <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="{{ t('history.delete_confirm') }}"
+                                    hx-target="#job-{{ job.id }}" hx-swap="delete"
+                                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-red-50 text-red-700 border-red-200 hover:bg-red-100">{{ t('history.del') }}</button>
+                        </div>
+                    </div>
                 </td>
             </tr>
-            {% endfor %}
-            {% if not jobs %}
-            <tr>
-                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">{{ t('history.no_jobs') }}</td>
-            </tr>
-            {% endif %}
         </tbody>
+        {% endfor %}
+        {% if not jobs %}
+        <tbody>
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">{{ t('history.no_jobs') }}</td>
+            </tr>
+        </tbody>
+        {% endif %}
     </table>
 </div>
 
