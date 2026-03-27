@@ -27,7 +27,12 @@
       "Bash(gh pr list *)",
       "Bash(docker compose *)",
       "Bash(docker ps *)",
-      "Bash(docker logs *)"
+      "Bash(docker logs *)",
+      "Bash(docker exec *)",
+      "Bash(docker restart *)",
+      "Bash(gh issue create *)",
+      "Bash(gh pr create *)",
+      "Bash(rm *)"
     ],
     "deny": [
       "Bash(rm -rf /)",

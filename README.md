@@ -1,102 +1,103 @@
 # VoiceSRT
 
-Generate SRT subtitle files from video/audio using AI transcription.
+AI-powered SRT subtitle generator with YouTube metadata, catchphrase, and quiz generation.
 
-動画・音声ファイルからAI文字起こしでSRT字幕ファイルを生成するWebアプリケーション。
+動画・音声ファイルからAI文字起こしでSRT字幕を生成し、YouTubeメタデータ・キャッチコピー・クイズも一括作成するWebアプリケーション。
 
 ## Features
 
-- **AI Transcription**: High-accuracy speech recognition via OpenAI Whisper API / Google Gemini API
-- **Multi-format Support**: MP4, MP3, WAV, MOV, AVI, MKV, M4A, FLAC, OGG, WebM
-- **SRT Generation**: Auto-generate timestamped SRT subtitle files
-- **LLM Post-processing**: Fix proper nouns, punctuation, fillers with glossary support
-- **YouTube Metadata**: Auto-generate title, description (with chapter index), and tags
-- **YouTube Quiz**: Auto-generate quiz questions from video content
-- **Cost Dashboard**: Track API costs by provider, month, and operation
-- **Web UI Settings**: Manage API keys, LLM models, and glossary from the browser
+### Transcription & SRT
+- **AI Transcription**: OpenAI Whisper API / Google Gemini API
+- **Multi-format**: MP4, MP3, WAV, MOV, AVI, MKV, M4A, FLAC, OGG, WebM
+- **LLM Post-processing**: 3 modes (Verbatim / Standard / Caption) with glossary support
+- **Verify Pass**: Full-text consistency check for proper nouns, place names, kanji
+- **SRT Editor**: Inline editing with per-segment AI suggestions
+
+### YouTube Tools
+- **Metadata Generation**: SEO-optimized title, description with chapters, 15-25 tags
+- **Tone Reference**: Match previous videos' writing style for channel consistency
+- **Catchphrase Generation**: 5 thumbnail text suggestions with style classification
+- **Quiz Generation**: 5 multiple-choice questions from video content
+
+### Management
+- **Upload History**: 2-row layout with grouped action buttons and status indicators
+- **Cost Dashboard**: Track API costs by provider, model, month, and operation
+- **Settings**: API keys (encrypted), model presets, glossary, refine prompts, pricing
 
 ## Quick Start
 
-### With Claude Code (Recommended)
+### Docker (Recommended)
 
 ```bash
 git clone https://github.com/JFK/voicesrt.git
 cd voicesrt
-claude
-# Then tell Claude: "Set up this project"
-```
-
-Claude Code will read `CLAUDE.md` and handle the full setup automatically.
-
-### Manual Setup
-
-```bash
-# Prerequisites: Python 3.11+, ffmpeg
-
-pip install -e ".[dev]"
-
-# Generate encryption key and create .env
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-cp .env.example .env
-# Set ENCRYPTION_KEY in .env
-
-uvicorn src.main:app --reload --port 8000
-# Open http://localhost:8000 → Settings → Configure API keys
-```
-
-### Docker
-
-```bash
 cp .env.example .env
 # Set ENCRYPTION_KEY in .env
 docker compose up --build
+# Open http://localhost:8000 → Settings → Configure API keys
 ```
 
 ### Docker on WSL2 (Windows)
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows
-2. Settings → General → "Use the WSL 2 based engine" (enable)
-3. Settings → Resources → WSL Integration → Enable for your distro
-4. Restart Docker Desktop
-5. In WSL terminal:
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) with WSL 2 engine enabled
+2. Settings → Resources → WSL Integration → Enable for your distro
+3. In WSL terminal:
 ```bash
-# Verify Docker is available
-docker --version
-
-# Clone and start
 git clone https://github.com/JFK/voicesrt.git
 cd voicesrt
 cp .env.example .env
 # Set ENCRYPTION_KEY in .env
 docker compose up --build
-# Open http://localhost:8000
+```
+
+### Local
+
+```bash
+# Prerequisites: Python 3.11+, ffmpeg
+pip install -e ".[dev]"
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+cp .env.example .env
+# Set ENCRYPTION_KEY in .env
+uvicorn src.main:app --reload --port 8000
 ```
 
 ## Usage
 
 ### 1. Configure API Keys
-Go to the Settings page and enter your OpenAI / Google API keys.
+Settings page → Enter OpenAI / Google API keys.
 
-### 2. Upload Media
-On the Upload page, drag & drop or select a file (MP4, MP3, WAV, etc.). Choose a provider (Whisper/Gemini) and language, then upload.
+### 2. Upload & Transcribe
+Upload page → Drag & drop file → Select provider & refine mode → Upload & Process.
+Processing completes → Auto-redirect to Upload History.
 
-### 3. Download SRT
-On the History page, click the "SRT" button on completed jobs to download.
+### 3. Edit SRT
+Upload History → **Edit** button → SRT Editor.
+Edit segments, use AI suggestions, save & download.
 
-### 4. YouTube Metadata
-On the History page, click "Gen Meta" to open the metadata editor. Customize the prompt, optimize with AI, and generate title, description (with chapters), and tags.
+### 4. Generate YouTube Metadata
+Upload History → **Meta** button → Metadata Editor.
+Set channel info, enable tone reference, generate title/description/chapters/tags.
 
-### 5. YouTube Quiz
-Click the "Quiz" button on the History page to auto-generate quiz questions from the video content.
+### 5. Generate Catchphrases & Quiz
+Upload History → **Catchphrase** / **Quiz** buttons → One-click generation.
 
+## Tech Stack
+
+- **Backend**: FastAPI (Python 3.11+), async/await
+- **Frontend**: Jinja2 + HTMX + Alpine.js + Tailwind CSS (no build step)
+- **Database**: SQLite (SQLAlchemy 2.0 async + aiosqlite + Alembic)
+- **AI**: OpenAI Whisper/GPT, Google Gemini
+- **Audio**: ffmpeg
+- **Security**: Fernet encryption for API keys
+- **i18n**: English / Japanese
 
 ## Provider Comparison
 
 | | OpenAI Whisper | Google Gemini |
 |---|---|---|
-| Accuracy | High (dedicated ASR model) | High (multimodal LLM) |
-| Timestamps | Precise (ASR-based) | Approximate (LLM-estimated) |
-| Cost | $0.006/min | ~$0.0005/min (3.1 Flash Lite) |
+| Accuracy | High (dedicated ASR) | High (multimodal LLM) |
+| Timestamps | Precise | Approximate |
+| Cost | $0.006/min | ~$0.0005/min (Flash Lite) |
 | File Limit | 25MB (auto-chunking) | 9.5 hours |
 
 ## License

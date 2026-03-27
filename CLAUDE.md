@@ -69,6 +69,7 @@ HOST_PORT=8001 docker compose up --build
 src/
 ├── main.py          # FastAPI app
 ├── config.py        # pydantic-settings
+├── constants.py     # Status enums, provider mapping
 ├── database.py      # SQLAlchemy
 ├── templating.py    # Jinja2 templates
 ├── models/          # ORM models (Job, Setting, CostLog)
@@ -77,6 +78,7 @@ src/
 │   ├── whisper.py   # OpenAI Whisper API
 │   ├── gemini.py    # Google Gemini API
 │   ├── transcribe.py # Orchestrator
+│   ├── refine.py    # LLM post-processing (verbatim/standard/caption)
 │   ├── srt.py       # SRT generation
 │   ├── metadata.py  # YouTube metadata generation
 │   ├── catchphrase.py # Thumbnail catchphrase generation
@@ -89,6 +91,7 @@ src/
 │   ├── jobs.py      # Job CRUD
 │   ├── settings.py  # Settings management
 │   └── costs.py     # Cost dashboard
+├── i18n/            # Translations (en.json, ja.json)
 └── templates/       # Jinja2 templates
 ```
 

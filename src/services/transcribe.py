@@ -151,9 +151,7 @@ async def _run_transcription(
         await log_cost(session, job.id, "whisper", "whisper-1", "transcription", cost, audio_duration=duration)
     else:
         model = await _get_model(session, job.provider)
-        from src.services.gemini import transcribe_with_gemini
-
-        segments, input_tokens, output_tokens = await transcribe_with_gemini(
+        segments, input_tokens, output_tokens = await _transcribe_gemini(
             audio_path, api_key, job.language, model, glossary
         )
         cost = estimate_gemini_cost(duration, output_tokens, model)
@@ -208,6 +206,40 @@ async def _transcribe_whisper(
         offset += chunk_duration
 
     return all_segments
+
+
+async def _transcribe_gemini(
+    audio_path: Path, api_key: str, language: str | None,
+    model: str = "gemini-2.5-flash", glossary: str = "",
+) -> tuple[list[dict], int, int]:
+    """Transcribe with Gemini, handling chunking for large files."""
+    from src.services.gemini import transcribe_with_gemini
+
+    chunks = await split_audio(audio_path)
+    if len(chunks) == 1:
+        return await transcribe_with_gemini(audio_path, api_key, language, model, glossary)
+
+    logger.info("Splitting audio into %d chunks for Gemini transcription", len(chunks))
+    all_segments: list[dict] = []
+    total_input_tokens = 0
+    total_output_tokens = 0
+    offset = 0.0
+    for chunk_path in chunks:
+        chunk_duration = await get_audio_duration(chunk_path)
+        segments, input_tokens, output_tokens = await transcribe_with_gemini(
+            chunk_path, api_key, language, model, glossary
+        )
+        for seg in segments:
+            all_segments.append({
+                "start": seg["start"] + offset,
+                "end": seg["end"] + offset,
+                "text": seg["text"],
+            })
+        total_input_tokens += input_tokens
+        total_output_tokens += output_tokens
+        offset += chunk_duration
+
+    return all_segments, total_input_tokens, total_output_tokens
 
 
 async def _run_metadata_generation(

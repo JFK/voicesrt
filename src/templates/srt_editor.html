@@ -2,28 +2,23 @@
 {% block title %}SRT Editor - {{ job.filename }}{% endblock %}
 {% block content %}
 <div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="loadSegments()">
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">{{ t('srt_editor.title') }}</h1>
-            <p class="text-sm text-gray-500 mt-1">{{ job.filename }}</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="/api/jobs/{{ job.id }}/download"
-               class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 border border-gray-300">
-                {{ t('srt_editor.download') }}
-            </a>
-            <button @click="saveSegments()" :disabled="saving || !dirty"
-                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                <span x-show="!saving">{{ t('srt_editor.save') }}</span>
-                <span x-show="saving">{{ t('srt_editor.saving') }}</span>
-            </button>
+    <div class="sticky top-0 z-10 bg-gray-50 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ t('srt_editor.title') }}</h1>
+                <p class="text-sm text-gray-500 mt-1">{{ job.filename }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span x-show="saving" class="text-xs text-gray-400">{{ t('srt_editor.saving') }}</span>
+                <span x-show="saveMsg && !saveError" x-transition class="text-xs text-green-600" x-text="saveMsg"></span>
+                <span x-show="saveMsg && saveError" x-transition class="text-xs text-red-600" x-text="saveMsg"></span>
+                <a href="/api/jobs/{{ job.id }}/download"
+                   class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 border border-gray-300">
+                    {{ t('srt_editor.download') }}
+                </a>
+            </div>
         </div>
     </div>
-
-    <!-- Save notification -->
-    <div x-show="saveMsg" x-transition class="mb-4 p-3 rounded-md text-sm"
-         :class="saveError ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'"
-         x-text="saveMsg"></div>
 
     <!-- Loading -->
     <div x-show="loading" class="text-center py-12">
@@ -56,9 +51,8 @@
                 </div>
 
                 <!-- Editable text -->
-                <textarea x-model="seg.text" @input="dirty = true" rows="1"
-                          x-ref="textarea"
-                          @input="autoResize($event.target)"
+                <textarea x-model="seg.text" rows="1"
+                          @input="autoResize($event.target); debounceSave()"
                           x-init="$nextTick(() => autoResize($el))"
                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border resize-none overflow-hidden"></textarea>
 
@@ -105,9 +99,9 @@ function srtEditor() {
         suggesting: {},
         loading: true,
         saving: false,
-        dirty: false,
         saveMsg: '',
         saveError: false,
+        _saveTimer: null,
 
         async loadSegments() {
             try {
@@ -129,7 +123,13 @@ function srtEditor() {
             }
         },
 
+        debounceSave() {
+            if (this._saveTimer) clearTimeout(this._saveTimer);
+            this._saveTimer = setTimeout(() => this.saveSegments(), 1000);
+        },
+
         async saveSegments() {
+            if (this.saving) return;
             this.saving = true;
             this.saveMsg = '';
             try {
@@ -139,10 +139,10 @@ function srtEditor() {
                     body: JSON.stringify({segments: this.segments}),
                 });
                 if (!res.ok) throw new Error('Save failed');
-                this.dirty = false;
-                this.saveMsg = '{{ t("srt_editor.saved") }}';
+                const now = new Date();
+                const time = now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+                this.saveMsg = `${time} {{ t("srt_editor.saved") }}`;
                 this.saveError = false;
-                setTimeout(() => this.saveMsg = '', 3000);
             } catch (e) {
                 this.saveMsg = e.message;
                 this.saveError = true;
@@ -170,8 +170,8 @@ function srtEditor() {
         acceptSuggestion(idx) {
             if (this.suggestions[idx]) {
                 this.segments[idx].text = this.suggestions[idx].text;
-                this.dirty = true;
                 this.suggestions = {...this.suggestions, [idx]: null};
+                this.debounceSave();
             }
         },
 
