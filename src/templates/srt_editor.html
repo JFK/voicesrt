@@ -237,6 +237,13 @@ function srtEditor() {
 
         async saveSegments() {
             if (this.saving) return;
+            // Validate before saving
+            const errors = this.validateTimes();
+            if (errors.length > 0) {
+                this.saveMsg = '{{ t("srt_editor.time_error") }}: ' + errors[0];
+                this.saveError = true;
+                return;
+            }
             this.saving = true;
             this.saveMsg = '';
             try {
@@ -381,10 +388,16 @@ function srtEditor() {
             }, duration);
         },
 
+        _clearSuggestions() {
+            this.suggestions = {};
+            this.suggesting = {};
+        },
+
         deleteSegment(idx) {
             if (!confirm('{{ t("srt_editor.delete_confirm") }}')) return;
             this.segments.splice(idx, 1);
             this.selected = this.selected.filter(i => i !== idx).map(i => i > idx ? i - 1 : i);
+            this._clearSuggestions();
             this.debounceSave();
         },
 
@@ -394,13 +407,13 @@ function srtEditor() {
             const start = prev.end;
             const end = next ? next.start : prev.end + 2.0;
             this.segments.splice(idx + 1, 0, { start, end, text: '' });
+            this._clearSuggestions();
             this.debounceSave();
         },
 
         mergeSelected() {
             if (this.selected.length < 2) return;
             const sorted = [...this.selected].sort((a, b) => a - b);
-            // Check consecutive
             for (let i = 1; i < sorted.length; i++) {
                 if (sorted[i] !== sorted[i-1] + 1) {
                     alert('{{ t("srt_editor.merge_consecutive_only") }}');
@@ -416,6 +429,7 @@ function srtEditor() {
             };
             this.segments.splice(first, sorted.length, merged);
             this.selected = [];
+            this._clearSuggestions();
             this.debounceSave();
         },
 
@@ -434,6 +448,20 @@ function srtEditor() {
                 return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
             }
             return parseFloat(str) || 0;
+        },
+
+        validateTimes() {
+            const errors = [];
+            for (let i = 0; i < this.segments.length; i++) {
+                const seg = this.segments[i];
+                if (seg.start >= seg.end) {
+                    errors.push(`#${i+1}: start >= end`);
+                }
+                if (i > 0 && seg.start < this.segments[i-1].end) {
+                    errors.push(`#${i+1}: overlaps with #${i}`);
+                }
+            }
+            return errors;
         },
 
         autoResize(el) {

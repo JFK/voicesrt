@@ -223,7 +223,8 @@
     "segments_selected": "件選択中",
     "merge": "統合",
     "cancel": "キャンセル",
-    "merge_consecutive_only": "連続したセグメントのみ統合できます。"
+    "merge_consecutive_only": "連続したセグメントのみ統合できます。",
+    "time_error": "時間エラー"
   },
   "status": {
     "pending": "\u5f85\u6a5f\u4e2d",

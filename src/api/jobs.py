@@ -606,10 +606,14 @@ async def update_segments(job_id: str, request: Request, session: AsyncSession =
     if not segments or not isinstance(segments, list):
         raise HTTPException(status_code=400, detail="No segments provided")
 
-    # Validate segment structure
+    # Validate segment structure and timing
     for i, seg in enumerate(segments):
         if not isinstance(seg, dict) or "start" not in seg or "end" not in seg or "text" not in seg:
             raise HTTPException(status_code=400, detail=f"Invalid segment at index {i}")
+        if float(seg["start"]) >= float(seg["end"]):
+            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start must be before end")
+        if i > 0 and float(seg["start"]) < float(segments[i - 1]["end"]):
+            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: overlaps with previous segment")
 
     srt_content = generate_srt(segments)
     srt_path = Path(job.srt_path).resolve()

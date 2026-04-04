@@ -223,7 +223,8 @@
     "segments_selected": "segments selected",
     "merge": "Merge",
     "cancel": "Cancel",
-    "merge_consecutive_only": "Only consecutive segments can be merged."
+    "merge_consecutive_only": "Only consecutive segments can be merged.",
+    "time_error": "Time error"
   },
   "status": {
     "pending": "Pending",
