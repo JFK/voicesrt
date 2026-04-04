@@ -81,7 +81,7 @@
         <template x-for="(seg, idx) in segments" :key="idx">
             <div class="bg-white shadow rounded-lg p-4 border-l-4 transition-colors"
                  :id="'seg-' + idx"
-                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'"
+                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-mono text-gray-400" x-text="'#' + (idx + 1)"></span>
