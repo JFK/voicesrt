@@ -214,7 +214,9 @@
     "back_to_history": "\u5c65\u6b74\u306b\u623b\u308b",
     "re_refine": "再リファイン",
     "refining": "リファイン中...",
-    "re_refine_done": "再リファインが完了しました"
+    "re_refine_done": "再リファインが完了しました",
+    "glossary_label": "用語集（再リファイン用）",
+    "glossary_hint": "1行に1つ。固有名詞や専門用語の修正に使用されます。"
   },
   "status": {
     "pending": "\u5f85\u6a5f\u4e2d",

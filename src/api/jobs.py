@@ -243,6 +243,7 @@ async def download_vtt(job_id: str, session: AsyncSession = Depends(get_session)
 @router.post("/{job_id}/re-refine")
 async def re_refine(
     job_id: str,
+    request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     session: AsyncSession = Depends(get_session),
 ):
@@ -251,11 +252,18 @@ async def re_refine(
     if not job.srt_path:
         raise HTTPException(status_code=400, detail="No SRT file available")
 
-    background_tasks.add_task(_re_refine_job, job_id)
+    glossary = None
+    try:
+        body = await request.json()
+        glossary = body.get("glossary")
+    except Exception:
+        pass
+
+    background_tasks.add_task(_re_refine_job, job_id, glossary)
     return {"status": "refining"}
 
 
-async def _re_refine_job(job_id: str) -> None:
+async def _re_refine_job(job_id: str, custom_glossary: str | None = None) -> None:
     """Background task: re-refine existing SRT."""
     from src.services.srt import generate_srt, parse_srt, save_srt
     from src.services.transcribe import _get_credential, _run_refinement, _run_verification
@@ -274,14 +282,17 @@ async def _re_refine_job(job_id: str) -> None:
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
             segments = parse_srt(srt_content)
 
-            # Merge glossary
-            from src.models import Setting
+            # Use custom glossary if provided, otherwise merge global + job glossary
+            if custom_glossary is not None:
+                glossary = custom_glossary
+            else:
+                from src.models import Setting
 
-            r = await session.execute(select(Setting).where(Setting.key == "glossary"))
-            gs = r.scalar_one_or_none()
-            global_glossary = gs.value if gs else ""
-            job_glossary = job.glossary or ""
-            glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
+                r = await session.execute(select(Setting).where(Setting.key == "glossary"))
+                gs = r.scalar_one_or_none()
+                global_glossary = gs.value if gs else ""
+                job_glossary = job.glossary or ""
+                glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
 
             api_key = await _get_credential(session, job.provider)
 
@@ -548,6 +559,7 @@ async def get_segments(job_id: str, session: AsyncSession = Depends(get_session)
         "segments": segments,
         "verified_indices": verified_indices,
         "verify_reasons": verify_reasons,
+        "glossary": job.glossary or "",
     }
 
 

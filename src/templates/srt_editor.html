@@ -12,14 +12,31 @@
                 <span x-show="saving" class="text-xs text-gray-400">{{ t('srt_editor.saving') }}</span>
                 <span x-show="saveMsg && !saveError" x-transition class="text-xs text-green-600" x-text="saveMsg"></span>
                 <span x-show="saveMsg && saveError" x-transition class="text-xs text-red-600" x-text="saveMsg"></span>
-                <button @click="reRefine()" :disabled="reRefining"
-                        class="inline-flex items-center px-3 py-2 bg-amber-100 text-amber-800 rounded-md text-sm font-medium hover:bg-amber-200 border border-amber-300 disabled:opacity-50">
-                    <span x-show="!reRefining">{{ t('srt_editor.re_refine') }}</span>
-                    <span x-show="reRefining" class="flex items-center gap-1">
-                        <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                        {{ t('srt_editor.refining') }}
-                    </span>
-                </button>
+                <div class="relative" x-data="{ showGlossary: false }">
+                    <div class="flex items-center gap-1">
+                        <button @click="reRefine()" :disabled="reRefining"
+                                class="inline-flex items-center px-3 py-2 bg-amber-100 text-amber-800 rounded-md text-sm font-medium hover:bg-amber-200 border border-amber-300 disabled:opacity-50 rounded-r-none">
+                            <span x-show="!reRefining">{{ t('srt_editor.re_refine') }}</span>
+                            <span x-show="reRefining" class="flex items-center gap-1">
+                                <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                {{ t('srt_editor.refining') }}
+                            </span>
+                        </button>
+                        <button @click="showGlossary = !showGlossary"
+                                class="inline-flex items-center px-2 py-2 bg-amber-100 text-amber-800 rounded-md text-sm hover:bg-amber-200 border border-amber-300 rounded-l-none border-l-0"
+                                :title="showGlossary ? 'Hide glossary' : 'Edit glossary'">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                    </div>
+                    <div x-show="showGlossary" x-transition @click.away="showGlossary = false"
+                         class="absolute right-0 top-full mt-1 w-80 bg-white shadow-lg rounded-lg border p-3 z-50">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">{{ t('srt_editor.glossary_label') }}</label>
+                        <textarea x-model="glossary" rows="5"
+                                  class="w-full rounded-md border-gray-300 text-xs p-2 border font-mono"
+                                  placeholder="VoiceSRT&#10;John Smith&#10;Kubernetes"></textarea>
+                        <p class="text-xs text-gray-400 mt-1">{{ t('srt_editor.glossary_hint') }}</p>
+                    </div>
+                </div>
                 <a href="/api/jobs/{{ job.id }}/download"
                    class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 border border-gray-300">
                     SRT
@@ -114,6 +131,7 @@ function srtEditor() {
         saveMsg: '',
         saveError: false,
         reRefining: false,
+        glossary: '',
         _saveTimer: null,
 
         async loadSegments() {
@@ -128,6 +146,15 @@ function srtEditor() {
                 this.verifyReasons = {};
                 for (const [k, v] of Object.entries(rawReasons)) {
                     this.verifyReasons[parseInt(k)] = v;
+                }
+                // Load glossary (global + job)
+                const gRes = await fetch('/api/settings/glossary');
+                const gData = await gRes.json();
+                this.glossary = gData.glossary || '';
+                // Append job-specific glossary if available
+                const jobGlossary = data.glossary || '';
+                if (jobGlossary) {
+                    this.glossary = this.glossary ? this.glossary + '\n' + jobGlossary : jobGlossary;
                 }
             } catch (e) {
                 console.error(e);
@@ -197,7 +224,11 @@ function srtEditor() {
             this.reRefining = true;
             this.saveMsg = '';
             try {
-                const res = await fetch(`/api/jobs/{{ job.id }}/re-refine`, { method: 'POST' });
+                const res = await fetch(`/api/jobs/{{ job.id }}/re-refine`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({glossary: this.glossary}),
+                });
                 if (!res.ok) throw new Error('Re-refine request failed');
                 // Poll for completion
                 await this._pollUntilDone();
