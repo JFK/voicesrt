@@ -368,6 +368,9 @@ SUGGEST_SYSTEM_PROMPT = (
 SUGGEST_PROMPT = """\
 Improve the following subtitle segment for readability and accuracy.
 
+IMPORTANT: If a glossary is provided below, you MUST apply all matching \
+corrections. This takes priority over all other rules.
+
 Context (surrounding segments for reference):
 {context}
 
@@ -376,7 +379,7 @@ Target segment to improve:
 
 {glossary_section}
 Return JSON: {{"text": "improved text", "reason": "what was changed and why"}}
-If no improvement is needed, return the original text unchanged."""
+If no glossary corrections apply and no improvement is needed, return the original text unchanged."""
 
 
 async def suggest_segment(
