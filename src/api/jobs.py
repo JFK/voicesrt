@@ -240,6 +240,35 @@ async def download_vtt(job_id: str, session: AsyncSession = Depends(get_session)
     )
 
 
+@router.get("/{job_id}/media")
+async def get_media(job_id: str, session: AsyncSession = Depends(get_session)):
+    """Serve the original uploaded media file for audio playback."""
+    job = await _get_job_or_404(session, job_id)
+
+    # Find uploaded file
+    media_path = None
+    for f in settings.uploads_dir.glob(f"{job.id}.*"):
+        media_path = f
+        break
+    if not media_path or not media_path.exists():
+        raise HTTPException(status_code=404, detail="Media file not found")
+
+    ext = media_path.suffix.lower()
+    media_types = {
+        ".mp4": "video/mp4",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+        ".flac": "audio/flac",
+        ".webm": "audio/webm",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo",
+        ".mkv": "video/x-matroska",
+    }
+    return FileResponse(media_path, media_type=media_types.get(ext, "application/octet-stream"))
+
+
 @router.post("/{job_id}/re-refine")
 async def re_refine(
     job_id: str,
