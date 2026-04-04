@@ -112,10 +112,11 @@ async def _test_ollama(session: AsyncSession) -> dict:
     import httpx
 
     from src.constants import KEY_OLLAMA_BASE_URL
+    from src.services.utils import _resolve_ollama_url
 
     result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
     setting = result.scalar_one_or_none()
-    base_url = setting.value if setting else app_settings.default_ollama_base_url
+    base_url = _resolve_ollama_url(setting.value if setting else app_settings.default_ollama_base_url)
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -126,6 +127,54 @@ async def _test_ollama(session: AsyncSession) -> dict:
             return {"valid": False, "error": f"HTTP {resp.status_code}"}
     except Exception as e:
         return {"valid": False, "error": f"Cannot connect to Ollama at {base_url}: {e}"}
+
+
+@router.get("/available-models")
+async def get_available_models(session: AsyncSession = Depends(get_session)):
+    """Return available models per provider for selection dropdowns."""
+    import httpx
+
+    from src.constants import KEY_OLLAMA_BASE_URL
+    from src.services.utils import _resolve_ollama_url
+
+    available: dict[str, list[str]] = {
+        "openai": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
+        "gemini": [
+            "gemini-3.1-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-2.5-flash-lite",
+        ],
+        "ollama": [],
+    }
+
+    # Fetch Ollama models dynamically
+    result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
+    setting = result.scalar_one_or_none()
+    base_url = _resolve_ollama_url(setting.value if setting else app_settings.default_ollama_base_url)
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{base_url}/api/tags")
+            if resp.status_code == 200:
+                available["ollama"] = [m["name"] for m in resp.json().get("models", [])]
+    except Exception:
+        pass
+
+    # Current configured models
+    configured = {}
+    for provider in ("openai", "gemini", "ollama"):
+        db_key = f"model.{provider}"
+        r = await session.execute(select(Setting).where(Setting.key == db_key))
+        s = r.scalar_one_or_none()
+        configured[provider] = s.value if s else getattr(app_settings, f"default_{provider}_model")
+
+    # Check which providers have API keys configured
+    has_key = {}
+    for provider, key in [("openai", "api_key.openai"), ("gemini", "api_key.google")]:
+        r = await session.execute(select(Setting).where(Setting.key == key))
+        has_key[provider] = r.scalar_one_or_none() is not None
+    has_key["ollama"] = len(available["ollama"]) > 0
+
+    return {"available": available, "configured": configured, "has_key": has_key}
 
 
 @router.get("/models")
@@ -157,9 +206,9 @@ async def set_model(provider: str, body: ModelInput, session: AsyncSession = Dep
 
 GENERAL_SETTINGS = {
     "max_upload_size_gb": {"default": str(app_settings.max_upload_size_gb), "label": "Max Upload Size (GB)"},
-    "refine_model_openai": {"default": "gpt-5.4-nano", "label": "Refine Model (OpenAI)"},
-    "refine_model_gemini": {"default": "gemini-2.5-flash-lite", "label": "Refine Model (Gemini)"},
-    "refine_model_ollama": {"default": app_settings.default_ollama_model, "label": "Refine Model (Ollama)"},
+    "refine_model_openai": {"default": "gpt-5.4-nano", "label": "OpenAI"},
+    "refine_model_gemini": {"default": "gemini-2.5-flash-lite", "label": "Gemini"},
+    "refine_model_ollama": {"default": app_settings.default_ollama_model, "label": "Ollama"},
 }
 
 

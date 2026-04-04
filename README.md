@@ -6,27 +6,42 @@
 
 [日本語](README.ja.md)
 
-AI-powered SRT subtitle generator with YouTube metadata, catchphrase, and quiz generation.
+Generate SRT subtitles from audio/video with AI transcription, then refine, edit, and export — all in one place.
 
 ## Features
 
-### Transcription & SRT
+### Transcription
 - **AI Transcription**: OpenAI Whisper API / Google Gemini API
 - **Multi-format**: MP4, MP3, WAV, MOV, AVI, MKV, M4A, FLAC, OGG, WebM
-- **LLM Post-processing**: 3 modes (Verbatim / Standard / Caption) with glossary support
-- **Verify Pass**: Full-text consistency check for proper nouns, place names, kanji
-- **SRT Editor**: Inline editing with per-segment AI suggestions
+- **LLM Post-processing**: 3 refine modes (Verbatim / Standard / Caption) with glossary
+- **Verify Pass**: Full-text consistency check for proper nouns and kanji
+- **Ollama Support**: Use local LLM models (Qwen3, etc.) for post-processing
+
+### SRT Editor
+- **Inline Editing**: Edit text, timestamps, and segment structure in-browser
+- **Speaker Management**: Register speakers, assign per segment, auto-coloring (8 colors)
+- **Segment Operations**: Merge, delete, add segments with time overlap validation
+- **Time Controls**: Editable timestamps with ±0.1s nudge buttons
+- **Audio Playback**: Integrated player bar, click any segment to play that range
+- **AI Suggestions**: Per-segment AI corrections using glossary (supports Ollama)
+- **Speaker-filtered Export**: Download SRT/VTT for a specific speaker only
 
 ### YouTube Tools
-- **Metadata Generation**: SEO-optimized title, description with chapters, 15-25 tags
-- **Tone Reference**: Match previous videos' writing style for channel consistency
-- **Catchphrase Generation**: 5 thumbnail text suggestions with style classification
-- **Quiz Generation**: 5 multiple-choice questions from video content
+- **Metadata**: SEO-optimized title, description with chapters, 15-25 tags
+- **Tone Reference**: Match previous videos' writing style
+- **Catchphrases**: 5 thumbnail text suggestions with style classification
+- **Quiz**: 5 multiple-choice questions from video content
+
+### Model Selection
+- **Per-task model choice**: Select provider + model when generating (Upload, History, Meta Editor)
+- **Settings defaults**: Configure default models per provider, with optional refine model override
+- **Ollama integration**: Dropdown populated from local Ollama instance, auto-resolves Docker networking
 
 ### Management
-- **Upload History**: 2-row layout with grouped action buttons and status indicators
+- **Upload History**: Grouped actions, status indicators, inline modal preview
 - **Cost Dashboard**: Track API costs by provider, model, month, and operation
-- **Settings**: API keys (encrypted), model presets, glossary, refine prompts, pricing
+- **Settings**: Encrypted API keys, model presets, glossary, refine prompts, pricing config
+- **i18n**: English / Japanese
 
 ## Screenshots
 
@@ -50,6 +65,16 @@ cp .env.example .env
 # Set ENCRYPTION_KEY in .env
 docker compose up --build
 # Open http://localhost:8000 → Settings → Configure API keys
+```
+
+### Docker + Ollama (Local LLM)
+
+```bash
+# Start Ollama on host first: ollama serve
+# Pull a model: ollama pull qwen3:8b
+docker compose up --build
+# Settings → Ollama Base URL: http://localhost:11434
+# (Auto-resolved to host.docker.internal inside the container)
 ```
 
 ### Docker on WSL2 (Windows)
@@ -79,41 +104,39 @@ uvicorn src.main:app --reload --port 8000
 ## Usage
 
 ### 1. Configure API Keys
-Settings page → Enter OpenAI / Google API keys.
+Settings → Enter OpenAI / Google API keys. For Ollama, set the base URL and select a model.
 
 ### 2. Upload & Transcribe
-Upload page → Drag & drop file → Select provider & refine mode → Upload & Process.
-Processing completes → Auto-redirect to Upload History.
+Upload → Drag & drop a file → Select transcription engine (Whisper / Gemini) → Choose post-processing model if refine is enabled → Upload & Process.
 
 ### 3. Edit SRT
-Upload History → **Edit** button → SRT Editor.
-Edit segments, use AI suggestions, save & download.
+History → **Edit** → SRT Editor. Edit segments, assign speakers, use AI suggestions, merge/split segments, adjust timestamps. Download full SRT/VTT or per-speaker exports.
 
 ### 4. Generate YouTube Metadata
-Upload History → **Meta** button → Metadata Editor.
-Set channel info, enable tone reference, generate title/description/chapters/tags.
+History → **Meta** → Metadata Editor. Set channel info, choose LLM model, generate title/description/chapters/tags.
 
-### 5. Generate Catchphrases & Quiz
-Upload History → **Catchphrase** / **Quiz** buttons → One-click generation.
+### 5. Catchphrases & Quiz
+History → **Catchphrase** / **Quiz** → Select model in modal → Generate.
 
 ## Tech Stack
 
 - **Backend**: FastAPI (Python 3.11+), async/await
 - **Frontend**: Jinja2 + HTMX + Alpine.js + Tailwind CSS (no build step)
 - **Database**: SQLite (SQLAlchemy 2.0 async + aiosqlite + Alembic)
-- **AI**: OpenAI Whisper/GPT, Google Gemini
+- **AI**: OpenAI Whisper/GPT, Google Gemini, Ollama (local)
 - **Audio**: ffmpeg
 - **Security**: Fernet encryption for API keys
 - **i18n**: English / Japanese
 
 ## Provider Comparison
 
-| | OpenAI Whisper | Google Gemini |
-|---|---|---|
-| Accuracy | High (dedicated ASR) | High (multimodal LLM) |
-| Timestamps | Precise | Approximate |
-| Cost | $0.006/min | ~$0.0005/min (Flash Lite) |
-| File Limit | 25MB (auto-chunking) | 9.5 hours |
+| | OpenAI Whisper | Google Gemini | Ollama (Local) |
+|---|---|---|---|
+| Transcription | Yes (dedicated ASR) | Yes (multimodal LLM) | No (uses Whisper) |
+| Post-processing | GPT models | Gemini models | Any local model |
+| Cost | $0.006/min (STT) + LLM | ~$0.0005/min (Flash Lite) | Free (local hardware) |
+| File Limit | 25MB (auto-chunking) | 9.5 hours | N/A |
+| Privacy | Cloud | Cloud | Fully local |
 
 ## License
 

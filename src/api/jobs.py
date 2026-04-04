@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+# UI sends "openai"/"gemini"/"ollama"; backend expects "whisper"/"gemini"/"ollama"
+_PROVIDER_ALIASES = {"openai": "whisper", "whisper": "whisper", "gemini": "gemini", "ollama": "ollama"}
+
+
+def _normalize_provider(provider: str | None) -> str | None:
+    """Normalize UI provider name to internal provider name."""
+    if provider is None:
+        return None
+    normalized = _PROVIDER_ALIASES.get(provider.strip().lower())
+    if normalized is None:
+        raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
+    return normalized
+
+
 DEFAULT_MAX_UPLOAD_SIZE = settings.max_upload_size_gb * 1024 * 1024 * 1024
 
 
@@ -78,6 +92,7 @@ VALID_REFINE_MODES = {"verbatim", "standard", "caption"}
 async def create_job(
     file: UploadFile,
     provider: str = "whisper",
+    model: str | None = None,
     language: str | None = None,
     enable_metadata: bool = False,
     enable_refine: bool = False,
@@ -137,6 +152,7 @@ async def create_job(
             enable_verify=enable_verify,
             glossary=glossary.strip() if glossary else None,
             refine_mode=refine_mode,
+            model_override=model,
         )
         session.add(job)
         await session.commit()
@@ -202,41 +218,89 @@ async def get_job_status(job_id: str, request: Request, session: AsyncSession = 
 
 
 @router.get("/{job_id}/download")
-async def download_srt(job_id: str, session: AsyncSession = Depends(get_session)):
-    job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=404, detail="SRT file not found")
-
-    srt_file = Path(job.srt_path).resolve()
-    if not srt_file.exists():
-        raise HTTPException(status_code=404, detail="SRT file not found on disk")
-
-    download_name = Path(_safe_filename(job.filename)).stem + ".srt"
-    return FileResponse(srt_file, filename=download_name, media_type="text/plain")
-
-
-@router.get("/{job_id}/download-vtt")
-async def download_vtt(job_id: str, session: AsyncSession = Depends(get_session)):
-    job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=404, detail="SRT file not found")
-
-    srt_file = Path(job.srt_path).resolve()
-    if not srt_file.exists():
-        raise HTTPException(status_code=404, detail="SRT file not found on disk")
-
-    from src.services.srt import srt_to_vtt
-
-    srt_content = srt_file.read_text(encoding="utf-8")
-    vtt_content = srt_to_vtt(srt_content)
-    download_name = Path(_safe_filename(job.filename)).stem + ".vtt"
+async def download_srt(
+    job_id: str,
+    speaker: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    import json as json_mod
+    from urllib.parse import quote
 
     from fastapi.responses import Response
 
+    from src.services.srt import generate_srt, parse_srt
+
+    job = await _get_job_or_404(session, job_id)
+    if not job.srt_path:
+        raise HTTPException(status_code=404, detail="SRT file not found")
+
+    srt_file = Path(job.srt_path).resolve()
+    if not srt_file.exists():
+        raise HTTPException(status_code=404, detail="SRT file not found on disk")
+
+    stem = Path(_safe_filename(job.filename)).stem
+
+    if not speaker:
+        download_name = f"{stem}.srt"
+        return FileResponse(srt_file, filename=download_name, media_type="text/plain")
+
+    # Filter segments by speaker
+    speaker_map = json_mod.loads(job.speaker_map) if job.speaker_map else {}
+    segments = parse_srt(srt_file.read_text(encoding="utf-8"))
+    filtered = [seg for i, seg in enumerate(segments) if speaker_map.get(str(i)) == speaker]
+    if not filtered:
+        raise HTTPException(status_code=404, detail=f"No segments for speaker: {speaker}")
+
+    srt_content = generate_srt(filtered)
+    download_name = f"{stem}_{speaker}.srt"
+    encoded_name = quote(download_name, safe="")
+    return Response(
+        content=srt_content,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"},
+    )
+
+
+@router.get("/{job_id}/download-vtt")
+async def download_vtt(
+    job_id: str,
+    speaker: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    import json as json_mod
+    from urllib.parse import quote
+
+    from fastapi.responses import Response
+
+    from src.services.srt import generate_vtt, parse_srt, srt_to_vtt
+
+    job = await _get_job_or_404(session, job_id)
+    if not job.srt_path:
+        raise HTTPException(status_code=404, detail="SRT file not found")
+
+    srt_file = Path(job.srt_path).resolve()
+    if not srt_file.exists():
+        raise HTTPException(status_code=404, detail="SRT file not found on disk")
+
+    stem = Path(_safe_filename(job.filename)).stem
+
+    if not speaker:
+        vtt_content = srt_to_vtt(srt_file.read_text(encoding="utf-8"))
+        download_name = f"{stem}.vtt"
+    else:
+        speaker_map = json_mod.loads(job.speaker_map) if job.speaker_map else {}
+        segments = parse_srt(srt_file.read_text(encoding="utf-8"))
+        filtered = [seg for i, seg in enumerate(segments) if speaker_map.get(str(i)) == speaker]
+        if not filtered:
+            raise HTTPException(status_code=404, detail=f"No segments for speaker: {speaker}")
+        vtt_content = generate_vtt(filtered)
+        download_name = f"{stem}_{speaker}.vtt"
+
+    encoded_name = quote(download_name, safe="")
     return Response(
         content=vtt_content,
         media_type="text/vtt",
-        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"},
     )
 
 
@@ -269,88 +333,6 @@ async def get_media(job_id: str, session: AsyncSession = Depends(get_session)):
     return FileResponse(media_path, media_type=media_types.get(ext, "application/octet-stream"))
 
 
-@router.post("/{job_id}/re-refine")
-async def re_refine(
-    job_id: str,
-    request: Request,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
-    session: AsyncSession = Depends(get_session),
-):
-    """Re-run LLM refinement on existing SRT."""
-    job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=400, detail="No SRT file available")
-
-    glossary = None
-    try:
-        body = await request.json()
-        glossary = body.get("glossary")
-    except Exception:
-        pass
-
-    background_tasks.add_task(_re_refine_job, job_id, glossary)
-    return {"status": "refining"}
-
-
-async def _re_refine_job(job_id: str, custom_glossary: str | None = None) -> None:
-    """Background task: re-refine existing SRT."""
-    from src.services.srt import generate_srt, parse_srt, save_srt
-    from src.services.transcribe import _get_credential, _run_refinement, _run_verification
-
-    async with async_session() as session:
-        result = await session.execute(select(Job).where(Job.id == job_id))
-        job = result.scalar_one_or_none()
-        if not job or not job.srt_path:
-            return
-
-        try:
-            job.status = "refining"
-            job.error_message = None
-            await session.commit()
-
-            srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-            segments = parse_srt(srt_content)
-
-            # Use custom glossary if provided, otherwise merge global + job glossary
-            if custom_glossary is not None:
-                glossary = custom_glossary
-            else:
-                from src.models import Setting
-
-                r = await session.execute(select(Setting).where(Setting.key == "glossary"))
-                gs = r.scalar_one_or_none()
-                global_glossary = gs.value if gs else ""
-                job_glossary = job.glossary or ""
-                glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
-
-            api_key = await _get_credential(session, job.provider)
-
-            segments = await _run_refinement(job, session, segments, api_key, glossary)
-
-            # Verify if enabled
-            if job.enable_verify:
-                import json
-
-                job.status = "verifying"
-                await session.commit()
-                segments, changed_indices, reasons = await _run_verification(job, session, segments, api_key, glossary)
-                job.verified_indices = json.dumps(changed_indices)
-                job.verify_reasons = json.dumps(reasons, ensure_ascii=False)
-
-            # Save updated SRT
-            srt_content = generate_srt(segments)
-            save_srt(srt_content, Path(job.srt_path))
-
-            job.status = STATUS_COMPLETED
-            await session.commit()
-            logger.info("Re-refine completed for job %s", job_id)
-        except Exception as e:
-            logger.exception("Re-refine failed for job %s", job_id)
-            job.status = STATUS_COMPLETED
-            job.error_message = f"Re-refine failed: {str(e)[:400]}"
-            await session.commit()
-
-
 @router.post("/{job_id}/generate-meta")
 async def generate_meta(
     job_id: str,
@@ -366,17 +348,23 @@ async def generate_meta(
     custom_prompt = None
     fixed_footer = ""
     use_tone_ref = True
+    override_provider = None
+    override_model = None
     try:
         body = await request.json()
         custom_prompt = body.get("custom_prompt")
         fixed_footer = body.get("fixed_footer", "")
         use_tone_ref = body.get("use_tone_ref", True)
+        override_provider = body.get("provider")
+        override_model = body.get("model")
     except Exception:
         pass
 
     tone_references = await _get_tone_references(session) if use_tone_ref else None
 
-    background_tasks.add_task(_generate_meta_job, job_id, custom_prompt, fixed_footer, tone_references)
+    background_tasks.add_task(
+        _generate_meta_job, job_id, custom_prompt, fixed_footer, tone_references, override_provider, override_model
+    )
     return {"status": "generating_metadata"}
 
 
@@ -407,16 +395,20 @@ async def optimize_prompt(
     current_prompt = body.get("current_prompt", "")
     use_tone_ref = body.get("use_tone_ref", True)
 
+    override_provider = body.get("provider")
+    override_model = body.get("model")
+
     tone_references = await _get_tone_references(session) if use_tone_ref else None
 
-    api_key = await _get_credential(session, job.provider)
-    model = await _get_model(session, job.provider)
+    provider = _normalize_provider(override_provider) or job.provider
+    api_key = await _get_credential(session, provider)
+    model = override_model or await _get_model(session, provider)
 
     optimized = await optimize_meta_prompt(
         current_prompt,
         context,
         api_key,
-        get_provider_name(job.provider),
+        get_provider_name(provider),
         model,
         tone_references,
     )
@@ -428,9 +420,11 @@ async def _generate_meta_job(
     custom_prompt: str | None = None,
     fixed_footer: str = "",
     tone_references: str | None = None,
+    override_provider: str | None = None,
+    override_model: str | None = None,
 ) -> None:
     """Background task: generate YouTube metadata from existing SRT."""
-    from src.services.transcribe import _get_credential, _run_metadata_generation
+    from src.services.transcribe import _get_credential, _get_model, _run_metadata_generation
 
     async with async_session() as session:
         result = await session.execute(select(Job).where(Job.id == job_id))
@@ -442,9 +436,11 @@ async def _generate_meta_job(
             job.status = "generating_metadata"
             await session.commit()
 
+            provider = _normalize_provider(override_provider) or job.provider
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-            api_key = await _get_credential(session, job.provider)
-            await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt, tone_references)
+            api_key = await _get_credential(session, provider)
+            model = override_model or await _get_model(session, provider)
+            await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt, tone_references, model)
 
             # Append fixed footer to description (not processed by AI)
             if fixed_footer and fixed_footer.strip() and job.youtube_description:
@@ -464,6 +460,7 @@ async def _generate_meta_job(
 @router.post("/{job_id}/generate-catchphrase")
 async def generate_catchphrase_endpoint(
     job_id: str,
+    request: Request,
     regenerate: bool = False,
     session: AsyncSession = Depends(get_session),
 ):
@@ -482,11 +479,22 @@ async def generate_catchphrase_endpoint(
     if job.catchphrases and not regenerate:
         return {"catchphrases": json_mod.loads(job.catchphrases), "cached": True}
 
+    # Parse optional provider/model override
+    override_provider = None
+    override_model = None
     try:
+        body = await request.json()
+        override_provider = body.get("provider")
+        override_model = body.get("model")
+    except Exception:
+        pass
+
+    try:
+        provider = _normalize_provider(override_provider) or job.provider
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-        api_key = await _get_credential(session, job.provider)
-        model = await _get_model(session, job.provider)
-        provider_name = get_provider_name(job.provider)
+        api_key = await _get_credential(session, provider)
+        model = override_model or await _get_model(session, provider)
+        provider_name = get_provider_name(provider)
 
         phrases, input_tokens, output_tokens = await generate_catchphrases(srt_content, api_key, provider_name, model)
 
@@ -515,6 +523,7 @@ async def generate_catchphrase_endpoint(
 @router.post("/{job_id}/generate-quiz")
 async def generate_quiz_endpoint(
     job_id: str,
+    request: Request,
     regenerate: bool = False,
     session: AsyncSession = Depends(get_session),
 ):
@@ -533,11 +542,22 @@ async def generate_quiz_endpoint(
     if job.quiz and not regenerate:
         return {"quiz": json_mod.loads(job.quiz), "cached": True}
 
+    # Parse optional provider/model override
+    override_provider = None
+    override_model = None
     try:
+        body = await request.json()
+        override_provider = body.get("provider")
+        override_model = body.get("model")
+    except Exception:
+        pass
+
+    try:
+        provider = _normalize_provider(override_provider) or job.provider
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-        api_key = await _get_credential(session, job.provider)
-        model = await _get_model(session, job.provider)
-        provider_name = get_provider_name(job.provider)
+        api_key = await _get_credential(session, provider)
+        model = override_model or await _get_model(session, provider)
+        provider_name = get_provider_name(provider)
 
         quiz, input_tokens, output_tokens = await generate_quiz(srt_content, api_key, provider_name, model)
 
@@ -589,6 +609,8 @@ async def get_segments(job_id: str, session: AsyncSession = Depends(get_session)
         "verified_indices": verified_indices,
         "verify_reasons": verify_reasons,
         "glossary": job.glossary or "",
+        "speakers": json_mod.loads(job.speakers) if job.speakers else [],
+        "speaker_map": json_mod.loads(job.speaker_map) if job.speaker_map else {},
     }
 
 
@@ -606,16 +628,55 @@ async def update_segments(job_id: str, request: Request, session: AsyncSession =
     if not segments or not isinstance(segments, list):
         raise HTTPException(status_code=400, detail="No segments provided")
 
-    # Validate segment structure
+    # Validate segment structure and timing
+    previous_end = None
     for i, seg in enumerate(segments):
         if not isinstance(seg, dict) or "start" not in seg or "end" not in seg or "text" not in seg:
             raise HTTPException(status_code=400, detail=f"Invalid segment at index {i}")
+        try:
+            start = float(seg["start"])
+            end = float(seg["end"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start and end must be numeric")
+        if start >= end:
+            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start must be before end")
+        if previous_end is not None and start < previous_end:
+            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: overlaps with previous segment")
+        previous_end = end
 
     srt_content = generate_srt(segments)
     srt_path = Path(job.srt_path).resolve()
     save_srt(srt_content, srt_path)
 
     return {"status": "saved", "segment_count": len(segments)}
+
+
+@router.put("/{job_id}/glossary")
+async def update_job_glossary(job_id: str, request: Request, session: AsyncSession = Depends(get_session)):
+    """Update the job-specific glossary."""
+    job = await _get_job_or_404(session, job_id)
+    body = await request.json()
+    glossary = body.get("glossary", "")
+    if len(glossary) > 5000:
+        raise HTTPException(status_code=400, detail="Glossary too long. Max 5000 characters.")
+    job.glossary = glossary.strip() if glossary else None
+    await session.commit()
+    return {"saved": True}
+
+
+@router.put("/{job_id}/speakers")
+async def update_speakers(job_id: str, request: Request, session: AsyncSession = Depends(get_session)):
+    """Update speaker list and per-segment speaker assignments."""
+    import json as json_mod
+
+    job = await _get_job_or_404(session, job_id)
+    body = await request.json()
+    speakers = body.get("speakers", [])
+    speaker_map = body.get("speaker_map", {})
+    job.speakers = json_mod.dumps(speakers, ensure_ascii=False) if speakers else None
+    job.speaker_map = json_mod.dumps(speaker_map, ensure_ascii=False) if speaker_map else None
+    await session.commit()
+    return {"saved": True}
 
 
 @router.post("/{job_id}/segments/{index}/suggest")
@@ -648,7 +709,7 @@ async def suggest_segment_endpoint(
     model = await _get_model(session, job.provider)
     provider_name = get_provider_name(job.provider)
 
-    # Get glossary
+    # Merge global glossary + job glossary from DB
     from src.models import Setting
 
     result = await session.execute(select(Setting).where(Setting.key == "glossary"))

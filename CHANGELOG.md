@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-04
+
+### Added
+- **Ollama (Local LLM)**: Use local Ollama models for refine, metadata, catchphrase, quiz generation
+- **SRT Editor — Speaker management**: Register speakers, assign per-segment, auto-coloring (8-color palette)
+- **SRT Editor — Segment operations**: Merge, delete, add segments with time validation
+- **SRT Editor — Time controls**: Editable timestamps, ±0.1s nudge buttons, end→next start auto-link
+- **SRT Editor — Audio playback**: Player bar, click-to-play per segment, active segment highlighting
+- **SRT Editor — Per-segment AI suggestions**: Glossary-aware, Qwen3 /no_think optimization
+- **Speaker-filtered download**: Download SRT/VTT per speaker via split button dropdown
+- **LLM model selector**: Choose provider + model on Upload, History (catchphrase/quiz), and Meta Editor pages
+- **Available models API**: `GET /api/settings/available-models` with dynamic Ollama model listing
+- **Job glossary API**: `PUT /api/jobs/{id}/glossary` for per-job glossary persistence
+- **Speakers API**: `PUT /api/jobs/{id}/speakers` for speaker list and per-segment assignments
+- **Media endpoint**: `GET /api/jobs/{id}/media` for audio playback in SRT Editor
+- **Alembic migrations**: `speakers`, `speaker_map`, `model_override` columns
+- **Codecov config**: Relaxed patch coverage target for UI-heavy changes
+- 27 new tests (145 → 172 total)
+
+### Changed
+- Upload page: "Provider" renamed to "Transcription Engine", Ollama removed (STT only: Whisper/Gemini)
+- Upload page: Post-processing model selector shown when refine is enabled
+- Settings: LLM model section restructured — "Default Models" + "Refine Models (optional)"
+- Settings: All model selectors changed to dropdowns (OpenAI, Gemini, Ollama)
+- Settings: Ollama model section removed (consolidated into LLM Models)
+- Settings: Page load parallelized (9 API calls via Promise.all)
+- History: Meta preview button icon changed from ▶ to eye icon
+- History: Model selector moved from page header into modal regenerate area
+- SRT Editor: End time shrink no longer auto-syncs next segment's start
+- Content-Disposition headers use RFC 5987 UTF-8 encoding for non-ASCII filenames
+
+### Fixed
+- Docker Ollama: Auto-resolve `localhost` → `host.docker.internal` in containers
+- Ollama test button: Uses resolved URL in Docker environments
+- Settings dropdown: Values correctly selected after async load (Alpine.js $nextTick fix)
+- Translation: Preset/model save toast messages now properly interpolate placeholders
+- Re-refine feature removed (replaced by per-segment AI suggestions)
+
 ## [0.2.0] - 2026-03-27
 
 ### Added

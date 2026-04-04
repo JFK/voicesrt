@@ -360,13 +360,17 @@ async def _verify_gemini(prompt: str, api_key: str, model: str) -> tuple[list[di
 # ---------------------------------------------------------------------------
 
 SUGGEST_SYSTEM_PROMPT = (
-    "You are a professional subtitle editor. "
+    "/no_think You are a professional subtitle editor. "
     "You suggest improved text for a single subtitle segment, "
-    "considering its surrounding context."
+    "considering its surrounding context. "
+    "Always respond in the SAME language as the subtitle text."
 )
 
 SUGGEST_PROMPT = """\
 Improve the following subtitle segment for readability and accuracy.
+
+IMPORTANT: If a glossary is provided below, you MUST apply all matching \
+corrections. This takes priority over all other rules.
 
 Context (surrounding segments for reference):
 {context}
@@ -375,8 +379,8 @@ Target segment to improve:
 {target_text}
 
 {glossary_section}
-Return JSON: {{"text": "improved text", "reason": "what was changed and why"}}
-If no improvement is needed, return the original text unchanged."""
+Return JSON: {{"text": "improved text"}}
+If no glossary corrections apply and no improvement is needed, return the original text unchanged."""
 
 
 async def suggest_segment(
@@ -402,7 +406,12 @@ async def suggest_segment(
 
     glossary_section = ""
     if glossary.strip():
-        glossary_section = f"Glossary:\n{glossary.strip()}"
+        glossary_section = (
+            "Glossary (apply these corrections and terms):\n"
+            "Lines with → mean: replace the left side with the right side.\n"
+            "Other lines are correct terms to preserve.\n\n"
+            f"{glossary.strip()}"
+        )
 
     prompt = SUGGEST_PROMPT.format(
         context=context,

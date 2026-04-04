@@ -63,7 +63,9 @@
                             </a>
                             {% if job.youtube_title %}
                             <button onclick="showMetaModal('{{ job.id }}')"
-                                    class="inline-flex items-center rounded-full px-1.5 py-1 text-xs font-medium border bg-green-50 text-green-700 border-green-200 hover:bg-green-100" title="{{ t('history.meta') }}">&#9654;</button>
+                                    class="inline-flex items-center rounded-full px-1.5 py-1 text-xs font-medium border bg-green-50 text-green-700 border-green-200 hover:bg-green-100" title="{{ t('history.meta') }}">
+                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
                             {% endif %}
                             <button onclick="generateCatchphrase('{{ job.id }}')"
                                     class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.catchphrases %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
@@ -120,17 +122,31 @@
             <button onclick="document.getElementById('catchphrase-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div id="catchphrase-content"></div>
+        <div id="catchphrase-regen" style="display:none" class="mt-4 pt-3 border-t border-gray-200">
+            <div class="flex items-center gap-2">
+                <select id="catchphrase-provider" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7"></select>
+                <select id="catchphrase-model" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7 max-w-[200px]"></select>
+                <button id="catchphrase-regen-btn" class="px-4 py-1.5 bg-purple-600 text-white rounded-md text-xs hover:bg-purple-700">{{ t('history.regenerate') }}</button>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Quiz Modal -->
-<div id="quiz-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+<div id="quiz-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+     onclick="if(event.target===this)this.style.display='none'">
     <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold">{{ t('history.youtube_quiz') }}</h3>
             <button onclick="document.getElementById('quiz-modal').style.display='none'" class="text-gray-400 hover:text-gray-600">&times;</button>
         </div>
-        <div id="quiz-content">
+        <div id="quiz-content"></div>
+        <div id="quiz-regen" style="display:none" class="mt-4 pt-3 border-t border-gray-200">
+            <div class="flex items-center gap-2">
+                <select id="quiz-provider" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7"></select>
+                <select id="quiz-model" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7 max-w-[200px]"></select>
+                <button id="quiz-regen-btn" class="px-4 py-1.5 bg-purple-600 text-white rounded-md text-xs hover:bg-purple-700">{{ t('history.regenerate') }}</button>
+            </div>
         </div>
     </div>
 </div>
@@ -173,19 +189,75 @@ async function showMetaModal(jobId) {
         </div>` : ''}`;
 }
 
+// Model data cache (loaded once)
+let _modelData = null;
+async function loadModelData() {
+    if (_modelData) return _modelData;
+    const res = await fetch('/api/settings/available-models');
+    _modelData = await res.json();
+    return _modelData;
+}
+
+function setupModelSelector(providerSelectId, modelSelectId, onReady) {
+    loadModelData().then(data => {
+        const providerEl = document.getElementById(providerSelectId);
+        const modelEl = document.getElementById(modelSelectId);
+        providerEl.innerHTML = '';
+        const providers = ['openai', 'gemini', 'ollama'];
+        let defaultProvider = '';
+        providers.forEach(p => {
+            if (!data.has_key[p]) return;
+            const opt = document.createElement('option');
+            opt.value = p; opt.textContent = p;
+            providerEl.appendChild(opt);
+            if (!defaultProvider) defaultProvider = p;
+        });
+        providerEl.value = defaultProvider;
+
+        function updateModels() {
+            const p = providerEl.value;
+            const models = data.available[p] || [];
+            modelEl.innerHTML = '';
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m; opt.textContent = m;
+                modelEl.appendChild(opt);
+            });
+            modelEl.value = data.configured[p] || models[0] || '';
+        }
+        providerEl.addEventListener('change', updateModels);
+        updateModels();
+        if (onReady) onReady();
+    });
+}
+
+function getModelFrom(providerSelectId, modelSelectId) {
+    return {
+        provider: document.getElementById(providerSelectId)?.value,
+        model: document.getElementById(modelSelectId)?.value,
+    };
+}
+
 async function generateCatchphrase(jobId, regenerate = false) {
     const modal = document.getElementById('catchphrase-modal');
     const content = document.getElementById('catchphrase-content');
+    const regenArea = document.getElementById('catchphrase-regen');
     modal.style.display = 'flex';
-    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-pink-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t('history.loading') }}</span></div>';
+    regenArea.style.display = 'none';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-pink-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t("history.loading") }}</span></div>';
 
     try {
         const url = `/api/jobs/${jobId}/generate-catchphrase` + (regenerate ? '?regenerate=true' : '');
-        const res = await fetch(url, { method: 'POST' });
+        const body = regenerate ? getModelFrom('catchphrase-provider', 'catchphrase-model') : {};
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
         const data = await res.json();
 
         if (data.catchphrases) {
-            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t('history.saved_result') }}</p>' : '';
+            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t("history.saved_result") }}</p>' : '';
             html += '<div class="space-y-2">';
             data.catchphrases.forEach(p => {
                 html += `<div class="flex items-center justify-between border rounded-lg p-3">
@@ -193,35 +265,45 @@ async function generateCatchphrase(jobId, regenerate = false) {
                         <span class="font-bold text-lg">${p.text}</span>
                         <span class="ml-2 text-xs text-gray-400">${p.style || ''}</span>
                     </div>
-                    <button onclick="navigator.clipboard.writeText('${p.text.replace(/'/g, "\\'")}'); this.textContent='{{ t('history.copied') }}'"
-                            class="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
+                    <button onclick="navigator.clipboard.writeText('${p.text.replace(/'/g, "\\'")}'); this.textContent='{{ t("history.copied") }}'"
+                            class="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs hover:bg-gray-200">{{ t("history.copy") }}</button>
                 </div>`;
             });
             html += '</div>';
-            html += `<button onclick="generateCatchphrase('${jobId}', true)"
-                      class="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">{{ t('history.regenerate') }}</button>`;
             content.innerHTML = html;
+
+            // Show regen area with model selector
+            regenArea.style.display = 'block';
+            setupModelSelector('catchphrase-provider', 'catchphrase-model');
+            document.getElementById('catchphrase-regen-btn').onclick = () => generateCatchphrase(jobId, true);
         } else {
-            content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + (data.error || 'Unknown error') + '</p>';
+            content.innerHTML = '<p class="text-red-600 text-sm">{{ t("history.failed") }} ' + (data.error || 'Unknown error') + '</p>';
         }
     } catch (e) {
-        content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + e.message + '</p>';
+        content.innerHTML = '<p class="text-red-600 text-sm">{{ t("history.failed") }} ' + e.message + '</p>';
     }
 }
 
 async function generateQuiz(jobId, regenerate = false) {
     const modal = document.getElementById('quiz-modal');
     const content = document.getElementById('quiz-content');
+    const regenArea = document.getElementById('quiz-regen');
     modal.style.display = 'flex';
-    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t('history.loading') }}</span></div>';
+    regenArea.style.display = 'none';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t("history.loading") }}</span></div>';
 
     try {
         const url = `/api/jobs/${jobId}/generate-quiz` + (regenerate ? '?regenerate=true' : '');
-        const res = await fetch(url, { method: 'POST' });
+        const body = regenerate ? getModelFrom('quiz-provider', 'quiz-model') : {};
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
         const data = await res.json();
 
         if (data.quiz) {
-            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t('history.saved_result') }}</p>' : '';
+            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t("history.saved_result") }}</p>' : '';
             html += '<div class="space-y-4">';
             data.quiz.forEach((q, i) => {
                 html += `<div class="border rounded-lg p-3">
@@ -230,24 +312,27 @@ async function generateQuiz(jobId, regenerate = false) {
                 q.options.forEach((opt, j) => {
                     const isAnswer = j === q.answer_index;
                     html += `<li class="text-sm ${isAnswer ? 'text-green-700 font-medium' : 'text-gray-600'}">
-                        ${String.fromCharCode(65+j)}. ${opt} ${isAnswer ? '{{ t('history.correct') }}' : ''}
+                        ${String.fromCharCode(65+j)}. ${opt} ${isAnswer ? '{{ t("history.correct") }}' : ''}
                     </li>`;
                 });
                 html += '</ul></div>';
             });
             html += '</div>';
-            html += `<div class="mt-4 flex space-x-2">
-                <button onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(data.quiz)}, null, 2)); this.textContent='{{ t('history.copied') }}'"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">{{ t('history.copy_json') }}</button>
-                <button onclick="generateQuiz('${jobId}', true)"
-                        class="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">{{ t('history.regenerate') }}</button>
+            html += `<div class="mt-3">
+                <button onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(data.quiz)}, null, 2)); this.textContent='{{ t("history.copied") }}'"
+                        class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t("history.copy_json") }}</button>
             </div>`;
             content.innerHTML = html;
+
+            // Show regen area with model selector
+            regenArea.style.display = 'block';
+            setupModelSelector('quiz-provider', 'quiz-model');
+            document.getElementById('quiz-regen-btn').onclick = () => generateQuiz(jobId, true);
         } else {
-            content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + (data.error || 'Unknown error') + '</p>';
+            content.innerHTML = '<p class="text-red-600 text-sm">{{ t("history.failed") }} ' + (data.error || 'Unknown error') + '</p>';
         }
     } catch (e) {
-        content.innerHTML = '<p class="text-red-600 text-sm">{{ t('history.failed') }} ' + e.message + '</p>';
+        content.innerHTML = '<p class="text-red-600 text-sm">{{ t("history.failed") }} ' + e.message + '</p>';
     }
 }
 </script>

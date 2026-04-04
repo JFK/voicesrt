@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ t('meta.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<div class="max-w-3xl mx-auto" x-data="metaEditor()" x-init="loadSavedContext()">
+<div class="max-w-3xl mx-auto" x-data="metaEditor()" x-init="loadSavedContext(); loadModels()">
     <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ t('meta.heading') }}</h1>
     <p class="text-sm text-gray-500 mb-6">{{ job.filename }} ({{ "%.1f"|format(job.audio_duration) }}s)</p>
 
@@ -88,11 +88,23 @@
                       class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"></textarea>
             <div class="mt-2 flex justify-between items-center">
                 <button @click="resetPrompt()" class="text-sm text-gray-500 hover:text-gray-700">{{ t('meta.reset_to_default') }}</button>
-                <button @click="generateMetadata()" :disabled="generating"
-                        class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400">
-                    <span x-show="!generating">{{ t('meta.generate_metadata') }}</span>
-                    <span x-show="generating">{{ t('meta.generating') }}</span>
-                </button>
+                <div class="flex items-center gap-2">
+                    <select x-model="selectedProvider" @change="onProviderChange()" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7">
+                        <template x-for="p in availableProviders" :key="p">
+                            <option :value="p" x-text="p" :disabled="!hasKey[p]"></option>
+                        </template>
+                    </select>
+                    <select x-model="selectedModel" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7 max-w-[200px]">
+                        <template x-for="m in currentModels" :key="m">
+                            <option :value="m" x-text="m"></option>
+                        </template>
+                    </select>
+                    <button @click="generateMetadata()" :disabled="generating"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400">
+                        <span x-show="!generating">{{ t('meta.generate_metadata') }}</span>
+                        <span x-show="generating">{{ t('meta.generating') }}</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -196,6 +208,32 @@ Return a JSON object:
         generating: false,
         result: { title: '', description: '', tags: [] },
         toast: '',
+        availableProviders: ['openai', 'gemini', 'ollama'],
+        availableModels: {},
+        hasKey: {},
+        configuredModels: {},
+        selectedProvider: '',
+        selectedModel: '',
+        currentModels: [],
+
+        async loadModels() {
+            try {
+                const res = await fetch('/api/settings/available-models');
+                const data = await res.json();
+                this.availableModels = data.available;
+                this.configuredModels = data.configured;
+                this.hasKey = data.has_key;
+                for (const p of this.availableProviders) {
+                    if (this.hasKey[p]) { this.selectedProvider = p; break; }
+                }
+                this.onProviderChange();
+            } catch (e) { console.error(e); }
+        },
+
+        onProviderChange() {
+            this.currentModels = this.availableModels[this.selectedProvider] || [];
+            this.selectedModel = this.configuredModels[this.selectedProvider] || this.currentModels[0] || '';
+        },
 
         async loadSavedContext() {
             try {
@@ -235,7 +273,9 @@ Return a JSON object:
                     body: JSON.stringify({
                         context: this.context,
                         current_prompt: this.prompt,
-                        use_tone_ref: this.useToneRef
+                        use_tone_ref: this.useToneRef,
+                        provider: this.selectedProvider,
+                        model: this.selectedModel
                     })
                 });
                 const data = await res.json();
@@ -260,7 +300,9 @@ Return a JSON object:
                     body: JSON.stringify({
                         custom_prompt: this.prompt,
                         fixed_footer: this.context.fixedFooter,
-                        use_tone_ref: this.useToneRef
+                        use_tone_ref: this.useToneRef,
+                        provider: this.selectedProvider,
+                        model: this.selectedModel
                     })
                 });
                 const poll = setInterval(async () => {
