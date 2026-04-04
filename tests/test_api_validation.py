@@ -15,6 +15,12 @@ def make_client():
     return _make
 
 
+async def _cleanup_job(make_client, job_id: str) -> None:
+    """Delete a job created during testing."""
+    async with make_client() as c:
+        await c.delete(f"/api/jobs/{job_id}")
+
+
 @pytest.mark.asyncio
 async def test_create_job_invalid_refine_mode(make_client):
     """Invalid refine_mode should return 400."""
@@ -38,6 +44,8 @@ async def test_create_job_valid_refine_modes(make_client):
             )
         # Should pass validation (may fail later due to no real file, but not 400 for refine_mode)
         assert resp.status_code != 400 or "refine_mode" not in resp.json().get("detail", "")
+        if resp.status_code == 200:
+            await _cleanup_job(make_client, resp.json()["id"])
 
 
 @pytest.mark.asyncio
@@ -66,6 +74,8 @@ async def test_create_job_glossary_at_limit(make_client):
         )
     # Should not fail due to glossary length
     assert resp.status_code != 400 or "Glossary" not in resp.json().get("detail", "")
+    if resp.status_code == 200:
+        await _cleanup_job(make_client, resp.json()["id"])
 
 
 @pytest.mark.asyncio
