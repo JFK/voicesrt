@@ -106,10 +106,9 @@
 
                 <!-- Editable text -->
                 <textarea x-model="seg.text" rows="2"
-                          @input="autoResize($event.target); debounceSave()"
-                          x-init="$nextTick(() => autoResize($el))"
-                          class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border resize-none overflow-hidden"
-                          style="min-height: 2.5rem;"></textarea>
+                          @input="debounceSave()"
+                          class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border"
+                          style="field-sizing: content; min-height: 3rem;"></textarea>
 
                 <!-- Verify reason -->
                 <p x-show="verifiedIndices.includes(idx) && verifyReasons[idx]"
@@ -352,10 +351,6 @@ function srtEditor() {
             return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         },
 
-        autoResize(el) {
-            el.style.height = 'auto';
-            el.style.height = Math.max(el.scrollHeight, 48) + 'px';
-        },
     };
 }
 </script>
