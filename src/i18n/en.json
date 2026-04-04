@@ -91,7 +91,13 @@
     "delete_key_confirm": "Delete {label} API key?",
     "llm_models": "LLM Models",
     "configure_models": "Configure models per purpose.",
+    "ollama_title": "Ollama (Local LLM)",
     "ollama_desc": "Connect to a local Ollama instance for LLM post-processing (refine, metadata, quiz). Transcription still uses OpenAI Whisper.",
+    "ollama_base_url": "Base URL",
+    "ollama_model": "Model",
+    "ollama_url_saved": "Ollama URL saved",
+    "ollama_connected": "Connected! Models:",
+    "ollama_error": "Error:",
     "quick_presets": "Quick Presets",
     "quality": "Quality",
     "balanced": "Balanced",
@@ -203,7 +209,10 @@
     "suggestion": "AI Suggestion",
     "accept": "Accept",
     "dismiss": "Dismiss",
-    "back_to_history": "Back to Uploads"
+    "back_to_history": "Back to Uploads",
+    "re_refine": "Re-refine",
+    "refining": "Refining...",
+    "re_refine_done": "Re-refine completed"
   },
   "status": {
     "pending": "Pending",

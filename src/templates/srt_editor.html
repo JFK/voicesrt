@@ -12,6 +12,14 @@
                 <span x-show="saving" class="text-xs text-gray-400">{{ t('srt_editor.saving') }}</span>
                 <span x-show="saveMsg && !saveError" x-transition class="text-xs text-green-600" x-text="saveMsg"></span>
                 <span x-show="saveMsg && saveError" x-transition class="text-xs text-red-600" x-text="saveMsg"></span>
+                <button @click="reRefine()" :disabled="reRefining"
+                        class="inline-flex items-center px-3 py-2 bg-amber-100 text-amber-800 rounded-md text-sm font-medium hover:bg-amber-200 border border-amber-300 disabled:opacity-50">
+                    <span x-show="!reRefining">{{ t('srt_editor.re_refine') }}</span>
+                    <span x-show="reRefining" class="flex items-center gap-1">
+                        <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                        {{ t('srt_editor.refining') }}
+                    </span>
+                </button>
                 <a href="/api/jobs/{{ job.id }}/download"
                    class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 border border-gray-300">
                     SRT
@@ -105,6 +113,7 @@ function srtEditor() {
         saving: false,
         saveMsg: '',
         saveError: false,
+        reRefining: false,
         _saveTimer: null,
 
         async loadSegments() {
@@ -181,6 +190,39 @@ function srtEditor() {
 
         dismissSuggestion(idx) {
             this.suggestions = {...this.suggestions, [idx]: null};
+        },
+
+        async reRefine() {
+            if (this.reRefining) return;
+            this.reRefining = true;
+            this.saveMsg = '';
+            try {
+                const res = await fetch(`/api/jobs/{{ job.id }}/re-refine`, { method: 'POST' });
+                if (!res.ok) throw new Error('Re-refine request failed');
+                // Poll for completion
+                await this._pollUntilDone();
+                await this.loadSegments();
+                this.saveMsg = '{{ t("srt_editor.re_refine_done") }}';
+                this.saveError = false;
+            } catch (e) {
+                this.saveMsg = e.message;
+                this.saveError = true;
+            } finally {
+                this.reRefining = false;
+            }
+        },
+
+        async _pollUntilDone() {
+            for (let i = 0; i < 300; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const res = await fetch(`/api/jobs/{{ job.id }}`);
+                const data = await res.json();
+                if (data.status === 'completed' || data.status === 'failed') {
+                    if (data.error_message) throw new Error(data.error_message);
+                    return;
+                }
+            }
+            throw new Error('Timeout waiting for re-refine');
         },
 
         formatTime(seconds) {

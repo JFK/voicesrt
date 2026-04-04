@@ -43,11 +43,11 @@
 
     <!-- Ollama Settings -->
     <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-2">Ollama (Local LLM)</h2>
+        <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.ollama_title') }}</h2>
         <p class="text-sm text-gray-500 mb-4">{{ t('settings.ollama_desc') }}</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs text-gray-500 mb-1">Base URL</label>
+                <label class="block text-xs text-gray-500 mb-1">{{ t('settings.ollama_base_url') }}</label>
                 <div class="flex space-x-2">
                     <input type="text" x-model="ollamaUrl"
                            class="flex-1 rounded-md border-gray-300 text-sm p-2 border"
@@ -62,7 +62,7 @@
                    x-text="ollamaTestMsg"></p>
             </div>
             <div>
-                <label class="block text-xs text-gray-500 mb-1">Model</label>
+                <label class="block text-xs text-gray-500 mb-1">{{ t('settings.ollama_model') }}</label>
                 <div class="flex space-x-2">
                     <input type="text" x-model="models.ollama"
                            class="flex-1 rounded-md border-gray-300 text-sm p-2 border"
@@ -382,7 +382,7 @@ function settingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value: this.ollamaUrl })
             });
-            this.showStatus('Ollama URL saved');
+            this.showStatus('{{ t("settings.ollama_url_saved") }}');
         },
 
         async testOllama() {
@@ -391,9 +391,9 @@ function settingsPage() {
             const data = await res.json();
             this.ollamaTestResult = data.valid;
             if (data.valid) {
-                this.ollamaTestMsg = 'Connected! Models: ' + (data.models || []).join(', ');
+                this.ollamaTestMsg = '{{ t("settings.ollama_connected") }} ' + (data.models || []).join(', ');
             } else {
-                this.ollamaTestMsg = 'Error: ' + (data.error || 'Unknown');
+                this.ollamaTestMsg = '{{ t("settings.ollama_error") }} ' + (data.error || 'Unknown');
             }
         },
 

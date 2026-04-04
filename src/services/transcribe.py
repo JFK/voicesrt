@@ -25,7 +25,7 @@ from src.services.srt import generate_srt, save_srt
 logger = logging.getLogger(__name__)
 
 
-async def _get_api_key(session: AsyncSession, provider: str) -> str:
+async def _get_credential(session: AsyncSession, provider: str) -> str:
     """Get decrypted API key for the given transcription provider.
 
     For ollama, returns the base URL instead (no API key needed).
@@ -70,7 +70,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
     # Ollama can't do audio transcription; use Whisper (OpenAI) for STT
     transcription_provider = "whisper" if job.provider == "ollama" else job.provider
-    api_key = await _get_api_key(session, transcription_provider)
+    api_key = await _get_credential(session, transcription_provider)
     audio_path: Path | None = None
 
     try:
@@ -104,7 +104,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         )
 
         # For post-processing, use the job's own provider (may differ from transcription)
-        pp_api_key = await _get_api_key(session, job.provider) if job.provider != transcription_provider else api_key
+        pp_api_key = await _get_credential(session, job.provider) if job.provider != transcription_provider else api_key
 
         # Step 3: LLM post-processing (refine) if enabled
         if job.enable_refine:

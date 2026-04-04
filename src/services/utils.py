@@ -96,7 +96,10 @@ def create_openai_compatible_client(provider: str, credential: str):
     import openai
 
     if provider == "ollama":
-        return openai.AsyncOpenAI(base_url=f"{credential}/v1", api_key="ollama")
+        base = credential.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        return openai.AsyncOpenAI(base_url=f"{base}/v1", api_key="ollama")
     return openai.AsyncOpenAI(api_key=credential)
 
 

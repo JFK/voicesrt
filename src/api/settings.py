@@ -174,9 +174,15 @@ async def get_ollama_url(session: AsyncSession = Depends(get_session)):
 
 @router.put("/ollama-url")
 async def set_ollama_url(body: GeneralSettingInput, session: AsyncSession = Depends(get_session)):
+    from urllib.parse import urlparse
+
     from src.constants import KEY_OLLAMA_BASE_URL
 
     url = body.value.rstrip("/")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="URL must be http:// or https:// with a valid host")
+
     await _upsert_setting(session, KEY_OLLAMA_BASE_URL, url)
     await session.commit()
     return {"url": url}
