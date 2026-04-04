@@ -1,5 +1,5 @@
 from src.constants import get_provider_name
-from src.services.utils import extract_gemini_tokens, parse_json_response
+from src.services.utils import create_openai_compatible_client, extract_gemini_tokens, parse_json_response
 
 METADATA_SYSTEM_PROMPT = (
     "You are an expert at generating YouTube video metadata. "
@@ -76,8 +76,9 @@ async def generate_youtube_metadata(
         else:
             prompt = METADATA_USER_PROMPT.format(srt_content=srt_content)
 
-    if get_provider_name(provider) == "openai":
-        return await _generate_openai(prompt, api_key, model)
+    provider_name = get_provider_name(provider)
+    if provider_name in ("openai", "ollama"):
+        return await _generate_openai_compat(prompt, api_key, model, provider_name)
     else:
         return await _generate_gemini(prompt, api_key, model)
 
@@ -127,10 +128,8 @@ async def optimize_meta_prompt(
         tone_ref_section=tone_ref_section,
     )
 
-    if provider == "openai":
-        import openai
-
-        client = openai.AsyncOpenAI(api_key=api_key)
+    if provider in ("openai", "ollama"):
+        client = create_openai_compatible_client(provider, api_key)
         response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
@@ -151,10 +150,10 @@ async def optimize_meta_prompt(
         return response.text.strip() or current_prompt
 
 
-async def _generate_openai(prompt: str, api_key: str, model: str) -> tuple[dict, int, int]:
-    import openai
-
-    client = openai.AsyncOpenAI(api_key=api_key)
+async def _generate_openai_compat(
+    prompt: str, credential: str, model: str, provider: str = "openai"
+) -> tuple[dict, int, int]:
+    client = create_openai_compatible_client(provider, credential)
     response = await client.chat.completions.create(
         model=model,
         messages=[

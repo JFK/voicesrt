@@ -240,6 +240,88 @@ async def download_vtt(job_id: str, session: AsyncSession = Depends(get_session)
     )
 
 
+@router.post("/{job_id}/re-refine")
+async def re_refine(
+    job_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: AsyncSession = Depends(get_session),
+):
+    """Re-run LLM refinement on existing SRT."""
+    job = await _get_job_or_404(session, job_id)
+    if not job.srt_path:
+        raise HTTPException(status_code=400, detail="No SRT file available")
+
+    glossary = None
+    try:
+        body = await request.json()
+        glossary = body.get("glossary")
+    except Exception:
+        pass
+
+    background_tasks.add_task(_re_refine_job, job_id, glossary)
+    return {"status": "refining"}
+
+
+async def _re_refine_job(job_id: str, custom_glossary: str | None = None) -> None:
+    """Background task: re-refine existing SRT."""
+    from src.services.srt import generate_srt, parse_srt, save_srt
+    from src.services.transcribe import _get_credential, _run_refinement, _run_verification
+
+    async with async_session() as session:
+        result = await session.execute(select(Job).where(Job.id == job_id))
+        job = result.scalar_one_or_none()
+        if not job or not job.srt_path:
+            return
+
+        try:
+            job.status = "refining"
+            job.error_message = None
+            await session.commit()
+
+            srt_content = Path(job.srt_path).read_text(encoding="utf-8")
+            segments = parse_srt(srt_content)
+
+            # Use custom glossary if provided, otherwise merge global + job glossary
+            if custom_glossary is not None:
+                glossary = custom_glossary
+            else:
+                from src.models import Setting
+
+                r = await session.execute(select(Setting).where(Setting.key == "glossary"))
+                gs = r.scalar_one_or_none()
+                global_glossary = gs.value if gs else ""
+                job_glossary = job.glossary or ""
+                glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
+
+            api_key = await _get_credential(session, job.provider)
+
+            segments = await _run_refinement(job, session, segments, api_key, glossary)
+
+            # Verify if enabled
+            if job.enable_verify:
+                import json
+
+                job.status = "verifying"
+                await session.commit()
+                segments, changed_indices, reasons = await _run_verification(job, session, segments, api_key, glossary)
+                job.verified_indices = json.dumps(changed_indices)
+                job.verify_reasons = json.dumps(reasons, ensure_ascii=False)
+
+            # Save updated SRT
+            srt_content = generate_srt(segments)
+            save_srt(srt_content, Path(job.srt_path))
+
+            job.status = STATUS_COMPLETED
+            await session.commit()
+            logger.info("Re-refine completed for job %s", job_id)
+        except Exception as e:
+            logger.exception("Re-refine failed for job %s", job_id)
+            job.status = STATUS_COMPLETED
+            job.error_message = f"Re-refine failed: {str(e)[:400]}"
+            await session.commit()
+
+
 @router.post("/{job_id}/generate-meta")
 async def generate_meta(
     job_id: str,
@@ -288,7 +370,7 @@ async def optimize_prompt(
 ):
     """Use LLM to optimize the metadata generation prompt."""
     from src.services.metadata import optimize_meta_prompt
-    from src.services.transcribe import _get_api_key, _get_model
+    from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
     body = await request.json()
@@ -298,7 +380,7 @@ async def optimize_prompt(
 
     tone_references = await _get_tone_references(session) if use_tone_ref else None
 
-    api_key = await _get_api_key(session, job.provider)
+    api_key = await _get_credential(session, job.provider)
     model = await _get_model(session, job.provider)
 
     optimized = await optimize_meta_prompt(
@@ -319,7 +401,7 @@ async def _generate_meta_job(
     tone_references: str | None = None,
 ) -> None:
     """Background task: generate YouTube metadata from existing SRT."""
-    from src.services.transcribe import _get_api_key, _run_metadata_generation
+    from src.services.transcribe import _get_credential, _run_metadata_generation
 
     async with async_session() as session:
         result = await session.execute(select(Job).where(Job.id == job_id))
@@ -332,7 +414,7 @@ async def _generate_meta_job(
             await session.commit()
 
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-            api_key = await _get_api_key(session, job.provider)
+            api_key = await _get_credential(session, job.provider)
             await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt, tone_references)
 
             # Append fixed footer to description (not processed by AI)
@@ -361,7 +443,7 @@ async def generate_catchphrase_endpoint(
 
     from src.services.catchphrase import generate_catchphrases
     from src.services.cost import estimate_llm_cost, log_cost
-    from src.services.transcribe import _get_api_key, _get_model
+    from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
     if not job.srt_path:
@@ -373,7 +455,7 @@ async def generate_catchphrase_endpoint(
 
     try:
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-        api_key = await _get_api_key(session, job.provider)
+        api_key = await _get_credential(session, job.provider)
         model = await _get_model(session, job.provider)
         provider_name = get_provider_name(job.provider)
 
@@ -412,7 +494,7 @@ async def generate_quiz_endpoint(
 
     from src.services.cost import estimate_llm_cost, log_cost
     from src.services.quiz import generate_quiz
-    from src.services.transcribe import _get_api_key, _get_model
+    from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
     if not job.srt_path:
@@ -424,7 +506,7 @@ async def generate_quiz_endpoint(
 
     try:
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
-        api_key = await _get_api_key(session, job.provider)
+        api_key = await _get_credential(session, job.provider)
         model = await _get_model(session, job.provider)
         provider_name = get_provider_name(job.provider)
 
@@ -477,6 +559,7 @@ async def get_segments(job_id: str, session: AsyncSession = Depends(get_session)
         "segments": segments,
         "verified_indices": verified_indices,
         "verify_reasons": verify_reasons,
+        "glossary": job.glossary or "",
     }
 
 
@@ -516,7 +599,7 @@ async def suggest_segment_endpoint(
     from src.services.cost import estimate_llm_cost, log_cost
     from src.services.refine import suggest_segment
     from src.services.srt import parse_srt
-    from src.services.transcribe import _get_api_key, _get_model
+    from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
     if not job.srt_path:
@@ -532,7 +615,7 @@ async def suggest_segment_endpoint(
     if index < 0 or index >= len(segments):
         raise HTTPException(status_code=400, detail=f"Invalid segment index: {index}")
 
-    api_key = await _get_api_key(session, job.provider)
+    api_key = await _get_credential(session, job.provider)
     model = await _get_model(session, job.provider)
     provider_name = get_provider_name(job.provider)
 

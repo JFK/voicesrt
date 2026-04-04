@@ -41,6 +41,39 @@
         </div>
     </div>
 
+    <!-- Ollama Settings -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.ollama_title') }}</h2>
+        <p class="text-sm text-gray-500 mb-4">{{ t('settings.ollama_desc') }}</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">{{ t('settings.ollama_base_url') }}</label>
+                <div class="flex space-x-2">
+                    <input type="text" x-model="ollamaUrl"
+                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border"
+                           placeholder="http://host.docker.internal:11434">
+                    <button @click="saveOllamaUrl()"
+                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
+                    <button @click="testOllama()"
+                            class="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">{{ t('settings.test') }}</button>
+                </div>
+                <p x-show="ollamaTestResult !== null" class="mt-2 text-sm"
+                   :class="ollamaTestResult ? 'text-green-600' : 'text-red-600'"
+                   x-text="ollamaTestMsg"></p>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">{{ t('settings.ollama_model') }}</label>
+                <div class="flex space-x-2">
+                    <input type="text" x-model="models.ollama"
+                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border"
+                           placeholder="qwen3:latest">
+                    <button @click="saveModel('ollama', models.ollama)"
+                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- LLM Models -->
     <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.llm_models') }}</h2>
@@ -234,7 +267,10 @@ function settingsPage() {
             { id: 'openai', label: 'OpenAI', configured: false, masked: '', newKey: '', showKey: false, testResult: null, testError: '' },
             { id: 'google', label: 'Google (Gemini)', configured: false, masked: '', newKey: '', showKey: false, testResult: null, testError: '' },
         ],
-        models: { openai: 'gpt-5.4', gemini: 'gemini-3-flash-preview' },
+        models: { openai: 'gpt-5.4', gemini: 'gemini-3-flash-preview', ollama: 'qwen3:latest' },
+        ollamaUrl: 'http://host.docker.internal:11434',
+        ollamaTestResult: null,
+        ollamaTestMsg: '',
         presetDescription: '',
         presets: {
             quality: {
@@ -275,6 +311,10 @@ function settingsPage() {
             const modelsRes = await fetch('/api/settings/models');
             const modelsData = await modelsRes.json();
             this.models = { ...this.models, ...modelsData };
+            // Load Ollama URL
+            const ollamaRes = await fetch('/api/settings/ollama-url');
+            const ollamaData = await ollamaRes.json();
+            this.ollamaUrl = ollamaData.url || 'http://host.docker.internal:11434';
             // Load general settings
             const generalRes = await fetch('/api/settings/general');
             this.generalSettings = await generalRes.json();
@@ -334,6 +374,27 @@ function settingsPage() {
             await this.saveModel('openai', preset.openai);
             await this.saveModel('gemini', preset.gemini);
             this.showStatus(`{{ t("settings.preset_applied") }} "${name}"`);
+        },
+
+        async saveOllamaUrl() {
+            await fetch('/api/settings/ollama-url', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value: this.ollamaUrl })
+            });
+            this.showStatus('{{ t("settings.ollama_url_saved") }}');
+        },
+
+        async testOllama() {
+            this.ollamaTestResult = null;
+            const res = await fetch('/api/settings/keys/ollama/test', { method: 'POST' });
+            const data = await res.json();
+            this.ollamaTestResult = data.valid;
+            if (data.valid) {
+                this.ollamaTestMsg = '{{ t("settings.ollama_connected") }} ' + (data.models || []).join(', ');
+            } else {
+                this.ollamaTestMsg = '{{ t("settings.ollama_error") }} ' + (data.error || 'Unknown');
+            }
         },
 
         async saveModel(provider, model) {

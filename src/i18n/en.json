@@ -1,7 +1,7 @@
 {
   "nav": {
     "upload": "Upload",
-    "history": "Uploads",
+    "history": "History",
     "costs": "Costs",
     "settings": "Settings"
   },
@@ -33,6 +33,8 @@
     "processing": "Processing",
     "starting": "Starting...",
     "download_srt": "Download SRT",
+    "open_editor": "Open Editor",
+    "go_to_history": "Go to History",
     "view_history": "View Uploads",
     "upload_another": "Upload Another",
     "remove": "Remove",
@@ -91,6 +93,13 @@
     "delete_key_confirm": "Delete {label} API key?",
     "llm_models": "LLM Models",
     "configure_models": "Configure models per purpose.",
+    "ollama_title": "Ollama (Local LLM)",
+    "ollama_desc": "Connect to a local Ollama instance for LLM post-processing (refine, metadata, quiz). Transcription still uses OpenAI Whisper.",
+    "ollama_base_url": "Base URL",
+    "ollama_model": "Model",
+    "ollama_url_saved": "Ollama URL saved",
+    "ollama_connected": "Connected! Models:",
+    "ollama_error": "Error:",
     "quick_presets": "Quick Presets",
     "quality": "Quality",
     "balanced": "Balanced",
@@ -176,7 +185,7 @@
     "generating": "Generating...",
     "generated_metadata": "Generated Metadata",
     "regenerate": "Regenerate",
-    "back_to_history": "Back to Uploads",
+    "back_to_history": "Back to History",
     "use_tone_ref": "Match tone with reference posts",
     "tone_ref_link": "Edit reference posts in Settings",
     "label_title": "Title",
@@ -202,7 +211,12 @@
     "suggestion": "AI Suggestion",
     "accept": "Accept",
     "dismiss": "Dismiss",
-    "back_to_history": "Back to Uploads"
+    "back_to_history": "Back to History",
+    "re_refine": "Re-refine",
+    "refining": "Refining...",
+    "re_refine_done": "Re-refine completed",
+    "glossary_label": "Glossary (for re-refine)",
+    "glossary_hint": "One term per line. Used to correct proper nouns and technical terms."
   },
   "status": {
     "pending": "Pending",

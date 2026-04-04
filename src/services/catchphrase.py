@@ -2,7 +2,7 @@
 
 import logging
 
-from src.services.utils import extract_gemini_tokens, parse_json_response
+from src.services.utils import create_openai_compatible_client, extract_gemini_tokens, parse_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +36,16 @@ async def generate_catchphrases(
     """
     prompt = CATCHPHRASE_PROMPT.format(srt_content=srt_content)
 
-    if provider == "openai":
-        return await _generate_openai(prompt, api_key, model)
+    if provider in ("openai", "ollama"):
+        return await _generate_openai_compat(prompt, api_key, model, provider)
     else:
         return await _generate_gemini(prompt, api_key, model)
 
 
-async def _generate_openai(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
-    import openai
-
-    client = openai.AsyncOpenAI(api_key=api_key)
+async def _generate_openai_compat(
+    prompt: str, credential: str, model: str, provider: str = "openai"
+) -> tuple[list[dict], int, int]:
+    client = create_openai_compatible_client(provider, credential)
     response = await client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],

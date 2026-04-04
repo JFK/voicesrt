@@ -3,7 +3,7 @@
 import json
 import logging
 
-from src.services.utils import extract_gemini_tokens, parse_json_response
+from src.services.utils import create_openai_compatible_client, extract_gemini_tokens, parse_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -150,16 +150,16 @@ IMPORTANT - Use this glossary to correct proper nouns, names, and technical term
         template = _PROMPT_MAP.get(refine_mode, REFINE_STANDARD_PROMPT)
     prompt = template.format(segments_json=segments_json, glossary_section=glossary_section)
 
-    if provider == "openai":
-        return await _refine_openai(prompt, api_key, model)
+    if provider in ("openai", "ollama"):
+        return await _refine_openai_compat(prompt, api_key, model, provider)
     else:
         return await _refine_gemini(prompt, api_key, model)
 
 
-async def _refine_openai(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
-    import openai
-
-    client = openai.AsyncOpenAI(api_key=api_key)
+async def _refine_openai_compat(
+    prompt: str, credential: str, model: str, provider: str = "openai"
+) -> tuple[list[dict], int, int]:
+    client = create_openai_compatible_client(provider, credential)
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -287,8 +287,8 @@ IMPORTANT - Use this glossary to verify proper nouns, names, and technical terms
 """
     prompt = VERIFY_PROMPT.format(full_text=full_text, glossary_section=glossary_section)
 
-    if provider == "openai":
-        corrections, input_tokens, output_tokens = await _verify_openai(prompt, api_key, model)
+    if provider in ("openai", "ollama"):
+        corrections, input_tokens, output_tokens = await _verify_openai_compat(prompt, api_key, model, provider)
     else:
         corrections, input_tokens, output_tokens = await _verify_gemini(prompt, api_key, model)
 
@@ -309,10 +309,10 @@ IMPORTANT - Use this glossary to verify proper nouns, names, and technical terms
     return verified, changed_indices, reasons, input_tokens, output_tokens
 
 
-async def _verify_openai(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
-    import openai
-
-    client = openai.AsyncOpenAI(api_key=api_key)
+async def _verify_openai_compat(
+    prompt: str, credential: str, model: str, provider: str = "openai"
+) -> tuple[list[dict], int, int]:
+    client = create_openai_compatible_client(provider, credential)
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -410,16 +410,16 @@ async def suggest_segment(
         glossary_section=glossary_section,
     )
 
-    if provider == "openai":
-        return await _suggest_openai(prompt, api_key, model)
+    if provider in ("openai", "ollama"):
+        return await _suggest_openai_compat(prompt, api_key, model, provider)
     else:
         return await _suggest_gemini(prompt, api_key, model)
 
 
-async def _suggest_openai(prompt: str, api_key: str, model: str) -> tuple[str, str, int, int]:
-    import openai
-
-    client = openai.AsyncOpenAI(api_key=api_key)
+async def _suggest_openai_compat(
+    prompt: str, credential: str, model: str, provider: str = "openai"
+) -> tuple[str, str, int, int]:
+    client = create_openai_compatible_client(provider, credential)
     response = await client.chat.completions.create(
         model=model,
         messages=[

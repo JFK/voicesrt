@@ -1,11 +1,13 @@
 # Provider mapping: transcription provider -> API provider name
-PROVIDER_API_MAP = {"whisper": "openai", "gemini": "gemini"}
+PROVIDER_API_MAP = {"whisper": "openai", "gemini": "gemini", "ollama": "ollama"}
 
 # Settings keys
 KEY_API_OPENAI = "api_key.openai"
 KEY_API_GOOGLE = "api_key.google"
 KEY_MODEL_OPENAI = "model.openai"
 KEY_MODEL_GEMINI = "model.gemini"
+KEY_MODEL_OLLAMA = "model.ollama"
+KEY_OLLAMA_BASE_URL = "ollama.base_url"
 
 # Job statuses
 STATUS_PENDING = "pending"

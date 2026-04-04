@@ -79,6 +79,10 @@ async def delete_key(provider: str, session: AsyncSession = Depends(get_session)
 
 @router.post("/keys/{provider}/test")
 async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
+    if provider == "ollama":
+        # Ollama doesn't use API keys; test connectivity instead
+        return await _test_ollama(session)
+
     db_key = f"api_key.{provider}"
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()
@@ -103,26 +107,47 @@ async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
         return {"valid": False, "error": str(e)}
 
 
+async def _test_ollama(session: AsyncSession) -> dict:
+    """Test Ollama connectivity by hitting the /api/tags endpoint."""
+    import httpx
+
+    from src.constants import KEY_OLLAMA_BASE_URL
+
+    result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
+    setting = result.scalar_one_or_none()
+    base_url = setting.value if setting else app_settings.default_ollama_base_url
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{base_url}/api/tags")
+            if resp.status_code == 200:
+                models = [m["name"] for m in resp.json().get("models", [])]
+                return {"valid": True, "models": models}
+            return {"valid": False, "error": f"HTTP {resp.status_code}"}
+    except Exception as e:
+        return {"valid": False, "error": f"Cannot connect to Ollama at {base_url}: {e}"}
+
+
 @router.get("/models")
 async def get_models(session: AsyncSession = Depends(get_session)):
+    defaults = {
+        "openai": app_settings.default_openai_model,
+        "gemini": app_settings.default_gemini_model,
+        "ollama": app_settings.default_ollama_model,
+    }
     models = {}
-    for provider in ("openai", "gemini"):
+    for provider, default in defaults.items():
         db_key = f"model.{provider}"
         result = await session.execute(select(Setting).where(Setting.key == db_key))
         setting = result.scalar_one_or_none()
-        if setting:
-            models[provider] = setting.value
-        else:
-            models[provider] = (
-                app_settings.default_openai_model if provider == "openai" else app_settings.default_gemini_model
-            )
+        models[provider] = setting.value if setting else default
     return models
 
 
 @router.put("/models/{provider}")
 async def set_model(provider: str, body: ModelInput, session: AsyncSession = Depends(get_session)):
-    if provider not in ("openai", "gemini"):
-        raise HTTPException(status_code=400, detail="Provider must be 'openai' or 'gemini'")
+    if provider not in ("openai", "gemini", "ollama"):
+        raise HTTPException(status_code=400, detail="Provider must be 'openai', 'gemini', or 'ollama'")
 
     db_key = f"model.{provider}"
     await _upsert_setting(session, db_key, body.model)
@@ -134,7 +159,33 @@ GENERAL_SETTINGS = {
     "max_upload_size_gb": {"default": str(app_settings.max_upload_size_gb), "label": "Max Upload Size (GB)"},
     "refine_model_openai": {"default": "gpt-5.4-nano", "label": "Refine Model (OpenAI)"},
     "refine_model_gemini": {"default": "gemini-2.5-flash-lite", "label": "Refine Model (Gemini)"},
+    "refine_model_ollama": {"default": app_settings.default_ollama_model, "label": "Refine Model (Ollama)"},
 }
+
+
+@router.get("/ollama-url")
+async def get_ollama_url(session: AsyncSession = Depends(get_session)):
+    from src.constants import KEY_OLLAMA_BASE_URL
+
+    result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
+    setting = result.scalar_one_or_none()
+    return {"url": setting.value if setting else app_settings.default_ollama_base_url}
+
+
+@router.put("/ollama-url")
+async def set_ollama_url(body: GeneralSettingInput, session: AsyncSession = Depends(get_session)):
+    from urllib.parse import urlparse
+
+    from src.constants import KEY_OLLAMA_BASE_URL
+
+    url = body.value.rstrip("/")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="URL must be http:// or https:// with a valid host")
+
+    await _upsert_setting(session, KEY_OLLAMA_BASE_URL, url)
+    await session.commit()
+    return {"url": url}
 
 
 @router.get("/glossary")

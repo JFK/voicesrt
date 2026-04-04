@@ -7,7 +7,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.constants import KEY_API_GOOGLE, KEY_API_OPENAI, KEY_MODEL_GEMINI, KEY_MODEL_OPENAI, get_provider_name
+from src.constants import (
+    KEY_API_GOOGLE,
+    KEY_API_OPENAI,
+    KEY_MODEL_GEMINI,
+    KEY_MODEL_OLLAMA,
+    KEY_MODEL_OPENAI,
+    KEY_OLLAMA_BASE_URL,
+    get_provider_name,
+)
 from src.models import Job, Setting
 from src.services.audio import extract_audio, extract_audio_mp3, get_audio_duration, split_audio
 from src.services.cost import estimate_gemini_cost, estimate_llm_cost, estimate_whisper_cost, log_cost
@@ -17,8 +25,16 @@ from src.services.srt import generate_srt, save_srt
 logger = logging.getLogger(__name__)
 
 
-async def _get_api_key(session: AsyncSession, provider: str) -> str:
-    """Get decrypted API key for the given transcription provider."""
+async def _get_credential(session: AsyncSession, provider: str) -> str:
+    """Get decrypted API key for the given transcription provider.
+
+    For ollama, returns the base URL instead (no API key needed).
+    """
+    if provider == "ollama":
+        result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
+        setting = result.scalar_one_or_none()
+        return setting.value if setting else settings.default_ollama_base_url
+
     db_key = KEY_API_OPENAI if provider == "whisper" else KEY_API_GOOGLE
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()
@@ -29,6 +45,11 @@ async def _get_api_key(session: AsyncSession, provider: str) -> str:
 
 async def _get_model(session: AsyncSession, provider: str) -> str:
     """Get configured LLM model for the given provider."""
+    if provider == "ollama":
+        result = await session.execute(select(Setting).where(Setting.key == KEY_MODEL_OLLAMA))
+        setting = result.scalar_one_or_none()
+        return setting.value if setting else settings.default_ollama_model
+
     db_key = KEY_MODEL_OPENAI if provider == "whisper" else KEY_MODEL_GEMINI
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()
@@ -47,7 +68,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
     if not upload_path or not upload_path.exists():
         raise FileNotFoundError(f"Upload file not found for job {job.id}")
 
-    api_key = await _get_api_key(session, job.provider)
+    # Ollama can't do audio transcription; use Whisper (OpenAI) for STT
+    transcription_provider = "whisper" if job.provider == "ollama" else job.provider
+    api_key = await _get_credential(session, transcription_provider)
     audio_path: Path | None = None
 
     try:
@@ -55,7 +78,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         job.status = "extracting"
         await session.commit()
 
-        if job.provider == "whisper":
+        if transcription_provider == "whisper":
             audio_path = settings.audio_dir / f"{job.id}.wav"
             duration = await extract_audio(upload_path, audio_path)
         else:
@@ -76,14 +99,19 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         job.status = "transcribing"
         await session.commit()
 
-        segments = await _run_transcription(job, session, audio_path, api_key, duration, combined_glossary)
+        segments = await _run_transcription(
+            job, session, audio_path, api_key, duration, combined_glossary, transcription_provider
+        )
+
+        # For post-processing, use the job's own provider (may differ from transcription)
+        pp_api_key = await _get_credential(session, job.provider) if job.provider != transcription_provider else api_key
 
         # Step 3: LLM post-processing (refine) if enabled
         if job.enable_refine:
             job.status = "refining"
             await session.commit()
             try:
-                segments = await _run_refinement(job, session, segments, api_key, combined_glossary)
+                segments = await _run_refinement(job, session, segments, pp_api_key, combined_glossary)
             except Exception as e:
                 logger.warning("Refinement failed for job %s: %s", job.id, e)
                 job.error_message = f"Refinement failed, using raw transcription: {str(e)[:300]}"
@@ -97,7 +125,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                     job,
                     session,
                     segments,
-                    api_key,
+                    pp_api_key,
                     combined_glossary,
                 )
                 job.verified_indices = json.dumps(changed_indices)
@@ -117,7 +145,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
             job.status = "generating_metadata"
             await session.commit()
             try:
-                await _run_metadata_generation(job, session, srt_content, api_key)
+                await _run_metadata_generation(job, session, srt_content, pp_api_key)
             except Exception as e:
                 logger.warning("Metadata generation failed for job %s: %s", job.id, e)
                 job.error_message = f"SRT generated, but metadata failed: {str(e)[:300]}"
@@ -148,17 +176,19 @@ async def _run_transcription(
     api_key: str,
     duration: float,
     glossary: str = "",
+    transcription_provider: str | None = None,
 ) -> list[dict]:
     """Run transcription with the configured provider and log cost."""
+    effective_provider = transcription_provider or job.provider
     # Build Whisper prompt from glossary (extract terms as hints)
     whisper_prompt = _build_whisper_prompt(glossary) if glossary else None
 
-    if job.provider == "whisper":
+    if effective_provider == "whisper":
         segments = await _transcribe_whisper(audio_path, api_key, job.language, whisper_prompt)
         cost = estimate_whisper_cost(duration)
         await log_cost(session, job.id, "whisper", "whisper-1", "transcription", cost, audio_duration=duration)
     else:
-        model = await _get_model(session, job.provider)
+        model = await _get_model(session, effective_provider)
         segments, input_tokens, output_tokens = await _transcribe_gemini(
             audio_path, api_key, job.language, model, glossary
         )
@@ -299,6 +329,21 @@ async def _run_metadata_generation(
     )
 
 
+_DEFAULT_REFINE_MODELS = {
+    "openai": "gpt-5.4-nano",
+    "gemini": "gemini-2.5-flash-lite",
+    "ollama": settings.default_ollama_model,
+}
+
+
+async def _get_refine_model(session: AsyncSession, provider_name: str) -> str:
+    """Get refine/verify model from settings or provider default."""
+    refine_key = f"general.refine_model_{provider_name}"
+    result = await session.execute(select(Setting).where(Setting.key == refine_key))
+    setting = result.scalar_one_or_none()
+    return setting.value if setting else _DEFAULT_REFINE_MODELS.get(provider_name, "gpt-5.4-nano")
+
+
 async def _run_refinement(
     job: Job,
     session: AsyncSession,
@@ -310,13 +355,7 @@ async def _run_refinement(
     from src.services.refine import refine_with_llm
 
     provider_name = get_provider_name(job.provider)
-
-    # Get refine model from settings
-    refine_key = f"general.refine_model_{provider_name}"
-    result = await session.execute(select(Setting).where(Setting.key == refine_key))
-    setting = result.scalar_one_or_none()
-    default_model = "gpt-5.4-nano" if provider_name == "openai" else "gemini-2.5-flash-lite"
-    refine_model = setting.value if setting else default_model
+    refine_model = await _get_refine_model(session, provider_name)
 
     refine_mode = job.refine_mode or "standard"
 
@@ -365,13 +404,7 @@ async def _run_verification(
     from src.services.refine import verify_segments
 
     provider_name = get_provider_name(job.provider)
-
-    # Use same model as refine
-    refine_key = f"general.refine_model_{provider_name}"
-    result = await session.execute(select(Setting).where(Setting.key == refine_key))
-    setting = result.scalar_one_or_none()
-    default_model = "gpt-5.4-nano" if provider_name == "openai" else "gemini-2.5-flash-lite"
-    verify_model = setting.value if setting else default_model
+    verify_model = await _get_refine_model(session, provider_name)
 
     verified, changed_indices, reasons, input_tokens, output_tokens = await verify_segments(
         segments,

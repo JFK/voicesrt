@@ -8,4 +8,6 @@ services:
       - ./data:/app/data
     environment:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped

@@ -91,6 +91,18 @@ def parse_json_response(text: str, context: str = "") -> dict | list:
         raise RuntimeError(f"Invalid JSON in {context}: {e}. Response: {cleaned[:200]}")
 
 
+def create_openai_compatible_client(provider: str, credential: str):
+    """Create an AsyncOpenAI client for OpenAI or Ollama (OpenAI-compatible)."""
+    import openai
+
+    if provider == "ollama":
+        base = credential.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        return openai.AsyncOpenAI(base_url=f"{base}/v1", api_key="ollama")
+    return openai.AsyncOpenAI(api_key=credential)
+
+
 def extract_gemini_tokens(response) -> tuple[int, int]:
     """Extract input/output token counts from Gemini response."""
     input_tokens = 0

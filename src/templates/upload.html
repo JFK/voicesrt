@@ -40,6 +40,7 @@
                 <select x-model="provider" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
                     <option value="whisper">OpenAI Whisper</option>
                     <option value="gemini">Google Gemini</option>
+                    <option value="ollama">Ollama (Local)</option>
                 </select>
             </div>
             <div>
@@ -132,6 +133,18 @@
             </div>
         </div>
         <p x-show="elapsed > 0" class="mt-2 text-xs text-gray-400" x-text="$root.dataset.i18nElapsed + ' ' + elapsed + 's'"></p>
+
+        <!-- Completion links -->
+        <div x-show="completedJobId" class="mt-4 flex items-center gap-3">
+            <a :href="'/srt-editor/' + completedJobId"
+               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+                {{ t('upload.open_editor') }}
+            </a>
+            <a href="/history"
+               class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 border border-gray-300">
+                {{ t('upload.go_to_history') }}
+            </a>
+        </div>
     </div>
 </div>
 
@@ -152,6 +165,7 @@ function uploadForm() {
         elapsed: 0,
         uploading: false,
         jobId: null,
+        completedJobId: null,
         dragover: false,
 
         handleFile(e) {
@@ -174,6 +188,7 @@ function uploadForm() {
             this.file = null;
             this.fileName = '';
             this.jobId = null;
+            this.completedJobId = null;
             this.statusHtml = '';
             if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
             if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
@@ -191,7 +206,12 @@ function uploadForm() {
                 this.jobId = jobId;
                 this.fileName = job.filename || '';
                 if (job.status === 'completed' || job.status === 'failed') {
-                    window.location.href = '/history';
+                    this.completedJobId = jobId;
+                    // Fetch final status HTML
+                    const statusRes = await fetch(`/api/jobs/${jobId}/status`, {
+                        headers: { 'HX-Request': 'true' }
+                    });
+                    this.statusHtml = await statusRes.text();
                     return;
                 } else {
                     // Still processing, resume polling
@@ -247,7 +267,7 @@ function uploadForm() {
                         clearInterval(this.pollTimer);
                         this.pollTimer = null;
                         if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
-                        window.location.href = '/history';
+                        this.completedJobId = this.jobId;
                     }
                 } catch (e) {
                     console.error('Polling error:', e);
