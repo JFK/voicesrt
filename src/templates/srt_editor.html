@@ -259,8 +259,6 @@ function srtEditor() {
             try {
                 const res = await fetch(`/api/jobs/{{ job.id }}/segments/${idx}/suggest`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({glossary: this.glossary}),
                 });
                 if (!res.ok) throw new Error('Suggestion failed');
                 const data = await res.json();

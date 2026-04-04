@@ -557,7 +557,6 @@ async def update_job_glossary(job_id: str, request: Request, session: AsyncSessi
 async def suggest_segment_endpoint(
     job_id: str,
     index: int,
-    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
     """Get AI suggestion for a single segment."""
@@ -584,24 +583,13 @@ async def suggest_segment_endpoint(
     model = await _get_model(session, job.provider)
     provider_name = get_provider_name(job.provider)
 
-    # Get global glossary from settings
+    # Merge global glossary + job glossary from DB
     from src.models import Setting
 
     result = await session.execute(select(Setting).where(Setting.key == "glossary"))
     glossary_setting = result.scalar_one_or_none()
     global_glossary = glossary_setting.value if glossary_setting else ""
-
-    # Use job glossary from request body if provided, else from DB
-    job_glossary = None
-    try:
-        body = await request.json()
-        job_glossary = body.get("glossary")
-    except Exception:
-        pass
-
-    if job_glossary is None:
-        job_glossary = job.glossary or ""
-
+    job_glossary = job.glossary or ""
     combined_glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
 
     # Context: 5 segments before/after
