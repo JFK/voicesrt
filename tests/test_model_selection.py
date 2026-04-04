@@ -107,7 +107,25 @@ def test_resolve_ollama_url_non_localhost(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_available_models_endpoint(make_client):
+async def test_available_models_endpoint(make_client, monkeypatch):
+    """Mock httpx to avoid real Ollama network call."""
+    import httpx
+
+    class MockResponse:
+        status_code = 200
+
+        def json(self):
+            return {"models": [{"name": "qwen3:8b"}]}
+
+    original_get = httpx.AsyncClient.get
+
+    async def mock_get(self, url, **kwargs):
+        if "api/tags" in url:
+            return MockResponse()
+        return await original_get(self, url, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+
     async with make_client() as c:
         resp = await c.get("/api/settings/available-models")
     assert resp.status_code == 200
@@ -131,6 +149,7 @@ async def _create_test_job(make_client) -> str:
             "/api/jobs?provider=whisper",
             files={"file": ("test.mp3", b"fake", "audio/mpeg")},
         )
+    assert resp.status_code == 200, resp.text
     job_id = resp.json()["id"]
 
     from src.config import settings
@@ -191,6 +210,7 @@ async def test_glossary_crud(make_client):
 
             # Verify in segments response
             resp = await c.get(f"/api/jobs/{job_id}/segments")
+            assert resp.status_code == 200
             assert resp.json()["glossary"] == "wrong → correct"
 
             # Clear glossary
@@ -230,6 +250,7 @@ async def test_speakers_crud(make_client):
             assert resp.status_code == 200
 
             resp = await c.get(f"/api/jobs/{job_id}/segments")
+            assert resp.status_code == 200
             data = resp.json()
             assert data["speakers"] == ["Alice", "Bob"]
             assert data["speaker_map"] == {"0": "Alice"}
