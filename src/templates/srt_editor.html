@@ -123,6 +123,9 @@
                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border resize-none"
                           style="min-height: 3rem;"></textarea>
 
+                <!-- Time error -->
+                <p x-show="seg._error" x-transition class="mt-1 text-xs text-red-600 font-medium" x-text="seg._error"></p>
+
                 <!-- Verify reason -->
                 <p x-show="verifiedIndices.includes(idx) && verifyReasons[idx]"
                    class="mt-1 text-xs text-yellow-700">
@@ -353,8 +356,14 @@ function srtEditor() {
 
         updateEnd(idx, value) {
             const newEnd = this.parseTime(value);
+            // Check: cannot exceed next segment's end
+            if (idx + 1 < this.segments.length && newEnd > this.segments[idx + 1].end) {
+                this.segments[idx]._error = '{{ t("srt_editor.exceeds_next") }}';
+                setTimeout(() => { this.segments[idx]._error = null; }, 3000);
+                return;
+            }
             this.segments[idx].end = newEnd;
-            // Link: update next segment's start to match
+            this.segments[idx]._error = null;
             if (idx + 1 < this.segments.length) {
                 this.segments[idx + 1].start = newEnd;
             }
