@@ -362,7 +362,9 @@ async def _verify_gemini(prompt: str, api_key: str, model: str) -> tuple[list[di
 SUGGEST_SYSTEM_PROMPT = (
     "/no_think You are a professional subtitle editor. "
     "You suggest improved text for a single subtitle segment, "
-    "considering its surrounding context."
+    "considering its surrounding context. "
+    "Always respond in the SAME language as the subtitle text. "
+    "The reason field must also be in that language."
 )
 
 SUGGEST_PROMPT = """\
