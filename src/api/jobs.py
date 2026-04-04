@@ -78,6 +78,7 @@ VALID_REFINE_MODES = {"verbatim", "standard", "caption"}
 async def create_job(
     file: UploadFile,
     provider: str = "whisper",
+    model: str | None = None,
     language: str | None = None,
     enable_metadata: bool = False,
     enable_refine: bool = False,
@@ -137,6 +138,7 @@ async def create_job(
             enable_verify=enable_verify,
             glossary=glossary.strip() if glossary else None,
             refine_mode=refine_mode,
+            model_override=model,
         )
         session.add(job)
         await session.commit()

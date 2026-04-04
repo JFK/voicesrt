@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ t('upload.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="restoreFromUrl()"
+<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="restoreFromUrl(); loadModels()"
      data-i18n-starting="{{ t('upload.starting') }}"
      data-i18n-elapsed="{{ t('upload.elapsed') }}"
      data-i18n-upload-failed="{{ t('upload.upload_failed') }}">
@@ -40,7 +40,6 @@
                 <select x-model="provider" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
                     <option value="whisper">OpenAI Whisper</option>
                     <option value="gemini">Google Gemini</option>
-                    <option value="ollama">Ollama (Local)</option>
                 </select>
             </div>
             <div>
@@ -53,6 +52,24 @@
                     <option value="ko">{{ t('upload.lang_ko') }}</option>
                 </select>
             </div>
+        </div>
+
+        <!-- Post-processing model (shown when refine is enabled) -->
+        <div x-show="enableRefine" x-transition>
+            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('upload.refine_model_label') }}</label>
+            <div class="grid grid-cols-2 gap-4">
+                <select x-model="ppProvider" @change="onPpProviderChange()" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
+                    <template x-for="p in ppProviders" :key="p.id">
+                        <option :value="p.id" x-text="p.label" :disabled="!p.available"></option>
+                    </template>
+                </select>
+                <select x-model="selectedModel" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border min-w-0 truncate">
+                    <template x-for="m in ppModels" :key="m">
+                        <option :value="m" x-text="m"></option>
+                    </template>
+                </select>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">{{ t('upload.refine_model_hint') }}</p>
         </div>
 
         <!-- Glossary -->
@@ -154,6 +171,15 @@ function uploadForm() {
         file: null,
         fileName: '',
         provider: 'gemini',
+        ppProvider: 'openai',
+        ppProviders: [
+            {id: 'openai', label: 'OpenAI', available: false},
+            {id: 'gemini', label: 'Gemini', available: false},
+            {id: 'ollama', label: 'Ollama', available: false},
+        ],
+        ppModels: [],
+        selectedModel: '',
+        _modelData: null,
         language: '',
         enableRefine: true,
         enableVerify: false,
@@ -168,6 +194,25 @@ function uploadForm() {
         completedJobId: null,
         dragover: false,
 
+        async loadModels() {
+            try {
+                const res = await fetch('/api/settings/available-models');
+                this._modelData = await res.json();
+                // Update provider availability
+                this.ppProviders.forEach(p => {
+                    p.available = this._modelData.has_key[p.id] || false;
+                });
+                // Pick first available provider
+                const first = this.ppProviders.find(p => p.available);
+                if (first) this.ppProvider = first.id;
+                this.onPpProviderChange();
+            } catch (e) { console.error(e); }
+        },
+        onPpProviderChange() {
+            if (!this._modelData) return;
+            this.ppModels = this._modelData.available[this.ppProvider] || [];
+            this.selectedModel = this._modelData.configured[this.ppProvider] || this.ppModels[0] || '';
+        },
         handleFile(e) {
             this.file = e.target.files[0];
         },
@@ -229,7 +274,10 @@ function uploadForm() {
             if (this.glossary.trim()) formData.append('glossary', this.glossary.trim());
 
             const params = new URLSearchParams();
-            params.set('provider', this.provider);
+            // When refine is enabled, use the post-processing provider (it determines the LLM;
+            // transcription engine falls back to Whisper automatically for non-STT providers)
+            params.set('provider', this.enableRefine ? this.ppProvider : this.provider);
+            if (this.selectedModel && this.enableRefine) params.set('model', this.selectedModel);
             if (this.language) params.set('language', this.language);
             params.set('enable_refine', this.enableRefine);
             if (this.enableRefine) params.set('refine_mode', this.refineMode);

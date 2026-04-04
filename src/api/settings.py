@@ -113,9 +113,11 @@ async def _test_ollama(session: AsyncSession) -> dict:
 
     from src.constants import KEY_OLLAMA_BASE_URL
 
+    from src.services.utils import _resolve_ollama_url
+
     result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
     setting = result.scalar_one_or_none()
-    base_url = setting.value if setting else app_settings.default_ollama_base_url
+    base_url = _resolve_ollama_url(setting.value if setting else app_settings.default_ollama_base_url)
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -205,9 +207,9 @@ async def set_model(provider: str, body: ModelInput, session: AsyncSession = Dep
 
 GENERAL_SETTINGS = {
     "max_upload_size_gb": {"default": str(app_settings.max_upload_size_gb), "label": "Max Upload Size (GB)"},
-    "refine_model_openai": {"default": "gpt-5.4-nano", "label": "Refine Model (OpenAI)"},
-    "refine_model_gemini": {"default": "gemini-2.5-flash-lite", "label": "Refine Model (Gemini)"},
-    "refine_model_ollama": {"default": app_settings.default_ollama_model, "label": "Refine Model (Ollama)"},
+    "refine_model_openai": {"default": "gpt-5.4-nano", "label": "OpenAI"},
+    "refine_model_gemini": {"default": "gemini-2.5-flash-lite", "label": "Gemini"},
+    "refine_model_ollama": {"default": app_settings.default_ollama_model, "label": "Ollama"},
 }
 
 

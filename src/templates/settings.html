@@ -61,16 +61,6 @@
                    :class="ollamaTestResult ? 'text-green-600' : 'text-red-600'"
                    x-text="ollamaTestMsg"></p>
             </div>
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">{{ t('settings.ollama_model') }}</label>
-                <div class="flex space-x-2">
-                    <input type="text" x-model="models.ollama"
-                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border"
-                           placeholder="qwen3:latest">
-                    <button @click="saveModel('ollama', models.ollama)"
-                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -103,14 +93,19 @@
             <p class="mt-2 text-xs text-gray-500" x-text="presetDescription"></p>
         </div>
 
-        <!-- Metadata / Refine models (by purpose) -->
-        <h3 class="text-sm font-medium text-gray-700 mb-2 mt-4">{{ t('settings.metadata_refine') }}</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <!-- Default models (per provider) -->
+        <h3 class="text-sm font-medium text-gray-700 mb-1 mt-4">{{ t('settings.default_models') }}</h3>
+        <p class="text-xs text-gray-500 mb-3">{{ t('settings.default_models_desc') }}</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
                 <label class="block text-xs text-gray-500 mb-1">OpenAI</label>
                 <div class="flex space-x-2">
-                    <input type="text" x-model="models.openai"
-                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
+                    <select x-model="models.openai"
+                            class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border">
+                        <template x-for="m in openaiModels" :key="m">
+                            <option :value="m" x-text="m"></option>
+                        </template>
+                    </select>
                     <button @click="saveModel('openai', models.openai)"
                             class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
                 </div>
@@ -118,27 +113,53 @@
             <div>
                 <label class="block text-xs text-gray-500 mb-1">Gemini</label>
                 <div class="flex space-x-2">
-                    <input type="text" x-model="models.gemini"
-                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
+                    <select x-model="models.gemini"
+                            class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border">
+                        <template x-for="m in geminiModels" :key="m">
+                            <option :value="m" x-text="m"></option>
+                        </template>
+                    </select>
                     <button @click="saveModel('gemini', models.gemini)"
+                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Ollama</label>
+                <div class="flex space-x-2">
+                    <select x-model="models.ollama"
+                            class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border truncate">
+                        <template x-for="m in ollamaModels" :key="m">
+                            <option :value="m" x-text="m"></option>
+                        </template>
+                        <option x-show="ollamaModels.length === 0" value="" disabled>—</option>
+                    </select>
+                    <button @click="saveModel('ollama', models.ollama)"
                             class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
                 </div>
             </div>
         </div>
 
-        <h3 class="text-sm font-medium text-gray-700 mb-2">{{ t('settings.refine_models') }}</h3>
-        <p class="text-xs text-gray-500 mb-2">{{ t('settings.refine_models_hint') }}</p>
-        <template x-for="(info, key) in generalSettings" :key="key">
-            <div x-show="key.startsWith('refine_model')" class="mb-2">
-                <label class="block text-xs text-gray-500 mb-1" x-text="info.label"></label>
-                <div class="flex space-x-2">
-                    <input type="text" x-model="info.value"
-                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
-                    <button @click="saveGeneral(key, info.value)"
-                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
+        <!-- Refine override models -->
+        <h3 class="text-sm font-medium text-gray-700 mb-1">{{ t('settings.refine_models') }}</h3>
+        <p class="text-xs text-gray-500 mb-3">{{ t('settings.refine_models_hint') }}</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <template x-for="(info, key) in generalSettings" :key="key">
+                <div x-show="key.startsWith('refine_model')">
+                    <label class="block text-xs text-gray-500 mb-1" x-text="info.label"></label>
+                    <div class="flex space-x-2">
+                        <select x-model="info.value"
+                                class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border truncate">
+                            <option value="">—</option>
+                            <template x-for="m in (key === 'refine_model_openai' ? openaiModels : key === 'refine_model_gemini' ? geminiModels : ollamaModels)" :key="m">
+                                <option :value="m" x-text="m"></option>
+                            </template>
+                        </select>
+                        <button @click="saveGeneral(key, info.value)"
+                                class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
+                    </div>
                 </div>
-            </div>
-        </template>
+            </template>
+        </div>
     </div>
 
     <!-- General Settings -->
@@ -269,6 +290,9 @@ function settingsPage() {
         ],
         models: { openai: 'gpt-5.4', gemini: 'gemini-3-flash-preview', ollama: 'qwen3:latest' },
         ollamaUrl: 'http://host.docker.internal:11434',
+        openaiModels: [],
+        geminiModels: [],
+        ollamaModels: [],
         ollamaTestResult: null,
         ollamaTestMsg: '',
         presetDescription: '',
@@ -297,42 +321,50 @@ function settingsPage() {
         statusMsg: '',
 
         async loadSettings() {
-            // Load keys
-            const keysRes = await fetch('/api/settings/keys');
-            const keys = await keysRes.json();
+            // Fetch all settings in parallel
+            const [keysRes, modelsRes, ollamaRes, availableRes, generalRes, glossaryRes, pricingRes, toneRes, promptsRes] = await Promise.all([
+                fetch('/api/settings/keys'),
+                fetch('/api/settings/models'),
+                fetch('/api/settings/ollama-url'),
+                fetch('/api/settings/available-models'),
+                fetch('/api/settings/general'),
+                fetch('/api/settings/glossary'),
+                fetch('/api/settings/pricing'),
+                fetch('/api/settings/tone-references'),
+                fetch('/api/settings/refine-prompts'),
+            ]);
+            const [keys, modelsData, ollamaData, availableData, generalData, glossaryData, pricingData, toneData, promptsData] = await Promise.all([
+                keysRes.json(), modelsRes.json(), ollamaRes.json(), availableRes.json(),
+                generalRes.json(), glossaryRes.json(), pricingRes.json(), toneRes.json(), promptsRes.json(),
+            ]);
+
+            // API keys
             for (const k of keys) {
                 const p = this.providers.find(p => p.id === k.provider);
-                if (p) {
-                    p.configured = true;
-                    p.masked = k.masked;
-                }
+                if (p) { p.configured = true; p.masked = k.masked; }
             }
-            // Load models
-            const modelsRes = await fetch('/api/settings/models');
-            const modelsData = await modelsRes.json();
+            // Configured models
             this.models = { ...this.models, ...modelsData };
-            // Load Ollama URL
-            const ollamaRes = await fetch('/api/settings/ollama-url');
-            const ollamaData = await ollamaRes.json();
+            // Ollama URL
             this.ollamaUrl = ollamaData.url || 'http://host.docker.internal:11434';
-            // Load general settings
-            const generalRes = await fetch('/api/settings/general');
-            this.generalSettings = await generalRes.json();
-            // Load glossary
-            const glossaryRes = await fetch('/api/settings/glossary');
-            const glossaryData = await glossaryRes.json();
+            // Available model lists
+            this.openaiModels = availableData.available?.openai || [];
+            this.geminiModels = availableData.available?.gemini || [];
+            this.ollamaModels = availableData.available?.ollama || [];
+            for (const [key, models] of [['openai', this.openaiModels], ['gemini', this.geminiModels], ['ollama', this.ollamaModels]]) {
+                if (this.models[key] && !models.includes(this.models[key])) models.unshift(this.models[key]);
+            }
+            // General settings (refine models etc.)
+            this.generalSettings = generalData;
+            this._ensureRefineValuesInLists();
+            // Force selects to reflect loaded values after DOM options render
+            const savedModels = { ...this.models };
+            const savedGS = structuredClone(this.generalSettings);
+            this.$nextTick(() => { this.models = savedModels; this.generalSettings = savedGS; });
+            // Other settings
             this.glossary = glossaryData.glossary || '';
-            // Load pricing
-            const pricingRes = await fetch('/api/settings/pricing');
-            const pricingData = await pricingRes.json();
             this.pricing = pricingData.pricing || {};
-            // Load tone references
-            const toneRes = await fetch('/api/settings/tone-references');
-            const toneData = await toneRes.json();
             this.toneReferences = toneData.tone_references || '';
-            // Load refine prompts
-            const promptsRes = await fetch('/api/settings/refine-prompts');
-            const promptsData = await promptsRes.json();
             for (const mode of ['verbatim', 'standard', 'caption']) {
                 this.refinePrompts[mode] = promptsData[mode]?.custom || promptsData[mode]?.default || '';
             }
@@ -371,9 +403,35 @@ function settingsPage() {
             this.models.openai = preset.openai;
             this.models.gemini = preset.gemini;
             this.presetDescription = preset.desc;
-            await this.saveModel('openai', preset.openai);
-            await this.saveModel('gemini', preset.gemini);
-            this.showStatus(`{{ t("settings.preset_applied") }} "${name}"`);
+            await Promise.all([this.saveModel('openai', preset.openai), this.saveModel('gemini', preset.gemini)]);
+            this.showStatus('{{ t("settings.preset_applied") }}'.replace('{name}', name));
+        },
+
+        async loadAvailableModels() {
+            try {
+                const res = await fetch('/api/settings/available-models');
+                const data = await res.json();
+                this.openaiModels = data.available.openai || [];
+                this.geminiModels = data.available.gemini || [];
+                this.ollamaModels = data.available.ollama || [];
+                // Ensure current configured values are in the lists
+                for (const [key, models] of [['openai', this.openaiModels], ['gemini', this.geminiModels], ['ollama', this.ollamaModels]]) {
+                    if (this.models[key] && !models.includes(this.models[key])) {
+                        models.unshift(this.models[key]);
+                    }
+                }
+                // Ensure refine model saved values are in the lists too
+                this._ensureRefineValuesInLists();
+            } catch (e) { /* Ollama may not be running */ }
+        },
+
+        _ensureRefineValuesInLists() {
+            if (!this.generalSettings) return;
+            const map = {refine_model_openai: this.openaiModels, refine_model_gemini: this.geminiModels, refine_model_ollama: this.ollamaModels};
+            for (const [key, list] of Object.entries(map)) {
+                const val = this.generalSettings[key]?.value;
+                if (val && !list.includes(val)) list.unshift(val);
+            }
         },
 
         async saveOllamaUrl() {
@@ -383,6 +441,7 @@ function settingsPage() {
                 body: JSON.stringify({ value: this.ollamaUrl })
             });
             this.showStatus('{{ t("settings.ollama_url_saved") }}');
+            this.loadAvailableModels();
         },
 
         async testOllama() {
@@ -403,7 +462,7 @@ function settingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ model })
             });
-            this.showStatus(`{{ t("settings.model_set") }} ${provider}: ${model}`);
+            this.showStatus('{{ t("settings.model_set") }}'.replace('{provider}', provider).replace('{model}', model));
         },
 
         async saveToneReferences() {
@@ -457,7 +516,8 @@ function settingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value })
             });
-            this.showStatus(`${key} {{ t("settings.set_to") }} ${value}`);
+            const label = this.generalSettings[key]?.label || key;
+            this.showStatus(`${label} → ${value}`);
         },
 
 

@@ -43,8 +43,10 @@ async def _get_credential(session: AsyncSession, provider: str) -> str:
     return decrypt(setting.value)
 
 
-async def _get_model(session: AsyncSession, provider: str) -> str:
-    """Get configured LLM model for the given provider."""
+async def _get_model(session: AsyncSession, provider: str, override: str | None = None) -> str:
+    """Get configured LLM model for the given provider. Override takes precedence."""
+    if override:
+        return override
     if provider == "ollama":
         result = await session.execute(select(Setting).where(Setting.key == KEY_MODEL_OLLAMA))
         setting = result.scalar_one_or_none()
@@ -188,7 +190,7 @@ async def _run_transcription(
         cost = estimate_whisper_cost(duration)
         await log_cost(session, job.id, "whisper", "whisper-1", "transcription", cost, audio_duration=duration)
     else:
-        model = await _get_model(session, effective_provider)
+        model = await _get_model(session, effective_provider, job.model_override)
         segments, input_tokens, output_tokens = await _transcribe_gemini(
             audio_path, api_key, job.language, model, glossary
         )

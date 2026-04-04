@@ -31,6 +31,7 @@ class Job(Base):
     enable_verify: Mapped[bool] = mapped_column(Boolean, default=False)
     verified_indices: Mapped[str | None] = mapped_column(Text, nullable=True)
     verify_reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_override: Mapped[str | None] = mapped_column(String, nullable=True)
     speakers: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list of speaker names
     speaker_map: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: {segment_index: speaker_name}
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
