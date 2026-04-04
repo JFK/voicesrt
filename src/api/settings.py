@@ -112,7 +112,6 @@ async def _test_ollama(session: AsyncSession) -> dict:
     import httpx
 
     from src.constants import KEY_OLLAMA_BASE_URL
-
     from src.services.utils import _resolve_ollama_url
 
     result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
