@@ -162,7 +162,7 @@
                         <div class="inline-flex items-center gap-0.5">
                             <button @click="nudgeTime(idx, 'start', -0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.start)"
-                                   @change="seg.start = parseTime($event.target.value); debounceSave()"
+                                   @change="const v = parseTime($event.target.value); if (v !== null) { seg.start = v; debounceSave() } else { $event.target.value = formatTimeFull(seg.start) }"
                                    class="w-20 text-xs font-mono text-gray-500 bg-transparent border-0 border-b border-dashed border-gray-300 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'start', 0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
@@ -476,6 +476,7 @@ function srtEditor() {
 
         updateEnd(idx, value) {
             const newEnd = this.parseTime(value);
+            if (newEnd === null) return;
             // Check: cannot exceed next segment's end
             if (idx + 1 < this.segments.length && newEnd > this.segments[idx + 1].end) {
                 this.segments[idx]._error = '{{ t("srt_editor.exceeds_next") }}';
@@ -598,12 +599,15 @@ function srtEditor() {
 
         parseTime(str) {
             const parts = str.split(':');
+            let val;
             if (parts.length === 3) {
-                return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+                val = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
             } else if (parts.length === 2) {
-                return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+                val = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+            } else {
+                val = parseFloat(str);
             }
-            return parseFloat(str) || 0;
+            return isNaN(val) ? null : val;
         },
 
         validateTimes() {

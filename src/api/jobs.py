@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+# UI sends "openai"/"gemini"/"ollama"; backend expects "whisper"/"gemini"/"ollama"
+_PROVIDER_ALIASES = {"openai": "whisper", "whisper": "whisper", "gemini": "gemini", "ollama": "ollama"}
+
+
+def _normalize_provider(provider: str | None) -> str | None:
+    """Normalize UI provider name to internal provider name."""
+    if provider is None:
+        return None
+    normalized = _PROVIDER_ALIASES.get(provider.strip().lower())
+    if normalized is None:
+        raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
+    return normalized
+
+
 DEFAULT_MAX_UPLOAD_SIZE = settings.max_upload_size_gb * 1024 * 1024 * 1024
 
 
@@ -239,7 +253,7 @@ async def download_srt(
 
     srt_content = generate_srt(filtered)
     download_name = f"{stem}_{speaker}.srt"
-    encoded_name = quote(download_name)
+    encoded_name = quote(download_name, safe="")
     return Response(
         content=srt_content,
         media_type="text/plain",
@@ -282,7 +296,7 @@ async def download_vtt(
         vtt_content = generate_vtt(filtered)
         download_name = f"{stem}_{speaker}.vtt"
 
-    encoded_name = quote(download_name)
+    encoded_name = quote(download_name, safe="")
     return Response(
         content=vtt_content,
         media_type="text/vtt",
@@ -386,7 +400,7 @@ async def optimize_prompt(
 
     tone_references = await _get_tone_references(session) if use_tone_ref else None
 
-    provider = override_provider or job.provider
+    provider = _normalize_provider(override_provider) or job.provider
     api_key = await _get_credential(session, provider)
     model = override_model or await _get_model(session, provider)
 
@@ -422,7 +436,7 @@ async def _generate_meta_job(
             job.status = "generating_metadata"
             await session.commit()
 
-            provider = override_provider or job.provider
+            provider = _normalize_provider(override_provider) or job.provider
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
             api_key = await _get_credential(session, provider)
             model = override_model or await _get_model(session, provider)
@@ -476,7 +490,7 @@ async def generate_catchphrase_endpoint(
         pass
 
     try:
-        provider = override_provider or job.provider
+        provider = _normalize_provider(override_provider) or job.provider
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
         api_key = await _get_credential(session, provider)
         model = override_model or await _get_model(session, provider)
@@ -539,7 +553,7 @@ async def generate_quiz_endpoint(
         pass
 
     try:
-        provider = override_provider or job.provider
+        provider = _normalize_provider(override_provider) or job.provider
         srt_content = Path(job.srt_path).read_text(encoding="utf-8")
         api_key = await _get_credential(session, provider)
         model = override_model or await _get_model(session, provider)
@@ -615,13 +629,20 @@ async def update_segments(job_id: str, request: Request, session: AsyncSession =
         raise HTTPException(status_code=400, detail="No segments provided")
 
     # Validate segment structure and timing
+    previous_end = None
     for i, seg in enumerate(segments):
         if not isinstance(seg, dict) or "start" not in seg or "end" not in seg or "text" not in seg:
             raise HTTPException(status_code=400, detail=f"Invalid segment at index {i}")
-        if float(seg["start"]) >= float(seg["end"]):
+        try:
+            start = float(seg["start"])
+            end = float(seg["end"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start and end must be numeric")
+        if start >= end:
             raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start must be before end")
-        if i > 0 and float(seg["start"]) < float(segments[i - 1]["end"]):
+        if previous_end is not None and start < previous_end:
             raise HTTPException(status_code=400, detail=f"Segment {i + 1}: overlaps with previous segment")
+        previous_end = end
 
     srt_content = generate_srt(segments)
     srt_path = Path(job.srt_path).resolve()
