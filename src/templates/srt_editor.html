@@ -108,9 +108,10 @@
 
                 <!-- Editable text -->
                 <textarea x-model="seg.text" rows="2"
-                          @input="debounceSave()"
-                          class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border"
-                          style="field-sizing: content; min-height: 3rem;"></textarea>
+                          @input="autoResize($event.target); debounceSave()"
+                          x-effect="$nextTick(() => autoResize($el))"
+                          class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border resize-none"
+                          style="min-height: 3rem;"></textarea>
 
                 <!-- Verify reason -->
                 <p x-show="verifiedIndices.includes(idx) && verifyReasons[idx]"
@@ -344,6 +345,12 @@ function srtEditor() {
                 audio.pause();
                 this._stopTimer = null;
             }, duration);
+        },
+
+        autoResize(el) {
+            if (!el) return;
+            el.style.height = '0';
+            el.style.height = Math.max(el.scrollHeight, 48) + 'px';
         },
 
         formatTime(seconds) {
