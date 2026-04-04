@@ -47,10 +47,26 @@
                 </a>
             </div>
         </div>
-    </div>
 
-    <!-- Audio player (hidden, controlled via JS) -->
-    <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"></audio>
+        <!-- Audio player bar -->
+        <div x-show="!loading" class="mt-3 flex items-center gap-3 bg-white rounded-lg shadow-sm border px-3 py-2">
+            <button @click="togglePlay()"
+                    class="text-gray-600 hover:text-blue-600 transition-colors flex-shrink-0">
+                <svg x-show="!isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <svg x-show="isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <span class="text-xs font-mono text-gray-500 w-20 flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
+            <div class="flex-1 relative h-6 cursor-pointer group" @click="seekAudio($event)">
+                <div class="absolute top-1/2 -translate-y-1/2 w-full h-1.5 bg-gray-200 rounded-full">
+                    <div class="h-full bg-blue-500 rounded-full transition-all" :style="'width:' + (audioDuration ? (currentTime/audioDuration*100) : 0) + '%'"></div>
+                </div>
+            </div>
+            <span x-show="activeSegmentIdx !== null" class="text-xs text-blue-600 font-medium flex-shrink-0" x-text="'#' + (activeSegmentIdx + 1)"></span>
+        </div>
+        <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"
+               @timeupdate="onTimeUpdate()" @loadedmetadata="audioDuration = $refs.audio.duration"
+               @ended="isPlaying = false; activeSegmentIdx = null" @pause="isPlaying = false" @play="isPlaying = true"></audio>
+    </div>
 
     <!-- Loading -->
     <div x-show="loading" class="text-center py-12">
@@ -62,7 +78,8 @@
     <div x-show="!loading" class="space-y-3">
         <template x-for="(seg, idx) in segments" :key="idx">
             <div class="bg-white shadow rounded-lg p-4 border-l-4 transition-colors"
-                 :class="verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
+                 :id="'seg-' + idx"
+                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'"
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-mono text-gray-400" x-text="'#' + (idx + 1)"></span>
@@ -141,7 +158,10 @@ function srtEditor() {
         saveError: false,
         reRefining: false,
         glossary: '',
-        playingIdx: null,
+        isPlaying: false,
+        currentTime: 0,
+        audioDuration: 0,
+        activeSegmentIdx: null,
         _saveTimer: null,
         _stopTimer: null,
 
@@ -265,6 +285,49 @@ function srtEditor() {
                 }
             }
             throw new Error('Timeout waiting for re-refine');
+        },
+
+        togglePlay() {
+            const audio = this.$refs.audio;
+            if (!audio) return;
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+                if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
+            }
+        },
+
+        seekAudio(event) {
+            const audio = this.$refs.audio;
+            if (!audio || !audio.duration) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            const ratio = (event.clientX - rect.left) / rect.width;
+            audio.currentTime = ratio * audio.duration;
+            if (audio.paused) audio.play();
+        },
+
+        onTimeUpdate() {
+            const audio = this.$refs.audio;
+            if (!audio) return;
+            this.currentTime = audio.currentTime;
+            // Find active segment
+            const t = audio.currentTime;
+            let found = null;
+            for (let i = 0; i < this.segments.length; i++) {
+                if (t >= this.segments[i].start && t < this.segments[i].end) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found !== this.activeSegmentIdx) {
+                this.activeSegmentIdx = found;
+                // Auto-scroll to active segment
+                if (found !== null) {
+                    const el = document.getElementById('seg-' + found);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
         },
 
         playSegment(start, end) {
