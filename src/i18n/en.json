@@ -138,11 +138,11 @@
     "reset_default": "Reset to default",
     "prompt_saved": "Prompt saved",
     "prompt_reset": "Prompt reset to default",
-    "tone_references": "Reference Posts",
-    "tone_references_desc": "Register previously posted YouTube titles and descriptions. Used as tone reference during metadata generation.",
+    "tone_references": "Past YouTube Posts",
+    "tone_references_desc": "Paste titles and descriptions from your previous YouTube videos. The AI will match their writing style when generating metadata.",
     "tone_references_placeholder": "---\nTitle: Video Title\nDescription: First few lines of the description...\n---",
-    "save_tone_references": "Save Reference Posts",
-    "tone_references_saved": "Reference posts saved"
+    "save_tone_references": "Save",
+    "tone_references_saved": "Saved"
   },
   "costs": {
     "title": "Cost Dashboard",
@@ -190,8 +190,8 @@
     "generated_metadata": "Generated Metadata",
     "regenerate": "Regenerate",
     "back_to_history": "Back to History",
-    "use_tone_ref": "Match tone with reference posts",
-    "tone_ref_link": "Edit reference posts in Settings",
+    "use_tone_ref": "Match style with past YouTube posts",
+    "tone_ref_link": "Edit past posts in Settings",
     "label_title": "Title",
     "label_description": "Description",
     "label_tags": "Tags",

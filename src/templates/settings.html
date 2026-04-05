@@ -237,7 +237,7 @@
 
 
     <!-- Tone References -->
-    <div class="bg-white shadow rounded-lg p-6">
+    <div id="tone-references" class="bg-white shadow rounded-lg p-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('settings.tone_references') }}</h2>
         <p class="text-sm text-gray-500 mb-2">
             {{ t('settings.tone_references_desc') }}
@@ -359,7 +359,7 @@ function settingsPage() {
             this._ensureRefineValuesInLists();
             // Force selects to reflect loaded values after DOM options render
             const savedModels = { ...this.models };
-            const savedGS = structuredClone(this.generalSettings);
+            const savedGS = JSON.parse(JSON.stringify(this.generalSettings));
             this.$nextTick(() => { this.models = savedModels; this.generalSettings = savedGS; });
             // Other settings
             this.glossary = glossaryData.glossary || '';

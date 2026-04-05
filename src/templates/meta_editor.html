@@ -74,21 +74,13 @@
             </div>
         </div>
 
-        <!-- Prompt -->
+        <!-- Prompt & LLM -->
         <div class="bg-white shadow rounded-lg p-6">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-medium text-gray-900">{{ t('meta.prompt') }}</h2>
-                <button @click="optimizePrompt()" :disabled="optimizing"
-                        class="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:bg-gray-400">
-                    <span x-show="!optimizing">{{ t('meta.optimize_with_ai') }}</span>
-                    <span x-show="optimizing">{{ t('meta.optimizing') }}</span>
-                </button>
-            </div>
-            <textarea x-model="prompt" rows="12"
-                      class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"></textarea>
-            <div class="mt-2 flex justify-between items-center">
-                <button @click="resetPrompt()" class="text-sm text-gray-500 hover:text-gray-700">{{ t('meta.reset_to_default') }}</button>
+                <!-- LLM model selector — applies to both Optimize and Generate -->
                 <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">LLM:</span>
                     <select x-model="selectedProvider" @change="onProviderChange()" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7">
                         <template x-for="p in availableProviders" :key="p">
                             <option :value="p" x-text="p" :disabled="!hasKey[p]"></option>
@@ -99,12 +91,24 @@
                             <option :value="m" x-text="m"></option>
                         </template>
                     </select>
-                    <button @click="generateMetadata()" :disabled="generating"
-                            class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400">
-                        <span x-show="!generating">{{ t('meta.generate_metadata') }}</span>
-                        <span x-show="generating">{{ t('meta.generating') }}</span>
+                </div>
+            </div>
+            <textarea x-model="prompt" rows="12"
+                      class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"></textarea>
+            <div class="mt-3 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <button @click="resetPrompt()" class="text-sm text-gray-500 hover:text-gray-700">{{ t('meta.reset_to_default') }}</button>
+                    <button @click="optimizePrompt()" :disabled="optimizing"
+                            class="px-4 py-2 bg-purple-100 text-purple-700 border border-purple-300 rounded-md text-sm font-medium hover:bg-purple-200 disabled:opacity-50">
+                        <span x-show="!optimizing">{{ t('meta.optimize_with_ai') }}</span>
+                        <span x-show="optimizing">{{ t('meta.optimizing') }}</span>
                     </button>
                 </div>
+                <button @click="generateMetadata()" :disabled="generating"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400">
+                    <span x-show="!generating">{{ t('meta.generate_metadata') }}</span>
+                    <span x-show="generating">{{ t('meta.generating') }}</span>
+                </button>
             </div>
         </div>
     </div>
@@ -128,12 +132,27 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('meta.label_title') }}</label>
-                    <div class="flex">
-                        <input type="text" x-model="result.title" readonly
-                               class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50">
-                        <button @click="copyText(result.title)"
-                                class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('meta.copy') }}</button>
-                    </div>
+                    <template x-if="Array.isArray(result.titles) && result.titles.length > 0">
+                        <div class="space-y-2">
+                            <template x-for="(titleOpt, i) in result.titles" :key="i">
+                                <div class="flex">
+                                    <span class="inline-flex items-center px-2 bg-gray-50 border border-r-0 border-gray-300 rounded-l-md text-xs text-gray-500" x-text="i + 1"></span>
+                                    <input type="text" :value="titleOpt" readonly
+                                           class="flex-1 border-gray-300 text-sm p-2 border bg-gray-50">
+                                    <button @click="copyText(titleOpt)"
+                                            class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('meta.copy') }}</button>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="!Array.isArray(result.titles) || result.titles.length === 0">
+                        <div class="flex">
+                            <input type="text" x-model="result.title" readonly
+                                   class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50">
+                            <button @click="copyText(result.title)"
+                                    class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('meta.copy') }}</button>
+                        </div>
+                    </template>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('meta.label_description') }}</label>
@@ -171,11 +190,18 @@ function metaEditor() {
 ## Output Format
 Return a JSON object:
 {
-  "title": "SEO-optimized title (max 60 chars)",
+  "titles": ["Title option 1", "Title option 2", "Title option 3"],
   "description": "Video description",
   "tags": ["tag1", "tag2", ...],
   "chapters": [{"time": "00:00", "title": "Chapter title"}, ...]
 }
+
+## Titles
+- Generate 2-3 title options (max 60 chars each)
+- Each should be SEO-optimized but with a different angle:
+  a) Search-focused (include primary keyword)
+  b) Curiosity-driven (make viewers want to click)
+  c) Benefit/result-focused (what viewers will learn)
 
 ## Description Structure
 1. First 3 lines: Video summary (shown in search results)
@@ -206,7 +232,7 @@ Return a JSON object:
         defaultPrompt: defaultPrompt,
         optimizing: false,
         generating: false,
-        result: { title: '', description: '', tags: [] },
+        result: { title: '', titles: [], description: '', tags: [] },
         toast: '',
         availableProviders: ['openai', 'gemini', 'ollama'],
         availableModels: {},
@@ -310,7 +336,14 @@ Return a JSON object:
                     const job = await r.json();
                     if (job.youtube_title) {
                         clearInterval(poll);
-                        this.result.title = job.youtube_title;
+                        const rawTitle = job.youtube_title;
+                        if (rawTitle.includes('\n')) {
+                            this.result.titles = rawTitle.split('\n').filter(t => t.trim());
+                            this.result.title = this.result.titles[0] || '';
+                        } else {
+                            this.result.title = rawTitle;
+                            this.result.titles = [];
+                        }
                         this.result.description = job.youtube_description;
                         try { this.result.tags = JSON.parse(job.youtube_tags || '[]'); } catch(e) { this.result.tags = []; }
                         this.step = 'result';

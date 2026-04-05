@@ -138,11 +138,11 @@
     "reset_default": "\u30c7\u30d5\u30a9\u30eb\u30c8\u306b\u623b\u3059",
     "prompt_saved": "プロンプトを保存しました",
     "prompt_reset": "プロンプトをデフォルトに戻しました",
-    "tone_references": "参照投稿",
-    "tone_references_desc": "過去にYouTubeに投稿したタイトルと概要を登録。メタデータ生成時のトーン参照に使用されます。",
+    "tone_references": "過去の投稿スタイル",
+    "tone_references_desc": "過去のYouTube動画のタイトル・概要欄を登録しておくと、同じ文体でメタデータを生成します。",
     "tone_references_placeholder": "---\nTitle: 動画タイトル\nDescription: 概要の冒頭部分...\n---",
-    "save_tone_references": "参照投稿を保存",
-    "tone_references_saved": "参照投稿を保存しました"
+    "save_tone_references": "保存",
+    "tone_references_saved": "保存しました"
   },
   "costs": {
     "title": "\u30b3\u30b9\u30c8\u30c0\u30c3\u30b7\u30e5\u30dc\u30fc\u30c9",
@@ -190,8 +190,8 @@
     "generated_metadata": "\u751f\u6210\u7d50\u679c",
     "regenerate": "\u518d\u751f\u6210",
     "back_to_history": "\u5c65\u6b74\u306b\u623b\u308b",
-    "use_tone_ref": "参照投稿とトーンを合わせる",
-    "tone_ref_link": "設定で参照投稿を編集",
+    "use_tone_ref": "過去の投稿と文体を合わせる",
+    "tone_ref_link": "設定で過去の投稿を編集",
     "label_title": "タイトル",
     "label_description": "説明",
     "label_tags": "タグ",
