@@ -243,5 +243,22 @@
     "generating_metadata": "Generating metadata",
     "completed": "Completed",
     "failed": "Failed"
+  },
+  "setup": {
+    "title": "Setup",
+    "welcome": "Welcome to VoiceSRT",
+    "choose_provider": "Choose your transcription provider to get started.",
+    "openai_desc": "Best accuracy for most languages. Requires an OpenAI API key.",
+    "google_desc": "Great for long files and multilingual content. Requires a Google API key.",
+    "enter_key": "Enter your API key",
+    "openai_key_hint": "Get your key from platform.openai.com → API Keys",
+    "google_key_hint": "Get your key from aistudio.google.com → API Keys",
+    "save_and_test": "Save & Verify",
+    "testing": "Verifying...",
+    "back": "Back",
+    "ready": "You're all set!",
+    "ready_desc": "Your API key is verified. You can now upload audio/video files for transcription.",
+    "start_upload": "Start Uploading",
+    "advanced_settings": "Advanced Settings"
   }
 }

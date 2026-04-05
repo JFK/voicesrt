@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ t('setup.title') }} — VoiceSRT{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto mt-12" x-data="setupWizard()">
+    <!-- Progress -->
+    <div class="flex items-center justify-center mb-8 gap-2">
+        <template x-for="s in 3">
+            <div class="flex items-center">
+                <div :class="step >= s ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'"
+                     class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors">
+                    <span x-text="s"></span>
+                </div>
+                <div x-show="s < 3" class="w-12 h-0.5 mx-1"
+                     :class="step > s ? 'bg-indigo-600' : 'bg-gray-200'"></div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Step 1: Choose provider -->
+    <div x-show="step === 1" x-transition>
+        <h2 class="text-2xl font-bold text-center mb-2">{{ t('setup.welcome') }}</h2>
+        <p class="text-gray-600 text-center mb-8">{{ t('setup.choose_provider') }}</p>
+
+        <div class="space-y-3">
+            <button @click="provider = 'openai'; step = 2"
+                    class="w-full p-4 border-2 rounded-lg text-left hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+                    :class="provider === 'openai' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'">
+                <div class="font-medium">OpenAI (Whisper + GPT)</div>
+                <div class="text-sm text-gray-500 mt-1">{{ t('setup.openai_desc') }}</div>
+            </button>
+            <button @click="provider = 'google'; step = 2"
+                    class="w-full p-4 border-2 rounded-lg text-left hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+                    :class="provider === 'google' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'">
+                <div class="font-medium">Google (Gemini)</div>
+                <div class="text-sm text-gray-500 mt-1">{{ t('setup.google_desc') }}</div>
+            </button>
+        </div>
+
+        <p class="text-center mt-6">
+            <a href="/settings" class="text-sm text-gray-500 hover:text-gray-700 underline">{{ t('setup.advanced_settings') }}</a>
+        </p>
+    </div>
+
+    <!-- Step 2: Enter API key -->
+    <div x-show="step === 2" x-transition>
+        <h2 class="text-2xl font-bold text-center mb-2">{{ t('setup.enter_key') }}</h2>
+        <p class="text-gray-600 text-center mb-6">
+            <span x-show="provider === 'openai'">{{ t('setup.openai_key_hint') }}</span>
+            <span x-show="provider === 'google'">{{ t('setup.google_key_hint') }}</span>
+        </p>
+
+        <div class="space-y-4">
+            <input type="password" x-model="apiKey"
+                   :placeholder="provider === 'openai' ? 'sk-...' : 'AIza...'"
+                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                   @keydown.enter="saveKey()">
+
+            <div x-show="error" class="text-sm text-red-600" x-text="error"></div>
+            <div x-show="testResult === 'valid'" class="text-sm text-green-600">{{ t('settings.key_valid') }}</div>
+
+            <div class="flex gap-3">
+                <button @click="step = 1" class="px-4 py-2 text-gray-600 hover:text-gray-800">{{ t('setup.back') }}</button>
+                <button @click="saveKey()" :disabled="!apiKey || saving"
+                        class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium">
+                    <span x-show="!saving">{{ t('setup.save_and_test') }}</span>
+                    <span x-show="saving">{{ t('setup.testing') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Done -->
+    <div x-show="step === 3" x-transition>
+        <div class="text-center">
+            <div class="text-5xl mb-4">&#10003;</div>
+            <h2 class="text-2xl font-bold mb-2">{{ t('setup.ready') }}</h2>
+            <p class="text-gray-600 mb-8">{{ t('setup.ready_desc') }}</p>
+            <a href="/" class="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                {{ t('setup.start_upload') }}
+            </a>
+            <p class="mt-4">
+                <a href="/settings" class="text-sm text-gray-500 hover:text-gray-700 underline">{{ t('setup.advanced_settings') }}</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+function setupWizard() {
+    return {
+        step: 1,
+        provider: '',
+        apiKey: '',
+        saving: false,
+        error: '',
+        testResult: '',
+
+        async saveKey() {
+            if (!this.apiKey) return;
+            this.saving = true;
+            this.error = '';
+            this.testResult = '';
+
+            try {
+                // Save key
+                const saveRes = await fetch(`/api/settings/keys/${this.provider}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({key: this.apiKey})
+                });
+                if (!saveRes.ok) {
+                    const err = await saveRes.json().catch(() => null);
+                    this.error = err?.error?.message || 'Failed to save key';
+                    return;
+                }
+
+                // Test key
+                const testRes = await fetch(`/api/settings/keys/${this.provider}/test`, {method: 'POST'});
+                const result = await testRes.json();
+                if (result.valid) {
+                    this.testResult = 'valid';
+                    setTimeout(() => { this.step = 3; }, 500);
+                } else {
+                    this.error = result.error || 'Key verification failed';
+                }
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
