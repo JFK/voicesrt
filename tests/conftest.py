@@ -28,8 +28,15 @@ def make_client():
 
 
 @pytest.fixture(autouse=True, scope="session")
-async def _seed_api_key():
-    """Insert a dummy API key so GET / doesn't redirect to /setup in CI."""
+async def _seed_api_key(request):
+    """Insert a dummy API key so GET / doesn't redirect to /setup in CI.
+
+    Skipped for E2E tests which manage their own DB lifecycle.
+    """
+    items = request.session.items if hasattr(request.session, "items") else []
+    if all(item.nodeid.startswith("tests/e2e/") for item in items):
+        return
+
     from sqlalchemy import select
 
     from src.database import async_session, engine
