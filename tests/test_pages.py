@@ -1,18 +1,6 @@
 """Tests for HTML page routes."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from src.main import app
-
-
-@pytest.fixture
-def make_client():
-    def _make():
-        transport = ASGITransport(app=app)
-        return AsyncClient(transport=transport, base_url="http://test")
-
-    return _make
 
 
 @pytest.mark.asyncio

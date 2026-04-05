@@ -1,21 +1,10 @@
 """Tests for model selection, provider normalization, and available-models API."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from src.api.jobs import _normalize_provider
-from src.main import app
 from src.services.utils import _resolve_ollama_url
-
-
-@pytest.fixture
-def make_client():
-    def _make():
-        transport = ASGITransport(app=app)
-        return AsyncClient(transport=transport, base_url="http://test")
-
-    return _make
-
+from tests.conftest import cleanup_job, create_test_job
 
 # ---------------------------------------------------------------------------
 # _normalize_provider
@@ -143,46 +132,10 @@ async def test_available_models_endpoint(make_client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-async def _create_test_job(make_client) -> str:
-    async with make_client() as c:
-        resp = await c.post(
-            "/api/jobs?provider=whisper",
-            files={"file": ("test.mp3", b"fake", "audio/mpeg")},
-        )
-    assert resp.status_code == 200, resp.text
-    job_id = resp.json()["id"]
-
-    from src.config import settings
-
-    srt_dir = settings.srt_dir
-    srt_dir.mkdir(parents=True, exist_ok=True)
-    srt_path = srt_dir / f"{job_id}.srt"
-    srt_path.write_text("1\n00:00:00,000 --> 00:00:02,000\nHello\n\n2\n00:00:02,000 --> 00:00:04,000\nWorld\n\n")
-
-    from sqlalchemy import select
-
-    from src.database import async_session
-    from src.models import Job
-
-    async with async_session() as session:
-        result = await session.execute(select(Job).where(Job.id == job_id))
-        job = result.scalar_one()
-        job.srt_path = str(srt_path)
-        job.status = "completed"
-        await session.commit()
-
-    return job_id
-
-
-async def _cleanup_job(make_client, job_id: str) -> None:
-    async with make_client() as c:
-        await c.delete(f"/api/jobs/{job_id}")
-
-
 @pytest.mark.asyncio
 async def test_update_segments_non_numeric(make_client):
     """Non-numeric start/end should return 400."""
-    job_id = await _create_test_job(make_client)
+    job_id = await create_test_job(make_client)
     try:
         async with make_client() as c:
             resp = await c.put(
@@ -193,13 +146,13 @@ async def test_update_segments_non_numeric(make_client):
         assert resp.json()["error"]["code"] == "SEGMENT_TIMING_INVALID"
         assert "numeric" in resp.json()["error"]["message"]
     finally:
-        await _cleanup_job(make_client, job_id)
+        await cleanup_job(make_client, job_id)
 
 
 @pytest.mark.asyncio
 async def test_glossary_crud(make_client):
     """Test job glossary save and retrieve."""
-    job_id = await _create_test_job(make_client)
+    job_id = await create_test_job(make_client)
     try:
         async with make_client() as c:
             # Save glossary
@@ -221,12 +174,12 @@ async def test_glossary_crud(make_client):
             )
             assert resp.status_code == 200
     finally:
-        await _cleanup_job(make_client, job_id)
+        await cleanup_job(make_client, job_id)
 
 
 @pytest.mark.asyncio
 async def test_glossary_too_long(make_client):
-    job_id = await _create_test_job(make_client)
+    job_id = await create_test_job(make_client)
     try:
         async with make_client() as c:
             resp = await c.put(
@@ -235,13 +188,13 @@ async def test_glossary_too_long(make_client):
             )
             assert resp.status_code == 400
     finally:
-        await _cleanup_job(make_client, job_id)
+        await cleanup_job(make_client, job_id)
 
 
 @pytest.mark.asyncio
 async def test_speakers_crud(make_client):
     """Test speaker save and retrieve."""
-    job_id = await _create_test_job(make_client)
+    job_id = await create_test_job(make_client)
     try:
         async with make_client() as c:
             resp = await c.put(
@@ -256,4 +209,4 @@ async def test_speakers_crud(make_client):
             assert data["speakers"] == ["Alice", "Bob"]
             assert data["speaker_map"] == {"0": "Alice"}
     finally:
-        await _cleanup_job(make_client, job_id)
+        await cleanup_job(make_client, job_id)
