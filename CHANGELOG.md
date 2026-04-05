@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-04-06
+
+### Added
+- **Setup wizard**: First-time user onboarding — choose provider, enter API key, verify, start uploading (#14)
+- **Toast notifications**: Actionable error messages with context-aware guidance and retry hints (#16)
+- **Playwright E2E tests**: 5 browser-level smoke tests covering setup wizard, settings, upload, navigation, language switching (#21)
+- **CI E2E job**: Separate GitHub Actions job with Chromium, screenshot artifacts on failure
+
+### Changed
+- **Structured error responses**: All API errors now return `{"error": {"code": "...", "message": "..."}}` via `AppError` — no more raw `HTTPException` (#27)
+- **Test fixtures centralized**: Shared helpers (`create_test_job`, `segment_factory`, `mock_openai_response`) extracted to `tests/helpers.py` (#30)
+- **E2E test isolation**: E2E tests use a temporary data directory, never touching the dev DB
+
+### Documentation
+- Architecture guide, user guide, troubleshooting guide, contributing guide (#31, #32, #33, #34)
+
 ## [0.3.0] - 2026-04-05
 
 ### Added

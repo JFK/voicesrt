@@ -1,6 +1,6 @@
 [project]
 name = "voicesrt"
-version = "0.3.0"
+version = "0.4.0"
 description = "AI-powered SRT subtitle generator from video/audio files with YouTube metadata and quiz generation"
 requires-python = ">=3.11"
 license = {text = "MIT"}
