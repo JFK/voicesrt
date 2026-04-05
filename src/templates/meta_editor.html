@@ -310,7 +310,7 @@ Return a JSON object:
                     this.showToast('{{ t("meta.prompt_optimized") }}');
                 }
             } catch (e) {
-                alert('{{ t("meta.optimization_failed") }}' + e.message);
+                showToast('{{ t("meta.optimization_failed") }}' + e.message);
             } finally {
                 this.optimizing = false;
             }
@@ -350,12 +350,12 @@ Return a JSON object:
                         this.generating = false;
                     } else if (job.status === 'failed') {
                         clearInterval(poll);
-                        alert('{{ t("meta.generation_failed") }}' + (job.error_message || 'Unknown error'));
+                        showToast('{{ t("meta.generation_failed") }}' + (job.error_message || 'Unknown error'));
                         this.generating = false;
                     }
                 }, 2000);
             } catch (e) {
-                alert('{{ t("meta.generation_failed") }}' + e.message);
+                showToast('{{ t("meta.generation_failed") }}' + e.message);
                 this.generating = false;
             }
         },

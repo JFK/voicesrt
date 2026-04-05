@@ -119,3 +119,25 @@ def invalid_ollama_url() -> AppError:
 
 def unknown_setting(key: str) -> AppError:
     return AppError(400, "UNKNOWN_SETTING", f"Unknown setting: {key}")
+
+
+def classify_error(exc: Exception) -> str:
+    """Classify an exception into a user-friendly message with actionable hint."""
+    msg = str(exc)
+    if isinstance(exc, TimeoutError) or "timeout" in msg.lower():
+        return "Processing timed out. Try a smaller file or a faster model."
+    if "401" in msg or "unauthorized" in msg.lower() or "invalid api key" in msg.lower():
+        return "API key is invalid or expired. Check Settings → API Keys."
+    if "429" in msg or "rate limit" in msg.lower() or "quota" in msg.lower():
+        return "API rate limit reached. Wait a moment and retry."
+    if "404" in msg and "model" in msg.lower():
+        return "Model not found. Check Settings → LLM Models."
+    if "connection" in msg.lower() and ("refused" in msg.lower() or "error" in msg.lower()):
+        return "Cannot connect to the API server. Check that the service is running."
+    return msg[:200] if len(msg) > 200 else msg
+
+
+def actionable_error(step: str, exc: Exception, recovery: str) -> str:
+    """Build a user-facing error message with context and recovery hint."""
+    cause = classify_error(exc)
+    return f"{step}: {cause}\n{recovery}"[:500]

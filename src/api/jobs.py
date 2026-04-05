@@ -117,9 +117,11 @@ async def _process_job(job_id: str) -> None:
         try:
             await process_transcription(job, session)
         except Exception as e:
+            from src.errors import classify_error
+
             logger.exception("Job %s failed", job_id)
             job.status = STATUS_FAILED
-            job.error_message = str(e)[:500]
+            job.error_message = classify_error(e)[:500]
             await session.commit()
 
 
