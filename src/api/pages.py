@@ -17,8 +17,19 @@ def _i18n_context(request: Request) -> dict:
 
 
 @router.get("/")
-async def upload_page(request: Request):
+async def upload_page(request: Request, session: AsyncSession = Depends(get_session)):
+    from src.models import Setting
+
+    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
+    has_keys = result.first() is not None
+    if not has_keys:
+        return RedirectResponse("/setup")
     return templates.TemplateResponse(request, "upload.html", {"active_page": "upload", **_i18n_context(request)})
+
+
+@router.get("/setup")
+async def setup_page(request: Request):
+    return templates.TemplateResponse(request, "setup.html", {"active_page": "settings", **_i18n_context(request)})
 
 
 @router.get("/history")
