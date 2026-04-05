@@ -69,9 +69,10 @@
                      'bg-yellow-50 border-yellow-300 text-yellow-800': toast.type === 'warning',
                      'bg-green-50 border-green-300 text-green-800': toast.type === 'success'
                  }"
-                 class="border rounded-lg shadow-lg p-4 flex items-start gap-3">
+                 class="border rounded-lg shadow-lg p-4 flex items-start gap-3"
+                 role="alert">
                 <div class="flex-1 text-sm whitespace-pre-line" x-text="toast.message"></div>
-                <button @click="dismiss(toast.id)" class="text-current opacity-50 hover:opacity-100 flex-shrink-0">&times;</button>
+                <button @click="dismiss(toast.id)" class="text-current opacity-50 hover:opacity-100 flex-shrink-0" aria-label="Dismiss">&times;</button>
             </div>
         </template>
     </div>

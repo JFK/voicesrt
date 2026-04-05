@@ -134,7 +134,7 @@ def classify_error(exc: Exception) -> str:
         return "Model not found. Check Settings → LLM Models."
     if "connection" in msg.lower() and ("refused" in msg.lower() or "error" in msg.lower()):
         return "Cannot connect to the API server. Check that the service is running."
-    return msg[:200] if len(msg) > 200 else msg
+    return "An unexpected error occurred. Please retry or check server logs for details."
 
 
 def actionable_error(step: str, exc: Exception, recovery: str) -> str:
