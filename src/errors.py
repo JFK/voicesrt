@@ -41,8 +41,8 @@ def file_too_large(max_gb: int) -> AppError:
     return AppError(413, "FILE_TOO_LARGE", f"File too large. Max: {max_gb}GB")
 
 
-def upload_failed(detail: str) -> AppError:
-    return AppError(500, "UPLOAD_FAILED", f"Upload failed: {detail}")
+def upload_failed() -> AppError:
+    return AppError(500, "UPLOAD_FAILED", "Upload failed")
 
 
 def glossary_too_long() -> AppError:

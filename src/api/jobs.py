@@ -175,8 +175,9 @@ async def create_job(
     except AppError:
         raise
     except Exception as e:
+        logger.error("Upload failed for file %s: %s", file.filename, e)
         upload_path.unlink(missing_ok=True)
-        raise upload_failed(str(e))
+        raise upload_failed()
 
     try:
         job = Job(

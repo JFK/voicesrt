@@ -23,6 +23,7 @@ async def app_error_handler(request, exc: AppError):
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": {"code": exc.code, "message": exc.message}},
+        headers=getattr(exc, "headers", None),
     )
 
 
