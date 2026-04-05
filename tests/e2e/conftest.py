@@ -1,16 +1,21 @@
 import os
+import shutil
 import socket
+import tempfile
 import threading
 import time
-from pathlib import Path
 
 import pytest
 import uvicorn
 
+# Use a temporary data directory so E2E tests never touch the dev DB
+_tmp_data = tempfile.mkdtemp(prefix="voicesrt_e2e_")
+os.environ["DATA_DIR"] = _tmp_data
+
 # Set test encryption key before importing app modules
 os.environ["ENCRYPTION_KEY"] = "dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODkwMTI="
 
-from src.database import ensure_dirs, run_migrations  # noqa: E402
+from src.database import Base, engine, ensure_dirs  # noqa: E402
 
 
 def _free_port() -> int:
@@ -19,11 +24,15 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _reset_db():
-    """Remove existing test DB so each test run starts fresh."""
-    db_path = Path("data/db/voicesrt.db")
-    for suffix in ("", "-wal", "-shm"):
-        (db_path.parent / (db_path.name + suffix)).unlink(missing_ok=True)
+def _create_tables():
+    """Create all tables synchronously (no alembic needed for E2E tests)."""
+    import asyncio
+
+    async def _create():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_create())
 
 
 class _Server:
@@ -52,14 +61,14 @@ class _Server:
 @pytest.fixture(scope="session")
 def _e2e_server():
     """Start a live server for the entire E2E test session."""
-    _reset_db()
     ensure_dirs()
-    run_migrations()
+    _create_tables()
     port = _free_port()
     server = _Server(port)
     server.start()
     yield port
     server.stop()
+    shutil.rmtree(_tmp_data, ignore_errors=True)
 
 
 @pytest.fixture(scope="session")
