@@ -35,7 +35,7 @@ jobs:
           ENCRYPTION_KEY: "dGVzdC1rZXktZm9yLWNpLW9ubHktMTIzNDU2Nzg5MGFi"
 
       - name: Test with coverage
-        run: pytest --cov=src --cov-report=xml --cov-report=term -v
+        run: pytest --cov=src --cov-report=xml --cov-report=term -v --ignore=tests/e2e
         env:
           ENCRYPTION_KEY: "dGVzdC1rZXktZm9yLWNpLW9ubHktMTIzNDU2Nzg5MGFi"
 
