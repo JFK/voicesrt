@@ -25,3 +25,31 @@ def make_client():
         return AsyncClient(transport=transport, base_url="http://test")
 
     return _make
+
+
+@pytest.fixture(autouse=True, scope="session")
+async def _seed_api_key(request):
+    """Insert a dummy API key so GET / doesn't redirect to /setup in CI.
+
+    Skipped for E2E tests which manage their own DB lifecycle.
+    """
+    items = request.session.items if hasattr(request.session, "items") else []
+    if all(item.nodeid.startswith("tests/e2e/") for item in items):
+        return
+
+    from sqlalchemy import select
+
+    from src.database import async_session, engine
+    from src.models import Setting
+    from src.services.crypto import encrypt
+
+    async with engine.begin() as conn:
+        from src.database import Base
+
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with async_session() as session:
+        result = await session.execute(select(Setting).where(Setting.key == "api_key.openai"))
+        if result.first() is None:
+            session.add(Setting(key="api_key.openai", value=encrypt("sk-test"), encrypted=True))
+            await session.commit()
