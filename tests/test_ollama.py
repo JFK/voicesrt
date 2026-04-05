@@ -1,31 +1,12 @@
 """Tests for Ollama provider integration."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
-from src.main import app
 from src.services.utils import create_openai_compatible_client
-
-
-@pytest.fixture
-def make_client():
-    def _make():
-        transport = ASGITransport(app=app)
-        return AsyncClient(transport=transport, base_url="http://test")
-
-    return _make
-
-
-def _mock_openai_response(content, prompt_tokens=100, completion_tokens=50):
-    """Create a mock OpenAI-compatible response (used by Ollama via OpenAI SDK)."""
-    mock_response = MagicMock()
-    mock_response.choices = [MagicMock(message=MagicMock(content=content))]
-    mock_response.usage = MagicMock(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
-    return mock_response
-
+from tests.helpers import mock_openai_response
 
 # ---------------------------------------------------------------------------
 # create_openai_compatible_client
@@ -137,7 +118,7 @@ async def test_refine_with_ollama():
 
     segments = [{"start": 0.0, "end": 2.5, "text": "Hello world"}]
     response_content = json.dumps({"segments": [{"start": 0.0, "end": 2.5, "text": "Hello, world!"}]})
-    response = _mock_openai_response(response_content)
+    response = mock_openai_response(response_content)
 
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
@@ -160,7 +141,7 @@ async def test_verify_with_ollama():
         {"start": 3.0, "end": 5.0, "text": "John replied"},
     ]
     response_content = json.dumps({"corrections": [{"index": 0, "text": "John said hello", "reason": "Name typo"}]})
-    response = _mock_openai_response(response_content)
+    response = mock_openai_response(response_content)
 
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
@@ -181,7 +162,7 @@ async def test_suggest_with_ollama():
 
     segment = {"start": 0.0, "end": 2.5, "text": "orginal text"}
     response_content = json.dumps({"text": "original text", "reason": "Fixed typo"})
-    response = _mock_openai_response(response_content)
+    response = mock_openai_response(response_content)
 
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
@@ -200,7 +181,7 @@ async def test_generate_metadata_ollama():
     from src.services.metadata import generate_youtube_metadata
 
     response_content = json.dumps({"title": "Test Title", "description": "Test desc", "tags": ["tag1"], "chapters": []})
-    response = _mock_openai_response(response_content)
+    response = mock_openai_response(response_content)
 
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
@@ -219,7 +200,7 @@ async def test_generate_quiz_ollama():
     from src.services.quiz import generate_quiz
 
     quiz_data = {"quiz": [{"question": "What is AI?", "options": ["A", "B", "C", "D"], "answer_index": 0}]}
-    response = _mock_openai_response(json.dumps(quiz_data))
+    response = mock_openai_response(json.dumps(quiz_data))
 
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
@@ -236,7 +217,7 @@ async def test_generate_catchphrases_ollama():
     from src.services.catchphrase import generate_catchphrases
 
     response_content = json.dumps({"catchphrases": [{"text": "Wow!", "style": "exclamation"}]})
-    response = _mock_openai_response(response_content)
+    response = mock_openai_response(response_content)
 
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)

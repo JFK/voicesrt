@@ -4,13 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
-def _mock_openai_response(content, prompt_tokens=100, completion_tokens=50):
-    """Create a mock OpenAI API response."""
-    mock_response = MagicMock()
-    mock_response.choices = [MagicMock(message=MagicMock(content=content))]
-    mock_response.usage = MagicMock(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
-    return mock_response
+from tests.helpers import mock_openai_response
 
 
 def _patch_openai(module_path):
@@ -30,7 +24,7 @@ def _patch_openai(module_path):
 async def test_generate_metadata_openai():
     from src.services.metadata import generate_youtube_metadata
 
-    response = _mock_openai_response(
+    response = mock_openai_response(
         '{"title": "Test Title", "description": "Test desc", "tags": ["tag1"], "chapters": []}'
     )
     mock_client = AsyncMock()
@@ -52,7 +46,7 @@ async def test_generate_metadata_openai():
 async def test_generate_metadata_with_tone_ref():
     from src.services.metadata import generate_youtube_metadata
 
-    response = _mock_openai_response('{"title": "Toned Title", "description": "desc", "tags": [], "chapters": []}')
+    response = mock_openai_response('{"title": "Toned Title", "description": "desc", "tags": [], "chapters": []}')
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
     mock_openai = MagicMock()
@@ -78,7 +72,7 @@ async def test_generate_metadata_with_tone_ref():
 async def test_generate_catchphrases_openai():
     from src.services.catchphrase import generate_catchphrases
 
-    response = _mock_openai_response(
+    response = mock_openai_response(
         '{"catchphrases": [{"text": "Catch!", "style": "exclamation"}, {"text": "Why?", "style": "question"}]}'
     )
     mock_client = AsyncMock()
@@ -101,7 +95,7 @@ async def test_generate_quiz_openai():
     from src.services.quiz import generate_quiz
 
     quiz_data = {"quiz": [{"question": "What is AI?", "options": ["A", "B", "C", "D"], "answer_index": 0}]}
-    response = _mock_openai_response(json.dumps(quiz_data))
+    response = mock_openai_response(json.dumps(quiz_data))
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
     mock_openai = MagicMock()
@@ -118,7 +112,7 @@ async def test_generate_quiz_openai():
 async def test_optimize_meta_prompt_openai():
     from src.services.metadata import optimize_meta_prompt
 
-    response = _mock_openai_response("Improved prompt text")
+    response = mock_openai_response("Improved prompt text")
     mock_client = AsyncMock()
     mock_client.chat.completions.create = AsyncMock(return_value=response)
     mock_openai = MagicMock()
