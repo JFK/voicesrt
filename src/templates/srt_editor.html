@@ -349,7 +349,11 @@ function srtEditor() {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({segments: this.segments}),
                 });
-                if (!res.ok) throw new Error('Save failed');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => null);
+                    const msg = err?.error?.message || 'Save failed';
+                    throw new Error(msg);
+                }
                 const now = new Date();
                 const time = now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
                 this.saveMsg = `${time} {{ t("srt_editor.saved") }}`;
@@ -357,6 +361,7 @@ function srtEditor() {
             } catch (e) {
                 this.saveMsg = e.message;
                 this.saveError = true;
+                showToast(e.message);
             } finally {
                 this.saving = false;
             }
@@ -573,7 +578,7 @@ function srtEditor() {
             const sorted = [...this.selected].sort((a, b) => a - b);
             for (let i = 1; i < sorted.length; i++) {
                 if (sorted[i] !== sorted[i-1] + 1) {
-                    alert('{{ t("srt_editor.merge_consecutive_only") }}');
+                    showToast('{{ t("srt_editor.merge_consecutive_only") }}', 'warning');
                     return;
                 }
             }

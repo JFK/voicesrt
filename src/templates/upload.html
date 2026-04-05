@@ -288,13 +288,19 @@ function uploadForm() {
                     method: 'POST',
                     body: formData
                 });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => null);
+                    const msg = err?.error?.message || `HTTP ${res.status}`;
+                    showToast(msg, 'error');
+                    return;
+                }
                 const data = await res.json();
                 this.jobId = data.id;
                 // Update URL so user can bookmark/refresh to check status
                 history.replaceState(null, '', '/?job=' + data.id);
                 this.startPolling(data.id);
             } catch (e) {
-                alert(this.$root.dataset.i18nUploadFailed + ' ' + e.message);
+                showToast(this.$root.dataset.i18nUploadFailed + ' ' + e.message, 'error');
             } finally {
                 this.uploading = false;
             }

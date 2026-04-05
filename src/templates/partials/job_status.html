@@ -18,7 +18,16 @@
     {{ t('status.' + job.status) if t is defined else job.status }}
 </span>
 {% if job.error_message %}
-<div class="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
-    <p class="text-xs text-red-700 break-words whitespace-pre-wrap">{{ job.error_message }}</p>
+{% set is_warning = job.status == 'completed' %}
+{% set error_lines = job.error_message.splitlines() %}
+<div class="mt-2 p-3 {{ 'bg-yellow-50 border-yellow-200' if is_warning else 'bg-red-50 border-red-200' }} border rounded-md">
+    <p class="text-xs font-medium {{ 'text-yellow-800' if is_warning else 'text-red-800' }}">
+        {{ '⚠' if is_warning else '✗' }} {{ error_lines[0] }}
+    </p>
+    {% if error_lines|length > 1 %}
+    <p class="text-xs {{ 'text-yellow-700' if is_warning else 'text-red-700' }} mt-1">
+        → {{ error_lines[1] }}
+    </p>
+    {% endif %}
 </div>
 {% endif %}

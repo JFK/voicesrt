@@ -16,6 +16,7 @@ from src.constants import (
     KEY_OLLAMA_BASE_URL,
     get_provider_name,
 )
+from src.errors import actionable_error
 from src.models import Job, Setting
 from src.services.audio import extract_audio, extract_audio_mp3, get_audio_duration, split_audio
 from src.services.cost import estimate_gemini_cost, estimate_llm_cost, estimate_whisper_cost, log_cost
@@ -36,10 +37,11 @@ async def _get_credential(session: AsyncSession, provider: str) -> str:
         return setting.value if setting else settings.default_ollama_base_url
 
     db_key = KEY_API_OPENAI if provider == "whisper" else KEY_API_GOOGLE
+    provider_label = "OpenAI" if provider == "whisper" else "Google"
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()
     if not setting:
-        raise RuntimeError(f"API key ({db_key}) is not configured. Set it in Settings.")
+        raise RuntimeError(f"{provider_label} API key is not configured. Go to Settings → API Keys to add it.")
     return decrypt(setting.value)
 
 
@@ -116,7 +118,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                 segments = await _run_refinement(job, session, segments, pp_api_key, combined_glossary)
             except Exception as e:
                 logger.warning("Refinement failed for job %s: %s", job.id, e)
-                job.error_message = f"Refinement failed, using raw transcription: {str(e)[:300]}"
+                job.error_message = actionable_error(
+                    "Refinement failed", e, "Raw transcription saved. You can edit it in the SRT Editor."
+                )
 
         # Step 3.5: Verify (full-text consistency check) if enabled
         if job.enable_verify:
@@ -134,7 +138,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                 job.verify_reasons = json.dumps(reasons, ensure_ascii=False)
             except Exception as e:
                 logger.warning("Verification failed for job %s: %s", job.id, e)
-                job.error_message = f"Verification failed, using refined transcription: {str(e)[:300]}"
+                job.error_message = actionable_error(
+                    "Verification failed", e, "Refined transcription saved. You can edit it in the SRT Editor."
+                )
 
         # Step 4: Generate and save SRT
         srt_content = generate_srt(segments)
@@ -150,7 +156,11 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                 await _run_metadata_generation(job, session, srt_content, pp_api_key)
             except Exception as e:
                 logger.warning("Metadata generation failed for job %s: %s", job.id, e)
-                job.error_message = f"SRT generated, but metadata failed: {str(e)[:300]}"
+                job.error_message = actionable_error(
+                    "Metadata generation failed",
+                    e,
+                    "SRT saved successfully. You can generate metadata later from History.",
+                )
 
         # Done
         job.status = "completed"

@@ -14,6 +14,7 @@ from src.constants import STATUS_COMPLETED, STATUS_FAILED, get_provider_name
 from src.database import async_session, get_session
 from src.errors import (
     AppError,
+    classify_error,
     file_too_large,
     glossary_too_long,
     invalid_provider,
@@ -119,7 +120,7 @@ async def _process_job(job_id: str) -> None:
         except Exception as e:
             logger.exception("Job %s failed", job_id)
             job.status = STATUS_FAILED
-            job.error_message = str(e)[:500]
+            job.error_message = classify_error(e)[:500]
             await session.commit()
 
 
