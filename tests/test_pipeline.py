@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.services.refine import refine_with_llm
-from tests.conftest import mock_openai_response
+from tests.helpers import mock_openai_response
 
 # -- Helpers --
 

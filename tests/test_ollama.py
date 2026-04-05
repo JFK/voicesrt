@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.services.utils import create_openai_compatible_client
-from tests.conftest import mock_openai_response
+from tests.helpers import mock_openai_response
 
 # ---------------------------------------------------------------------------
 # create_openai_compatible_client

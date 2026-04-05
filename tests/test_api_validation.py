@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.conftest import cleanup_job
+from tests.helpers import cleanup_job
 
 
 @pytest.mark.asyncio

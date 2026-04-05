@@ -4,7 +4,7 @@ import pytest
 
 from src.api.jobs import _normalize_provider
 from src.services.utils import _resolve_ollama_url
-from tests.conftest import cleanup_job, create_test_job
+from tests.helpers import cleanup_job, create_test_job
 
 # ---------------------------------------------------------------------------
 # _normalize_provider

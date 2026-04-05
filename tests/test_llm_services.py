@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tests.conftest import mock_openai_response
+from tests.helpers import mock_openai_response
 
 
 def _patch_openai(module_path):
