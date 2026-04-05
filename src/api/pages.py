@@ -20,7 +20,7 @@ def _i18n_context(request: Request) -> dict:
 async def upload_page(request: Request, session: AsyncSession = Depends(get_session)):
     from src.models import Setting
 
-    result = await session.execute(select(Setting).where(Setting.encrypted == True))  # noqa: E712
+    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
     has_keys = result.first() is not None
     if not has_keys:
         return RedirectResponse("/setup")

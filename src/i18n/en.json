@@ -248,7 +248,9 @@
     "title": "Setup",
     "welcome": "Welcome to VoiceSRT",
     "choose_provider": "Choose your transcription provider to get started.",
+    "openai_label": "OpenAI (Whisper + GPT)",
     "openai_desc": "Best accuracy for most languages. Requires an OpenAI API key.",
+    "google_label": "Google (Gemini)",
     "google_desc": "Great for long files and multilingual content. Requires a Google API key.",
     "enter_key": "Enter your API key",
     "openai_key_hint": "Get your key from platform.openai.com → API Keys",
@@ -259,6 +261,8 @@
     "ready": "You're all set!",
     "ready_desc": "Your API key is verified. You can now upload audio/video files for transcription.",
     "start_upload": "Start Uploading",
-    "advanced_settings": "Advanced Settings"
+    "advanced_settings": "Advanced Settings",
+    "save_failed": "Failed to save key",
+    "verify_failed": "Key verification failed"
   }
 }

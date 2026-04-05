@@ -4,7 +4,7 @@
 <div class="max-w-lg mx-auto mt-12" x-data="setupWizard()">
     <!-- Progress -->
     <div class="flex items-center justify-center mb-8 gap-2">
-        <template x-for="s in 3">
+        <template x-for="s in 3" :key="s">
             <div class="flex items-center">
                 <div :class="step >= s ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'"
                      class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors">
@@ -25,13 +25,13 @@
             <button @click="provider = 'openai'; step = 2"
                     class="w-full p-4 border-2 rounded-lg text-left hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
                     :class="provider === 'openai' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'">
-                <div class="font-medium">OpenAI (Whisper + GPT)</div>
+                <div class="font-medium">{{ t('setup.openai_label') }}</div>
                 <div class="text-sm text-gray-500 mt-1">{{ t('setup.openai_desc') }}</div>
             </button>
             <button @click="provider = 'google'; step = 2"
                     class="w-full p-4 border-2 rounded-lg text-left hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
                     :class="provider === 'google' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'">
-                <div class="font-medium">Google (Gemini)</div>
+                <div class="font-medium">{{ t('setup.google_label') }}</div>
                 <div class="text-sm text-gray-500 mt-1">{{ t('setup.google_desc') }}</div>
             </button>
         </div>
@@ -110,18 +110,23 @@ function setupWizard() {
                 });
                 if (!saveRes.ok) {
                     const err = await saveRes.json().catch(() => null);
-                    this.error = err?.error?.message || 'Failed to save key';
+                    this.error = err?.error?.message || '{{ t("setup.save_failed") }}';
                     return;
                 }
 
                 // Test key
                 const testRes = await fetch(`/api/settings/keys/${this.provider}/test`, {method: 'POST'});
+                if (!testRes.ok) {
+                    const err = await testRes.json().catch(() => null);
+                    this.error = err?.error?.message || '{{ t("setup.verify_failed") }}';
+                    return;
+                }
                 const result = await testRes.json();
                 if (result.valid) {
                     this.testResult = 'valid';
                     setTimeout(() => { this.step = 3; }, 500);
                 } else {
-                    this.error = result.error || 'Key verification failed';
+                    this.error = result.error || '{{ t("setup.verify_failed") }}';
                 }
             } catch (e) {
                 this.error = e.message;
