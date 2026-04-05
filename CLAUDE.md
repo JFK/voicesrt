@@ -67,10 +67,11 @@ HOST_PORT=8001 docker compose up --build
 
 ```
 src/
-├── main.py          # FastAPI app
+├── main.py          # FastAPI app, exception handlers
 ├── config.py        # pydantic-settings
 ├── constants.py     # Status enums, provider mapping
 ├── database.py      # SQLAlchemy
+├── errors.py        # Structured error codes (AppError)
 ├── templating.py    # Jinja2 templates
 ├── models/          # ORM models (Job, Setting, CostLog)
 ├── services/        # Business logic
@@ -106,6 +107,7 @@ src/
 - **Timestamps**: `datetime.now(UTC)` — always UTC, never naive datetime
 - **Paths**: `pathlib.Path` over string paths, `.glob()` for file discovery
 - **Error handling**: Graceful degradation — non-fatal pipeline steps catch exceptions and continue
+- **API errors**: Use `AppError` from `src/errors.py` — never raw `HTTPException`. Response format: `{"error": {"code": "ERROR_CODE", "message": "..."}}`
 - **Temp files**: Always clean up in `finally` blocks
 - **LLM responses**: Use `_repair_truncated_json()` (utils.py) for robustness
 

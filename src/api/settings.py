@@ -1,12 +1,21 @@
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings as app_settings
 from src.database import get_session
+from src.errors import (
+    invalid_key_provider,
+    invalid_model_provider,
+    invalid_ollama_url,
+    invalid_refine_mode,
+    key_not_configured,
+    key_not_found,
+    unknown_setting,
+)
 from src.models import Setting
 from src.services.crypto import decrypt, encrypt
 
@@ -55,7 +64,7 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
 @router.put("/keys/{provider}")
 async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depends(get_session)):
     if provider not in ("openai", "google"):
-        raise HTTPException(status_code=400, detail="Provider must be 'openai' or 'google'")
+        raise invalid_key_provider()
 
     db_key = f"api_key.{provider}"
     encrypted_value = encrypt(body.key)
@@ -70,7 +79,7 @@ async def delete_key(provider: str, session: AsyncSession = Depends(get_session)
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()
     if not setting:
-        raise HTTPException(status_code=404, detail="Key not found")
+        raise key_not_found()
 
     await session.delete(setting)
     await session.commit()
@@ -87,7 +96,7 @@ async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()
     if not setting:
-        raise HTTPException(status_code=404, detail="Key not configured")
+        raise key_not_configured()
 
     api_key = decrypt(setting.value)
 
@@ -196,7 +205,7 @@ async def get_models(session: AsyncSession = Depends(get_session)):
 @router.put("/models/{provider}")
 async def set_model(provider: str, body: ModelInput, session: AsyncSession = Depends(get_session)):
     if provider not in ("openai", "gemini", "ollama"):
-        raise HTTPException(status_code=400, detail="Provider must be 'openai', 'gemini', or 'ollama'")
+        raise invalid_model_provider()
 
     db_key = f"model.{provider}"
     await _upsert_setting(session, db_key, body.model)
@@ -230,7 +239,7 @@ async def set_ollama_url(body: GeneralSettingInput, session: AsyncSession = Depe
     url = body.value.rstrip("/")
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise HTTPException(status_code=400, detail="URL must be http:// or https:// with a valid host")
+        raise invalid_ollama_url()
 
     await _upsert_setting(session, KEY_OLLAMA_BASE_URL, url)
     await session.commit()
@@ -294,7 +303,7 @@ async def get_general_settings(session: AsyncSession = Depends(get_session)):
 @router.put("/general/{key}")
 async def set_general_setting(key: str, body: GeneralSettingInput, session: AsyncSession = Depends(get_session)):
     if key not in GENERAL_SETTINGS:
-        raise HTTPException(status_code=400, detail=f"Unknown setting: {key}")
+        raise unknown_setting(key)
 
     db_key = f"general.{key}"
     await _upsert_setting(session, db_key, body.value)
@@ -359,7 +368,7 @@ async def set_refine_prompt(mode: str, body: GeneralSettingInput, session: Async
     from src.api.jobs import VALID_REFINE_MODES
 
     if mode not in VALID_REFINE_MODES:
-        raise HTTPException(status_code=400, detail=f"Mode must be one of: {', '.join(VALID_REFINE_MODES)}")
+        raise invalid_refine_mode(", ".join(VALID_REFINE_MODES))
     db_key = f"general.refine_prompt_{mode}"
     await _upsert_setting(session, db_key, body.value)
     await session.commit()
@@ -372,7 +381,7 @@ async def reset_refine_prompt(mode: str, session: AsyncSession = Depends(get_ses
     from src.api.jobs import VALID_REFINE_MODES
 
     if mode not in VALID_REFINE_MODES:
-        raise HTTPException(status_code=400, detail=f"Mode must be one of: {', '.join(VALID_REFINE_MODES)}")
+        raise invalid_refine_mode(", ".join(VALID_REFINE_MODES))
     db_key = f"general.refine_prompt_{mode}"
     result = await session.execute(select(Setting).where(Setting.key == db_key))
     setting = result.scalar_one_or_none()

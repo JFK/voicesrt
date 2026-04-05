@@ -30,7 +30,8 @@ async def test_create_job_invalid_refine_mode(make_client):
             files={"file": ("test.mp3", b"fake", "audio/mpeg")},
         )
     assert resp.status_code == 400
-    assert "Invalid refine_mode" in resp.json()["detail"]
+    assert resp.json()["error"]["code"] == "INVALID_REFINE_MODE"
+    assert "Invalid refine_mode" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -59,7 +60,8 @@ async def test_create_job_glossary_too_long(make_client):
             data={"glossary": long_glossary},
         )
     assert resp.status_code == 400
-    assert "Glossary too long" in resp.json()["detail"]
+    assert resp.json()["error"]["code"] == "GLOSSARY_TOO_LONG"
+    assert "Glossary too long" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -87,7 +89,8 @@ async def test_create_job_unsupported_format(make_client):
             files={"file": ("test.exe", b"fake", "application/octet-stream")},
         )
     assert resp.status_code == 400
-    assert "Unsupported format" in resp.json()["detail"]
+    assert resp.json()["error"]["code"] == "UNSUPPORTED_FORMAT"
+    assert "Unsupported format" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio
