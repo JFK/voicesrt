@@ -94,7 +94,8 @@ async def test_update_segments_start_after_end(make_client):
                 json={"segments": segments},
             )
         assert resp.status_code == 400
-        assert "start must be before end" in resp.json()["detail"]
+        assert resp.json()["error"]["code"] == "SEGMENT_TIME_ORDER"
+        assert "start must be before end" in resp.json()["error"]["message"]
     finally:
         await _cleanup_job(make_client, job_id)
 
@@ -113,7 +114,8 @@ async def test_update_segments_overlap(make_client):
                 json={"segments": segments},
             )
         assert resp.status_code == 400
-        assert "overlaps" in resp.json()["detail"]
+        assert resp.json()["error"]["code"] == "SEGMENT_OVERLAP"
+        assert "overlaps" in resp.json()["error"]["message"]
     finally:
         await _cleanup_job(make_client, job_id)
 

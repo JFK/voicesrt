@@ -2,9 +2,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.database import init_db
+from src.errors import AppError
 
 
 @asynccontextmanager
@@ -14,6 +16,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="VoiceSRT", lifespan=lifespan)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request, exc: AppError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": exc.code, "message": exc.message}},
+        headers=getattr(exc, "headers", None),
+    )
+
 
 # Static files
 static_dir = Path(__file__).parent / "static"

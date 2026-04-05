@@ -190,7 +190,8 @@ async def test_update_segments_non_numeric(make_client):
                 json={"segments": [{"start": "abc", "end": 2.0, "text": "Hello"}]},
             )
         assert resp.status_code == 400
-        assert "numeric" in resp.json()["detail"]
+        assert resp.json()["error"]["code"] == "SEGMENT_TIMING_INVALID"
+        assert "numeric" in resp.json()["error"]["message"]
     finally:
         await _cleanup_job(make_client, job_id)
 

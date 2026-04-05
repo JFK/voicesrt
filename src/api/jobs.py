@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.constants import STATUS_COMPLETED, STATUS_FAILED, get_provider_name
 from src.database import async_session, get_session
+from src.errors import (
+    AppError,
+    file_too_large,
+    glossary_too_long,
+    invalid_provider,
+    invalid_refine_mode,
+    invalid_segment,
+    invalid_segment_index,
+    job_not_found,
+    media_not_found,
+    no_file_provided,
+    no_segments_provided,
+    no_speaker_segments,
+    segment_overlap,
+    segment_time_order,
+    segment_timing_invalid,
+    srt_file_missing,
+    srt_not_available,
+    srt_not_found,
+    unsupported_format,
+    upload_failed,
+)
 from src.models import Job
 from src.templating import templates
 
@@ -29,7 +51,7 @@ def _normalize_provider(provider: str | None) -> str | None:
         return None
     normalized = _PROVIDER_ALIASES.get(provider.strip().lower())
     if normalized is None:
-        raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
+        raise invalid_provider(provider)
     return normalized
 
 
@@ -62,8 +84,24 @@ async def _get_job_or_404(session: AsyncSession, job_id: str) -> Job:
     result = await session.execute(select(Job).where(Job.id == job_id))
     job = result.scalar_one_or_none()
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise job_not_found()
     return job
+
+
+def _resolve_srt_file(job: Job) -> Path:
+    """Validate SRT path exists in DB and on disk, return resolved Path."""
+    if not job.srt_path:
+        raise srt_not_found()
+    p = Path(job.srt_path).resolve()
+    if not p.exists():
+        raise srt_file_missing()
+    return p
+
+
+def _require_srt(job: Job) -> None:
+    """Raise if job has no SRT file available (for generation endpoints)."""
+    if not job.srt_path:
+        raise srt_not_available()
 
 
 async def _process_job(job_id: str) -> None:
@@ -103,19 +141,19 @@ async def create_job(
     session: AsyncSession = Depends(get_session),
 ):
     if glossary and len(glossary) > 5000:
-        raise HTTPException(status_code=400, detail="Glossary too long. Max 5000 characters.")
+        raise glossary_too_long()
 
     if refine_mode and refine_mode not in VALID_REFINE_MODES:
         valid = ", ".join(VALID_REFINE_MODES)
-        raise HTTPException(status_code=400, detail=f"Invalid refine_mode. Must be one of: {valid}")
+        raise invalid_refine_mode(valid)
 
     supported = {".mp4", ".mp3", ".wav", ".mov", ".avi", ".mkv", ".m4a", ".flac", ".ogg", ".webm"}
     if not file.filename:
-        raise HTTPException(status_code=400, detail="No file provided")
+        raise no_file_provided()
     ext = Path(file.filename).suffix.lower()
     if ext not in supported:
         fmts = ", ".join(sorted(supported))
-        raise HTTPException(status_code=400, detail=f"Unsupported format. Supported: {fmts}")
+        raise unsupported_format(fmts)
 
     job_id = str(uuid.uuid4())
     upload_path = settings.uploads_dir / f"{job_id}{ext}"
@@ -132,13 +170,14 @@ async def create_job(
                     await out.close()
                     upload_path.unlink(missing_ok=True)
                     max_gb = max_size // (1024**3)
-                    raise HTTPException(status_code=413, detail=f"File too large. Max: {max_gb}GB")
+                    raise file_too_large(max_gb)
                 await out.write(chunk)
-    except HTTPException:
+    except AppError:
         raise
     except Exception as e:
+        logger.error("Upload failed for file %s: %s", file.filename, e)
         upload_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+        raise upload_failed()
 
     try:
         job = Job(
@@ -231,12 +270,7 @@ async def download_srt(
     from src.services.srt import generate_srt, parse_srt
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=404, detail="SRT file not found")
-
-    srt_file = Path(job.srt_path).resolve()
-    if not srt_file.exists():
-        raise HTTPException(status_code=404, detail="SRT file not found on disk")
+    srt_file = _resolve_srt_file(job)
 
     stem = Path(_safe_filename(job.filename)).stem
 
@@ -249,7 +283,7 @@ async def download_srt(
     segments = parse_srt(srt_file.read_text(encoding="utf-8"))
     filtered = [seg for i, seg in enumerate(segments) if speaker_map.get(str(i)) == speaker]
     if not filtered:
-        raise HTTPException(status_code=404, detail=f"No segments for speaker: {speaker}")
+        raise no_speaker_segments(speaker)
 
     srt_content = generate_srt(filtered)
     download_name = f"{stem}_{speaker}.srt"
@@ -275,12 +309,7 @@ async def download_vtt(
     from src.services.srt import generate_vtt, parse_srt, srt_to_vtt
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=404, detail="SRT file not found")
-
-    srt_file = Path(job.srt_path).resolve()
-    if not srt_file.exists():
-        raise HTTPException(status_code=404, detail="SRT file not found on disk")
+    srt_file = _resolve_srt_file(job)
 
     stem = Path(_safe_filename(job.filename)).stem
 
@@ -292,7 +321,7 @@ async def download_vtt(
         segments = parse_srt(srt_file.read_text(encoding="utf-8"))
         filtered = [seg for i, seg in enumerate(segments) if speaker_map.get(str(i)) == speaker]
         if not filtered:
-            raise HTTPException(status_code=404, detail=f"No segments for speaker: {speaker}")
+            raise no_speaker_segments(speaker)
         vtt_content = generate_vtt(filtered)
         download_name = f"{stem}_{speaker}.vtt"
 
@@ -315,7 +344,7 @@ async def get_media(job_id: str, session: AsyncSession = Depends(get_session)):
         media_path = f
         break
     if not media_path or not media_path.exists():
-        raise HTTPException(status_code=404, detail="Media file not found")
+        raise media_not_found()
 
     ext = media_path.suffix.lower()
     media_types = {
@@ -342,8 +371,7 @@ async def generate_meta(
 ):
     """Generate YouTube metadata with optional custom prompt."""
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=400, detail="No SRT file available")
+    _require_srt(job)
 
     custom_prompt = None
     fixed_footer = ""
@@ -472,8 +500,7 @@ async def generate_catchphrase_endpoint(
     from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=400, detail="No SRT file available")
+    _require_srt(job)
 
     # Return cached if available and not regenerating
     if job.catchphrases and not regenerate:
@@ -535,8 +562,7 @@ async def generate_quiz_endpoint(
     from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=400, detail="No SRT file available")
+    _require_srt(job)
 
     # Return cached if available and not regenerating
     if job.quiz and not regenerate:
@@ -591,12 +617,7 @@ async def get_segments(job_id: str, session: AsyncSession = Depends(get_session)
     from src.services.srt import parse_srt
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=404, detail="SRT file not found")
-
-    srt_file = Path(job.srt_path).resolve()
-    if not srt_file.exists():
-        raise HTTPException(status_code=404, detail="SRT file not found on disk")
+    srt_file = _resolve_srt_file(job)
 
     content = srt_file.read_text(encoding="utf-8")
     segments = parse_srt(content)
@@ -620,28 +641,27 @@ async def update_segments(job_id: str, request: Request, session: AsyncSession =
     from src.services.srt import generate_srt, save_srt
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=400, detail="No SRT file available")
+    _require_srt(job)
 
     body = await request.json()
     segments = body.get("segments", [])
     if not segments or not isinstance(segments, list):
-        raise HTTPException(status_code=400, detail="No segments provided")
+        raise no_segments_provided()
 
     # Validate segment structure and timing
     previous_end = None
     for i, seg in enumerate(segments):
         if not isinstance(seg, dict) or "start" not in seg or "end" not in seg or "text" not in seg:
-            raise HTTPException(status_code=400, detail=f"Invalid segment at index {i}")
+            raise invalid_segment(i)
         try:
             start = float(seg["start"])
             end = float(seg["end"])
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start and end must be numeric")
+            raise segment_timing_invalid(i + 1)
         if start >= end:
-            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: start must be before end")
+            raise segment_time_order(i + 1)
         if previous_end is not None and start < previous_end:
-            raise HTTPException(status_code=400, detail=f"Segment {i + 1}: overlaps with previous segment")
+            raise segment_overlap(i + 1)
         previous_end = end
 
     srt_content = generate_srt(segments)
@@ -658,7 +678,7 @@ async def update_job_glossary(job_id: str, request: Request, session: AsyncSessi
     body = await request.json()
     glossary = body.get("glossary", "")
     if len(glossary) > 5000:
-        raise HTTPException(status_code=400, detail="Glossary too long. Max 5000 characters.")
+        raise glossary_too_long()
     job.glossary = glossary.strip() if glossary else None
     await session.commit()
     return {"saved": True}
@@ -692,18 +712,13 @@ async def suggest_segment_endpoint(
     from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
-    if not job.srt_path:
-        raise HTTPException(status_code=400, detail="No SRT file available")
-
-    srt_file = Path(job.srt_path).resolve()
-    if not srt_file.exists():
-        raise HTTPException(status_code=404, detail="SRT file not found on disk")
+    srt_file = _resolve_srt_file(job)
 
     content = srt_file.read_text(encoding="utf-8")
     segments = parse_srt(content)
 
     if index < 0 or index >= len(segments):
-        raise HTTPException(status_code=400, detail=f"Invalid segment index: {index}")
+        raise invalid_segment_index(index)
 
     api_key = await _get_credential(session, job.provider)
     model = await _get_model(session, job.provider)
