@@ -12,13 +12,15 @@ import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
 import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
 import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
 
-var jobId = '{{ job.id }}';
+// Use |tojson so apostrophes and other special chars survive Jinja
+// autoescape and produce valid JS string literals (e.g. "segment's").
+var jobId = {{ job.id|tojson }};
 var i18n = {
-    timeError: '{{ t("srt_editor.time_error") }}',
-    saved: '{{ t("srt_editor.saved") }}',
-    deleteConfirm: '{{ t("srt_editor.delete_confirm") }}',
-    exceedsNext: '{{ t("srt_editor.exceeds_next") }}',
-    mergeConsecutiveOnly: '{{ t("srt_editor.merge_consecutive_only") }}',
+    timeError: {{ t("srt_editor.time_error")|tojson }},
+    saved: {{ t("srt_editor.saved")|tojson }},
+    deleteConfirm: {{ t("srt_editor.delete_confirm")|tojson }},
+    exceedsNext: {{ t("srt_editor.exceeds_next")|tojson }},
+    mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
 };
 
 window.srtEditor = function () {
