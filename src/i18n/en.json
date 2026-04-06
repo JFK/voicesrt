@@ -232,7 +232,22 @@
     "exceeds_next": "End time exceeds next segment's end",
     "speakers": "Speakers",
     "speakers_label": "Speaker list",
-    "speaker_add_placeholder": "Enter name and press Enter"
+    "speaker_add_placeholder": "Enter name and press Enter",
+    "shortcuts_title": "Keyboard Shortcuts",
+    "shortcut_nav_up": "Previous segment",
+    "shortcut_nav_down": "Next segment",
+    "shortcut_expand": "Focus segment text",
+    "shortcut_collapse": "Deselect / close",
+    "shortcut_play_segment": "Play current segment",
+    "shortcut_play_global": "Play / pause audio",
+    "shortcut_save": "Save",
+    "shortcut_merge": "Merge selected",
+    "shortcut_delete": "Delete segment",
+    "shortcut_suggest": "AI suggestion",
+    "shortcut_nudge_back": "Nudge time back",
+    "shortcut_nudge_forward": "Nudge time forward",
+    "shortcut_tab_nav": "Next / previous segment",
+    "shortcut_help": "Show shortcuts"
   },
   "status": {
     "pending": "Pending",
