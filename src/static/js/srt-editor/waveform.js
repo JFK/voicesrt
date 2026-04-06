@@ -2,21 +2,7 @@
 
 import WaveSurfer from 'https://unpkg.com/wavesurfer.js@7.8.6/dist/wavesurfer.esm.js';
 import RegionsPlugin from 'https://unpkg.com/wavesurfer.js@7.8.6/dist/plugins/regions.esm.js';
-
-// Tailwind class → RGBA tint used to paint segment regions on the waveform.
-// Mirrors the speaker palette in speaker-manager.js so dots, badges, and
-// regions all read as the same speaker.
-var REGION_TINTS = {
-    'bg-blue-100': 'rgba(59, 130, 246, 0.18)',
-    'bg-rose-100': 'rgba(244, 63, 94, 0.18)',
-    'bg-emerald-100': 'rgba(16, 185, 129, 0.18)',
-    'bg-amber-100': 'rgba(245, 158, 11, 0.18)',
-    'bg-purple-100': 'rgba(168, 85, 247, 0.18)',
-    'bg-cyan-100': 'rgba(6, 182, 212, 0.18)',
-    'bg-orange-100': 'rgba(249, 115, 22, 0.18)',
-    'bg-teal-100': 'rgba(20, 184, 166, 0.18)',
-};
-var UNASSIGNED_TINT = 'rgba(148, 163, 184, 0.10)'; // slate-400 @ 10%
+import { UNASSIGNED_SPEAKER_TINT } from './speaker-manager.js';
 
 // Module-level holders for the wavesurfer instance and its regions plugin.
 // IMPORTANT: storing these on Alpine `this` would wrap them in Alpine's
@@ -96,9 +82,8 @@ export function createWaveformController() {
         },
 
         _regionColor(speaker) {
-            if (!speaker) return UNASSIGNED_TINT;
-            var c = this.getSpeakerColor(speaker);
-            return REGION_TINTS[c.bg] || UNASSIGNED_TINT;
+            if (!speaker) return UNASSIGNED_SPEAKER_TINT;
+            return this.getSpeakerColor(speaker).tint || UNASSIGNED_SPEAKER_TINT;
         },
 
         destroyWaveform() {

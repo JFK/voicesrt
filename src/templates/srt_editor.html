@@ -209,7 +209,7 @@ window.srtEditor = function () {
             <div x-ref="waveform" class="flex-1 min-w-0"></div>
             <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
                     class="text-xs font-mono rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-1 py-0.5 flex-shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    :title="'{{ t('srt_editor.playback_speed') }}'">
+                    title="{{ t('srt_editor.playback_speed') }}">
                 <template x-for="r in playbackRates" :key="r">
                     <option :value="r" x-text="r + 'x'"></option>
                 </template>

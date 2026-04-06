@@ -65,7 +65,12 @@ export function createAudioController() {
             if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
             audio.currentTime = start;
             audio.play();
-            var duration = (end - start) * 1000;
+            // Wall-clock duration scales inversely with playbackRate so 2x
+            // finishes the segment in half the time. We snapshot the rate at
+            // play start; if the user changes rate mid-segment the timer will
+            // be slightly off, which is acceptable for a quick preview.
+            var rate = audio.playbackRate || 1;
+            var duration = ((end - start) * 1000) / rate;
             var self = this;
             this._stopTimer = setTimeout(function () {
                 audio.pause();

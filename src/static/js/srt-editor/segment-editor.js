@@ -43,6 +43,10 @@ export function createSegmentEditor(i18n) {
             if (!confirm(i18n.deleteConfirm)) return;
             this.segments.splice(idx, 1);
             this.selected = this.selected.filter(function (i) { return i !== idx; }).map(function (i) { return i > idx ? i - 1 : i; });
+            this._remapSpeakers(function (i) {
+                if (i === idx) return null;
+                return i > idx ? i - 1 : i;
+            });
             this._clearSuggestions();
             this.renderRegions();
             this.debounceSave();
@@ -54,6 +58,9 @@ export function createSegmentEditor(i18n) {
             var start = prev.end;
             var end = next ? next.start : prev.end + 2.0;
             this.segments.splice(idx + 1, 0, { start: start, end: end, text: '' });
+            this._remapSpeakers(function (i) {
+                return i > idx ? i + 1 : i;
+            });
             this._clearSuggestions();
             this.renderRegions();
             this.debounceSave();
@@ -77,6 +84,16 @@ export function createSegmentEditor(i18n) {
                 text: sorted.map(function (i) { return segs[i].text; }).join(' '),
             };
             this.segments.splice(first, sorted.length, merged);
+            // The merged segment keeps the first segment's speaker; the
+            // remaining merged indices drop their mappings, and any later
+            // segments shift down by (sorted.length - 1).
+            var mergedCount = sorted.length;
+            this._remapSpeakers(function (i) {
+                if (i === first) return first;
+                if (i > first && i <= last) return null;
+                if (i > last) return i - (mergedCount - 1);
+                return i;
+            });
             this.selected = [];
             this._clearSuggestions();
             this.renderRegions();
