@@ -42,6 +42,38 @@ git diff main...HEAD
 - 新規コードに対するテストは十分か
 - 既存テストがパスするか（`pytest -v --maxfail=5`）
 
+### 8. UI ビジュアル確認（UI 変更時のみ）
+
+**トリガ条件**: `git diff --name-only main...HEAD` に以下が含まれる場合のみ実施。
+含まれなければスキップして「該当なし」と報告する。
+- `src/templates/**`
+- `src/static/**`
+- `src/i18n/**`
+
+**手順**:
+1. **ポート競合チェック** — Docker / 既存 uvicorn が 8000 を使っていることがあるため、
+   必ず空きポート（例: `8765`）を選び `curl` で空いていることを確認する。
+2. **dev サーバ起動**（バックグラウンド）:
+   ```
+   uvicorn src.main:app --host 127.0.0.1 --port <PORT>
+   ```
+   `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:<PORT>/` で 200/307 を待つ。
+3. **Playwright MCP で確認**（`mcp__playwright__browser_*`）:
+   - `browser_navigate` で変更したページを開く
+   - `browser_snapshot` でアクセシビリティツリーを取得し、期待要素の有無を確認
+   - インタラクション系の変更（フォーム/Alpine状態）は `browser_evaluate` で
+     `Alpine.$data(document.querySelector('[x-data]'))` から内部状態を直接検証
+   - `browser_console_messages` でコンソールエラーを確認
+     （事前に存在していたエラー/警告は明示的に区別し、新規のもののみ問題視）
+   - 必要なら `browser_take_screenshot` を取得
+4. **後始末**: dev サーバを必ず停止（`pkill -f "uvicorn .* --port <PORT>"`）。
+5. **報告**: 確認したパス、検出した状態、新規コンソールエラーの有無をレポートに含める。
+
+**注意**:
+- Docker で動作中のコンテナがある場合、それは古いビルドの可能性が高い。必ずローカルの
+  uvicorn で確認すること。
+- i18n 変更時は `cookies={"lang": "ja"}` で日本語側も確認する。
+
 ## 出力形式
 
 ```markdown
@@ -66,6 +98,9 @@ git diff main...HEAD
 
 ### テスト: ✅ / ⚠️
 （問題があれば詳細）
+
+### UI ビジュアル確認: ✅ / ⚠️ / 該当なし
+（確認したURL・新規コンソールエラー・スクリーンショットパスなど）
 
 ### 総合判定: PR作成OK / 要修正
 ```
