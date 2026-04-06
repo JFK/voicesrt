@@ -232,7 +232,21 @@
     "exceeds_next": "終了時間が次のセグメントの終了を超えています",
     "speakers": "話者",
     "speakers_label": "話者リスト",
-    "speaker_add_placeholder": "名前を入力してEnter"
+    "speaker_add_placeholder": "名前を入力してEnter",
+    "shortcuts_title": "キーボードショートカット",
+    "shortcut_nav_up": "前のセグメント",
+    "shortcut_nav_down": "次のセグメント",
+    "shortcut_expand": "セグメントテキストにフォーカス",
+    "shortcut_collapse": "選択解除 / 閉じる",
+    "shortcut_play_segment": "現在のセグメントを再生",
+    "shortcut_play_global": "オーディオ再生 / 一時停止",
+    "shortcut_save": "保存",
+    "shortcut_merge": "選択を結合",
+    "shortcut_delete": "セグメントを削除",
+    "shortcut_suggest": "AI提案",
+    "shortcut_nudge_back": "時間を戻す",
+    "shortcut_nudge_forward": "時間を進める",
+    "shortcut_help": "ショートカット表示"
   },
   "status": {
     "pending": "\u5f85\u6a5f\u4e2d",
