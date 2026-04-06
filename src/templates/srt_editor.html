@@ -1,5 +1,68 @@
 {% extends "base.html" %}
 {% block title %}SRT Editor - {{ job.filename }}{% endblock %}
+{% block head_scripts %}
+<script type="module">
+// Loaded BEFORE Alpine via the head_scripts block. Both this module and
+// Alpine's CDN script are deferred and execute in document order, so
+// window.srtEditor is guaranteed to exist when Alpine processes x-data.
+import { formatTimeFull, formatTime, parseTime, validateTimes, autoResize } from '/static/js/srt-editor/time-utils.js';
+import { createAudioController } from '/static/js/srt-editor/audio-controller.js';
+import { createSegmentEditor } from '/static/js/srt-editor/segment-editor.js';
+import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
+import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
+import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
+
+// Use |tojson so apostrophes and other special chars survive Jinja
+// autoescape and produce valid JS string literals (e.g. "segment's").
+var jobId = {{ job.id|tojson }};
+var i18n = {
+    timeError: {{ t("srt_editor.time_error")|tojson }},
+    saved: {{ t("srt_editor.saved")|tojson }},
+    deleteConfirm: {{ t("srt_editor.delete_confirm")|tojson }},
+    exceedsNext: {{ t("srt_editor.exceeds_next")|tojson }},
+    mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
+};
+
+window.srtEditor = function () {
+    return Object.assign(
+        {
+            segments: [],
+            verifiedIndices: [],
+            verifyReasons: {},
+            suggestions: {},
+            suggesting: {},
+            loading: true,
+            saving: false,
+            saveMsg: '',
+            saveError: false,
+            glossary: '',
+            glossarySaved: false,
+            speakers: [],
+            speakerMap: {},
+            speakerInput: '',
+            isPlaying: false,
+            currentTime: 0,
+            audioDuration: 0,
+            activeSegmentIdx: null,
+            selected: [],
+            _saveTimer: null,
+            _stopTimer: null,
+            _speakerTimer: null,
+            formatTimeFull: formatTimeFull,
+            formatTime: formatTime,
+            parseTime: parseTime,
+            autoResize: autoResize,
+            validateTimes: function () { return validateTimes(this.segments); },
+        },
+        createAudioController(),
+        createSegmentEditor(i18n),
+        createSpeakerManager(jobId),
+        createSuggestionManager(jobId),
+        createSaveManager(jobId, i18n),
+    );
+};
+</script>
+{% endblock %}
 {% block content %}
 <div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="loadSegments()">
     <div class="sticky top-0 z-10 bg-gray-50 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -268,381 +331,4 @@
     </div>
 </div>
 
-<script>
-function srtEditor() {
-    return {
-        segments: [],
-        verifiedIndices: [],
-        verifyReasons: {},
-        suggestions: {},
-        suggesting: {},
-        loading: true,
-        saving: false,
-        saveMsg: '',
-        saveError: false,
-        glossary: '',
-        glossarySaved: false,
-        speakers: [],
-        speakerMap: {},
-        speakerInput: '',
-        speakerColors: [
-            {bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300', dot: 'bg-blue-500'},
-            {bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-300', dot: 'bg-rose-500'},
-            {bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300', dot: 'bg-emerald-500'},
-            {bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300', dot: 'bg-amber-500'},
-            {bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300', dot: 'bg-purple-500'},
-            {bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-300', dot: 'bg-cyan-500'},
-            {bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300', dot: 'bg-orange-500'},
-            {bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-300', dot: 'bg-teal-500'},
-        ],
-        isPlaying: false,
-        currentTime: 0,
-        audioDuration: 0,
-        activeSegmentIdx: null,
-        selected: [],
-        _saveTimer: null,
-        _stopTimer: null,
-
-        async loadSegments() {
-            try {
-                const res = await fetch('/api/jobs/{{ job.id }}/segments');
-                if (!res.ok) throw new Error('Failed to load segments');
-                const data = await res.json();
-                this.segments = data.segments;
-                this.verifiedIndices = data.verified_indices || [];
-                // JSON keys are strings, convert to int-keyed object
-                const rawReasons = data.verify_reasons || {};
-                this.verifyReasons = {};
-                for (const [k, v] of Object.entries(rawReasons)) {
-                    this.verifyReasons[parseInt(k)] = v;
-                }
-                // Load job glossary and speakers
-                this.glossary = data.glossary || '';
-                this.speakers = data.speakers || [];
-                this.speakerMap = data.speaker_map || {};
-            } catch (e) {
-                console.error(e);
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        debounceSave() {
-            if (this._saveTimer) clearTimeout(this._saveTimer);
-            this._saveTimer = setTimeout(() => this.saveSegments(), 1000);
-        },
-
-        async saveSegments() {
-            if (this.saving) return;
-            // Validate before saving
-            const errors = this.validateTimes();
-            if (errors.length > 0) {
-                this.saveMsg = '{{ t("srt_editor.time_error") }}: ' + errors[0];
-                this.saveError = true;
-                return;
-            }
-            this.saving = true;
-            this.saveMsg = '';
-            try {
-                const res = await fetch('/api/jobs/{{ job.id }}/segments', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({segments: this.segments}),
-                });
-                if (!res.ok) {
-                    const err = await res.json().catch(() => null);
-                    const msg = err?.error?.message || 'Save failed';
-                    throw new Error(msg);
-                }
-                const now = new Date();
-                const time = now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
-                this.saveMsg = `${time} {{ t("srt_editor.saved") }}`;
-                this.saveError = false;
-            } catch (e) {
-                this.saveMsg = e.message;
-                this.saveError = true;
-                showToast(e.message);
-            } finally {
-                this.saving = false;
-            }
-        },
-
-        async requestSuggestion(idx) {
-            this.suggesting[idx] = true;
-            try {
-                const res = await fetch(`/api/jobs/{{ job.id }}/segments/${idx}/suggest`, {
-                    method: 'POST',
-                });
-                if (!res.ok) throw new Error('Suggestion failed');
-                const data = await res.json();
-                this.suggestions[idx] = data;
-            } catch (e) {
-                console.error(e);
-            } finally {
-                this.suggesting[idx] = false;
-            }
-        },
-
-        acceptSuggestion(idx) {
-            if (this.suggestions[idx]) {
-                this.segments[idx].text = this.suggestions[idx].text;
-                this.suggestions = {...this.suggestions, [idx]: null};
-                this.debounceSave();
-            }
-        },
-
-        dismissSuggestion(idx) {
-            this.suggestions = {...this.suggestions, [idx]: null};
-        },
-
-        togglePlay() {
-            const audio = this.$refs.audio;
-            if (!audio) return;
-            if (audio.paused) {
-                audio.play();
-            } else {
-                audio.pause();
-                if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
-            }
-        },
-
-        seekAudio(event) {
-            const audio = this.$refs.audio;
-            if (!audio || !audio.duration) return;
-            const rect = event.currentTarget.getBoundingClientRect();
-            const ratio = (event.clientX - rect.left) / rect.width;
-            audio.currentTime = ratio * audio.duration;
-            if (audio.paused) audio.play();
-        },
-
-        onTimeUpdate() {
-            const audio = this.$refs.audio;
-            if (!audio) return;
-            this.currentTime = audio.currentTime;
-            // Find active segment
-            const t = audio.currentTime;
-            let found = null;
-            for (let i = 0; i < this.segments.length; i++) {
-                if (t >= this.segments[i].start && t < this.segments[i].end) {
-                    found = i;
-                    break;
-                }
-            }
-            if (found !== this.activeSegmentIdx) {
-                this.activeSegmentIdx = found;
-                // Auto-scroll to active segment
-                if (found !== null) {
-                    const el = document.getElementById('seg-' + found);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-            }
-        },
-
-        playSegment(start, end) {
-            const audio = this.$refs.audio;
-            if (!audio) return;
-            // Stop any current playback timer
-            if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
-            audio.currentTime = start;
-            audio.play();
-            // Auto-stop at segment end
-            const duration = (end - start) * 1000;
-            this._stopTimer = setTimeout(() => {
-                audio.pause();
-                this._stopTimer = null;
-            }, duration);
-        },
-
-        async saveGlossary() {
-            try {
-                await fetch(`/api/jobs/{{ job.id }}/glossary`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({glossary: this.glossary}),
-                });
-                this.glossarySaved = true;
-                setTimeout(() => { this.glossarySaved = false; }, 2000);
-                // Close the panel via the parent x-data scope
-                this.$dispatch('glossary-saved');
-            } catch (e) {
-                console.error('Failed to save glossary:', e);
-            }
-        },
-
-        nudgeTime(idx, field, delta) {
-            const newVal = Math.max(0, Math.round((this.segments[idx][field] + delta) * 10) / 10);
-            if (field === 'end') {
-                this.updateEnd(idx, this.formatTimeFull(newVal));
-            } else {
-                this.segments[idx].start = newVal;
-                this.debounceSave();
-            }
-        },
-
-        updateEnd(idx, value) {
-            const newEnd = this.parseTime(value);
-            if (newEnd === null) return;
-            // Check: cannot exceed next segment's end
-            if (idx + 1 < this.segments.length && newEnd > this.segments[idx + 1].end) {
-                this.segments[idx]._error = '{{ t("srt_editor.exceeds_next") }}';
-                setTimeout(() => { this.segments[idx]._error = null; }, 3000);
-                return;
-            }
-            const oldEnd = this.segments[idx].end;
-            this.segments[idx].end = newEnd;
-            this.segments[idx]._error = null;
-            // Only sync next segment's start when extending, not shrinking
-            if (idx + 1 < this.segments.length && newEnd > oldEnd) {
-                this.segments[idx + 1].start = newEnd;
-            }
-            this.debounceSave();
-        },
-
-        getSpeakerColor(speaker) {
-            const i = this.speakers.indexOf(speaker);
-            if (i < 0) return this.speakerColors[0];
-            return this.speakerColors[i % this.speakerColors.length];
-        },
-
-        addSpeaker() {
-            const name = this.speakerInput.trim();
-            if (name && !this.speakers.includes(name)) {
-                this.speakers.push(name);
-                this.speakerInput = '';
-            }
-        },
-
-        removeSpeaker(i) {
-            const removed = this.speakers[i];
-            this.speakers.splice(i, 1);
-            // Clean up speaker_map entries for removed speaker
-            for (const [k, v] of Object.entries(this.speakerMap)) {
-                if (v === removed) delete this.speakerMap[k];
-            }
-        },
-
-        setSpeaker(idx, speaker) {
-            if (speaker) {
-                this.speakerMap = {...this.speakerMap, [idx]: speaker};
-            } else {
-                const m = {...this.speakerMap};
-                delete m[idx];
-                this.speakerMap = m;
-            }
-            this._debounceSaveSpeakers();
-        },
-
-        _debounceSaveSpeakers() {
-            if (this._speakerTimer) clearTimeout(this._speakerTimer);
-            this._speakerTimer = setTimeout(() => this.saveSpeakers(), 500);
-        },
-
-        async saveSpeakers() {
-            try {
-                await fetch(`/api/jobs/{{ job.id }}/speakers`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({speakers: this.speakers, speaker_map: this.speakerMap}),
-                });
-                this.$dispatch('speakers-saved');
-            } catch (e) {
-                console.error('Failed to save speakers:', e);
-            }
-        },
-
-        _clearSuggestions() {
-            this.suggestions = {};
-            this.suggesting = {};
-        },
-
-        deleteSegment(idx) {
-            if (!confirm('{{ t("srt_editor.delete_confirm") }}')) return;
-            this.segments.splice(idx, 1);
-            this.selected = this.selected.filter(i => i !== idx).map(i => i > idx ? i - 1 : i);
-            this._clearSuggestions();
-            this.debounceSave();
-        },
-
-        addSegmentAfter(idx) {
-            const prev = this.segments[idx];
-            const next = this.segments[idx + 1];
-            const start = prev.end;
-            const end = next ? next.start : prev.end + 2.0;
-            this.segments.splice(idx + 1, 0, { start, end, text: '' });
-            this._clearSuggestions();
-            this.debounceSave();
-        },
-
-        mergeSelected() {
-            if (this.selected.length < 2) return;
-            const sorted = [...this.selected].sort((a, b) => a - b);
-            for (let i = 1; i < sorted.length; i++) {
-                if (sorted[i] !== sorted[i-1] + 1) {
-                    showToast('{{ t("srt_editor.merge_consecutive_only") }}', 'warning');
-                    return;
-                }
-            }
-            const first = sorted[0];
-            const last = sorted[sorted.length - 1];
-            const merged = {
-                start: this.segments[first].start,
-                end: this.segments[last].end,
-                text: sorted.map(i => this.segments[i].text).join(' '),
-            };
-            this.segments.splice(first, sorted.length, merged);
-            this.selected = [];
-            this._clearSuggestions();
-            this.debounceSave();
-        },
-
-        formatTimeFull(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toFixed(1).padStart(4, '0')}`;
-        },
-
-        parseTime(str) {
-            const parts = str.split(':');
-            let val;
-            if (parts.length === 3) {
-                val = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
-            } else if (parts.length === 2) {
-                val = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
-            } else {
-                val = parseFloat(str);
-            }
-            return isNaN(val) ? null : val;
-        },
-
-        validateTimes() {
-            const errors = [];
-            for (let i = 0; i < this.segments.length; i++) {
-                const seg = this.segments[i];
-                if (seg.start >= seg.end) {
-                    errors.push(`#${i+1}: start >= end`);
-                }
-                if (i > 0 && seg.start < this.segments[i-1].end) {
-                    errors.push(`#${i+1}: overlaps with #${i}`);
-                }
-            }
-            return errors;
-        },
-
-        autoResize(el) {
-            if (!el) return;
-            el.style.height = '0';
-            el.style.height = Math.max(el.scrollHeight, 48) + 'px';
-        },
-
-        formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        },
-
-    };
-}
-</script>
 {% endblock %}
