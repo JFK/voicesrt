@@ -6,12 +6,12 @@
     <div class="flex items-center justify-center mb-8 gap-2">
         <template x-for="s in 3" :key="s">
             <div class="flex items-center">
-                <div :class="step >= s ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'"
+                <div :class="step >= s ? 'bg-indigo-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
                      class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors">
                     <span x-text="s"></span>
                 </div>
                 <div x-show="s < 3" class="w-12 h-0.5 mx-1"
-                     :class="step > s ? 'bg-indigo-600' : 'bg-gray-200'"></div>
+                     :class="step > s ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"></div>
             </div>
         </template>
     </div>
@@ -19,32 +19,32 @@
     <!-- Step 1: Choose provider -->
     <div x-show="step === 1" x-transition>
         <h2 class="text-2xl font-bold text-center mb-2">{{ t('setup.welcome') }}</h2>
-        <p class="text-gray-600 text-center mb-8">{{ t('setup.choose_provider') }}</p>
+        <p class="text-gray-600 dark:text-gray-300 text-center mb-8">{{ t('setup.choose_provider') }}</p>
 
         <div class="space-y-3">
             <button @click="provider = 'openai'; step = 2"
                     class="w-full p-4 border-2 rounded-lg text-left hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
-                    :class="provider === 'openai' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'">
+                    :class="provider === 'openai' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-700'">
                 <div class="font-medium">{{ t('setup.openai_label') }}</div>
-                <div class="text-sm text-gray-500 mt-1">{{ t('setup.openai_desc') }}</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('setup.openai_desc') }}</div>
             </button>
             <button @click="provider = 'google'; step = 2"
                     class="w-full p-4 border-2 rounded-lg text-left hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
-                    :class="provider === 'google' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'">
+                    :class="provider === 'google' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-700'">
                 <div class="font-medium">{{ t('setup.google_label') }}</div>
-                <div class="text-sm text-gray-500 mt-1">{{ t('setup.google_desc') }}</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('setup.google_desc') }}</div>
             </button>
         </div>
 
         <p class="text-center mt-6">
-            <a href="/settings" class="text-sm text-gray-500 hover:text-gray-700 underline">{{ t('setup.advanced_settings') }}</a>
+            <a href="/settings" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">{{ t('setup.advanced_settings') }}</a>
         </p>
     </div>
 
     <!-- Step 2: Enter API key -->
     <div x-show="step === 2" x-transition>
         <h2 class="text-2xl font-bold text-center mb-2">{{ t('setup.enter_key') }}</h2>
-        <p class="text-gray-600 text-center mb-6">
+        <p class="text-gray-600 dark:text-gray-300 text-center mb-6">
             <span x-show="provider === 'openai'">{{ t('setup.openai_key_hint') }}</span>
             <span x-show="provider === 'google'">{{ t('setup.google_key_hint') }}</span>
         </p>
@@ -52,14 +52,14 @@
         <div class="space-y-4">
             <input type="password" x-model="apiKey"
                    :placeholder="provider === 'openai' ? 'sk-...' : 'AIza...'"
-                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                   class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:text-gray-100"
                    @keydown.enter="saveKey()">
 
             <div x-show="error" class="text-sm text-red-600" x-text="error"></div>
             <div x-show="testResult === 'valid'" class="text-sm text-green-600">{{ t('settings.key_valid') }}</div>
 
             <div class="flex gap-3">
-                <button @click="step = 1" class="px-4 py-2 text-gray-600 hover:text-gray-800">{{ t('setup.back') }}</button>
+                <button @click="step = 1" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800">{{ t('setup.back') }}</button>
                 <button @click="saveKey()" :disabled="!apiKey || saving"
                         class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium">
                     <span x-show="!saving">{{ t('setup.save_and_test') }}</span>
@@ -74,12 +74,12 @@
         <div class="text-center">
             <div class="text-5xl mb-4">&#10003;</div>
             <h2 class="text-2xl font-bold mb-2">{{ t('setup.ready') }}</h2>
-            <p class="text-gray-600 mb-8">{{ t('setup.ready_desc') }}</p>
+            <p class="text-gray-600 dark:text-gray-300 mb-8">{{ t('setup.ready_desc') }}</p>
             <a href="/" class="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
                 {{ t('setup.start_upload') }}
             </a>
             <p class="mt-4">
-                <a href="/settings" class="text-sm text-gray-500 hover:text-gray-700 underline">{{ t('setup.advanced_settings') }}</a>
+                <a href="/settings" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">{{ t('setup.advanced_settings') }}</a>
             </p>
         </div>
     </div>

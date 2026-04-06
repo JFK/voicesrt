@@ -1,34 +1,34 @@
 {% extends "base.html" %}
 {% block title %}{{ t('settings.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 mb-6">{{ t('settings.title') }}</h1>
+<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ t('settings.title') }}</h1>
 
 <div class="space-y-6" x-data="settingsPage()" x-init="loadSettings()">
     <!-- API Keys -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('settings.api_keys') }}</h2>
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.api_keys') }}</h2>
         <div class="space-y-4">
             <template x-for="p in providers" :key="p.id">
                 <div class="border rounded-lg p-4">
                     <div class="flex items-center justify-between mb-2">
-                        <h3 class="font-medium text-gray-900" x-text="p.label"></h3>
-                        <span x-show="p.configured" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">{{ t('settings.configured') }}</span>
+                        <h3 class="font-medium text-gray-900 dark:text-gray-100" x-text="p.label"></h3>
+                        <span x-show="p.configured" class="text-xs bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 px-2 py-1 rounded-full">{{ t('settings.configured') }}</span>
                     </div>
                     <div class="flex space-x-2">
                         <input :type="p.showKey ? 'text' : 'password'"
                                x-model="p.newKey"
                                :placeholder="p.configured ? p.masked : '{{ t('settings.enter_api_key') }}'"
-                               class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
+                               class="flex-1 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <button @click="saveKey(p)" :disabled="!p.newKey"
                                 class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-400">
                             {{ t('settings.save') }}
                         </button>
                         <button @click="testKey(p)" :disabled="!p.configured"
-                                class="px-4 py-2 bg-gray-100 border border-gray-300 rounded-md text-sm hover:bg-gray-200 disabled:opacity-50">
+                                class="px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50">
                             {{ t('settings.test') }}
                         </button>
                         <button x-show="p.configured" @click="deleteKey(p)"
-                                class="px-4 py-2 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200">
+                                class="px-4 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-md text-sm hover:bg-red-200">
                             {{ t('settings.del') }}
                         </button>
                     </div>
@@ -42,20 +42,20 @@
     </div>
 
     <!-- Ollama Settings -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.ollama_title') }}</h2>
-        <p class="text-sm text-gray-500 mb-4">{{ t('settings.ollama_desc') }}</p>
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.ollama_title') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.ollama_desc') }}</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs text-gray-500 mb-1">{{ t('settings.ollama_base_url') }}</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('settings.ollama_base_url') }}</label>
                 <div class="flex space-x-2">
                     <input type="text" x-model="ollamaUrl"
-                           class="flex-1 rounded-md border-gray-300 text-sm p-2 border"
+                           class="flex-1 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100"
                            placeholder="http://host.docker.internal:11434">
                     <button @click="saveOllamaUrl()"
                             class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
                     <button @click="testOllama()"
-                            class="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">{{ t('settings.test') }}</button>
+                            class="px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('settings.test') }}</button>
                 </div>
                 <p x-show="ollamaTestResult !== null" class="mt-2 text-sm"
                    :class="ollamaTestResult ? 'text-green-600' : 'text-red-600'"
@@ -65,9 +65,9 @@
     </div>
 
     <!-- LLM Models -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.llm_models') }}</h2>
-        <p class="text-sm text-gray-500 mb-4">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.llm_models') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
             {{ t('settings.configure_models') }}
             <a href="https://openai.com/api/pricing/" target="_blank" class="text-blue-600 hover:underline">OpenAI Pricing</a> |
             <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" class="text-blue-600 hover:underline">Gemini Pricing</a>
@@ -75,33 +75,33 @@
 
         <!-- Presets -->
         <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('settings.quick_presets') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ t('settings.quick_presets') }}</label>
             <div class="flex space-x-2">
                 <button @click="applyPreset('quality')"
                         class="px-4 py-2 bg-purple-100 text-purple-700 border border-purple-300 rounded-md text-sm hover:bg-purple-200 font-medium">
                     {{ t('settings.quality') }}
                 </button>
                 <button @click="applyPreset('balanced')"
-                        class="px-4 py-2 bg-blue-100 text-blue-700 border border-blue-300 rounded-md text-sm hover:bg-blue-200 font-medium">
+                        class="px-4 py-2 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-300 rounded-md text-sm hover:bg-blue-200 font-medium">
                     {{ t('settings.balanced') }}
                 </button>
                 <button @click="applyPreset('budget')"
-                        class="px-4 py-2 bg-green-100 text-green-700 border border-green-300 rounded-md text-sm hover:bg-green-200 font-medium">
+                        class="px-4 py-2 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-300 rounded-md text-sm hover:bg-green-200 font-medium">
                     {{ t('settings.budget') }}
                 </button>
             </div>
-            <p class="mt-2 text-xs text-gray-500" x-text="presetDescription"></p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" x-text="presetDescription"></p>
         </div>
 
         <!-- Default models (per provider) -->
-        <h3 class="text-sm font-medium text-gray-700 mb-1 mt-4">{{ t('settings.default_models') }}</h3>
-        <p class="text-xs text-gray-500 mb-3">{{ t('settings.default_models_desc') }}</p>
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1 mt-4">{{ t('settings.default_models') }}</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.default_models_desc') }}</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
-                <label class="block text-xs text-gray-500 mb-1">OpenAI</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">OpenAI</label>
                 <div class="flex space-x-2">
                     <select x-model="models.openai"
-                            class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border">
+                            class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <template x-for="m in openaiModels" :key="m">
                             <option :value="m" x-text="m"></option>
                         </template>
@@ -111,10 +111,10 @@
                 </div>
             </div>
             <div>
-                <label class="block text-xs text-gray-500 mb-1">Gemini</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Gemini</label>
                 <div class="flex space-x-2">
                     <select x-model="models.gemini"
-                            class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border">
+                            class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <template x-for="m in geminiModels" :key="m">
                             <option :value="m" x-text="m"></option>
                         </template>
@@ -124,10 +124,10 @@
                 </div>
             </div>
             <div>
-                <label class="block text-xs text-gray-500 mb-1">Ollama</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Ollama</label>
                 <div class="flex space-x-2">
                     <select x-model="models.ollama"
-                            class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border truncate">
+                            class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border truncate dark:bg-gray-800 dark:text-gray-100">
                         <template x-for="m in ollamaModels" :key="m">
                             <option :value="m" x-text="m"></option>
                         </template>
@@ -140,15 +140,15 @@
         </div>
 
         <!-- Refine override models -->
-        <h3 class="text-sm font-medium text-gray-700 mb-1">{{ t('settings.refine_models') }}</h3>
-        <p class="text-xs text-gray-500 mb-3">{{ t('settings.refine_models_hint') }}</p>
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('settings.refine_models') }}</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.refine_models_hint') }}</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <template x-for="(info, key) in generalSettings" :key="key">
                 <div x-show="key.startsWith('refine_model')">
-                    <label class="block text-xs text-gray-500 mb-1" x-text="info.label"></label>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" x-text="info.label"></label>
                     <div class="flex space-x-2">
                         <select x-model="info.value"
-                                class="flex-1 min-w-0 rounded-md border-gray-300 text-sm p-2 border truncate">
+                                class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border truncate dark:bg-gray-800 dark:text-gray-100">
                             <option value="">—</option>
                             <template x-for="m in (key === 'refine_model_openai' ? openaiModels : key === 'refine_model_gemini' ? geminiModels : ollamaModels)" :key="m">
                                 <option :value="m" x-text="m"></option>
@@ -163,15 +163,15 @@
     </div>
 
     <!-- General Settings -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('settings.general') }}</h2>
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.general') }}</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <template x-for="(info, key) in generalSettings" :key="key">
                 <div x-show="!key.startsWith('refine_model')">
-                    <label class="block text-sm font-medium text-gray-700 mb-1" x-text="info.label"></label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1" x-text="info.label"></label>
                     <div class="flex space-x-2">
                         <input type="text" x-model="info.value"
-                               class="flex-1 rounded-md border-gray-300 text-sm p-2 border">
+                               class="flex-1 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <button @click="saveGeneral(key, info.value)"
                                 class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">{{ t('settings.save') }}</button>
                     </div>
@@ -181,37 +181,37 @@
     </div>
 
     <!-- Pricing -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.pricing') }}</h2>
-        <p class="text-sm text-gray-500 mb-4">{{ t('settings.pricing_desc') }}</p>
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.pricing') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.pricing_desc') }}</p>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead>
                     <tr class="border-b">
-                        <th class="text-left py-2 pr-4 font-medium text-gray-700">{{ t('settings.model') }}</th>
-                        <th class="text-left py-2 px-2 font-medium text-gray-700">{{ t('settings.input_1m') }}</th>
-                        <th class="text-left py-2 px-2 font-medium text-gray-700">{{ t('settings.output_1m') }}</th>
-                        <th class="text-left py-2 px-2 font-medium text-gray-700">{{ t('settings.per_min') }}</th>
+                        <th class="text-left py-2 pr-4 font-medium text-gray-700 dark:text-gray-200">{{ t('settings.model') }}</th>
+                        <th class="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-200">{{ t('settings.input_1m') }}</th>
+                        <th class="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-200">{{ t('settings.output_1m') }}</th>
+                        <th class="text-left py-2 px-2 font-medium text-gray-700 dark:text-gray-200">{{ t('settings.per_min') }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="[model, prices] in Object.entries(pricing)" :key="model">
-                        <tr class="border-b border-gray-100"
-                            :class="{ 'bg-gray-50': model === 'whisper-1' }">
+                        <tr class="border-b border-gray-100 dark:border-gray-700"
+                            :class="{ 'bg-gray-50 dark:bg-gray-900': model === 'whisper-1' }">
                             <td class="py-1.5 pr-4 font-mono text-xs" x-text="model"></td>
                             <td class="py-1.5 px-2">
                                 <input type="number" step="0.01" x-model.number="prices.input_per_1m"
-                                       class="w-20 rounded border-gray-300 text-xs p-1 border">
+                                       class="w-20 rounded border-gray-300 dark:border-gray-600 text-xs p-1 border dark:bg-gray-800 dark:text-gray-100">
                             </td>
                             <td class="py-1.5 px-2">
                                 <input type="number" step="0.01" x-model.number="prices.output_per_1m"
-                                       class="w-20 rounded border-gray-300 text-xs p-1 border">
+                                       class="w-20 rounded border-gray-300 dark:border-gray-600 text-xs p-1 border dark:bg-gray-800 dark:text-gray-100">
                             </td>
                             <td class="py-1.5 px-2">
                                 <input x-show="prices.per_minute !== undefined" type="number" step="0.001"
                                        x-model.number="prices.per_minute"
-                                       class="w-20 rounded border-gray-300 text-xs p-1 border">
-                                <span x-show="prices.per_minute === undefined" class="text-gray-400 text-xs">-</span>
+                                       class="w-20 rounded border-gray-300 dark:border-gray-600 text-xs p-1 border dark:bg-gray-800 dark:text-gray-100">
+                                <span x-show="prices.per_minute === undefined" class="text-gray-400 dark:text-gray-500 text-xs">-</span>
                             </td>
                         </tr>
                     </template>
@@ -223,13 +223,13 @@
     </div>
 
     <!-- Glossary -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('settings.glossary') }}</h2>
-        <p class="text-sm text-gray-500 mb-2">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.glossary') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
             {{ t('settings.glossary_desc') }}
         </p>
         <textarea x-model="glossary" rows="6"
-                  class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"
+                  class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border font-mono dark:bg-gray-800 dark:text-gray-100"
                   placeholder="VoiceSRT&#10;John Smith&#10;Kubernetes&#10;Next.js"></textarea>
         <button @click="saveGlossary()"
                 class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">{{ t('settings.save_glossary') }}</button>
@@ -237,31 +237,31 @@
 
 
     <!-- Tone References -->
-    <div id="tone-references" class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('settings.tone_references') }}</h2>
-        <p class="text-sm text-gray-500 mb-2">
+    <div id="tone-references" class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.tone_references') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
             {{ t('settings.tone_references_desc') }}
         </p>
         <textarea x-model="toneReferences" rows="10"
-                  class="w-full rounded-md border-gray-300 text-sm p-2 border font-mono"
+                  class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border font-mono dark:bg-gray-800 dark:text-gray-100"
                   :placeholder="'{{ t('settings.tone_references_placeholder') }}'"></textarea>
         <button @click="saveToneReferences()"
                 class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">{{ t('settings.save_tone_references') }}</button>
     </div>
 
     <!-- Refine Prompts -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-2">{{ t('settings.refine_prompts') }}</h2>
-        <p class="text-sm text-gray-500 mb-4">{{ t('settings.refine_prompts_desc') }}</p>
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.refine_prompts') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.refine_prompts_desc') }}</p>
         <template x-for="mode in ['verbatim', 'standard', 'caption']" :key="mode">
             <div class="mb-4">
                 <div class="flex items-center justify-between mb-1">
-                    <label class="text-sm font-medium text-gray-700" x-text="mode.charAt(0).toUpperCase() + mode.slice(1)"></label>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-200" x-text="mode.charAt(0).toUpperCase() + mode.slice(1)"></label>
                     <button @click="resetRefinePrompt(mode)"
-                            class="text-xs text-gray-500 hover:text-gray-700">{{ t('settings.reset_default') }}</button>
+                            class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">{{ t('settings.reset_default') }}</button>
                 </div>
                 <textarea x-model="refinePrompts[mode]" rows="8"
-                          class="w-full rounded-md border-gray-300 text-xs p-2 border font-mono"></textarea>
+                          class="w-full rounded-md border-gray-300 dark:border-gray-600 text-xs p-2 border font-mono dark:bg-gray-800 dark:text-gray-100"></textarea>
                 <button @click="saveRefinePrompt(mode)"
                         class="mt-1 px-3 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save_prompt') }}</button>
             </div>
