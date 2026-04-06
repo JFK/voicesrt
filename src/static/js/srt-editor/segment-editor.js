@@ -10,6 +10,7 @@ export function createSegmentEditor(i18n) {
                 this.updateEnd(idx, formatTimeFull(newVal));
             } else {
                 this.segments[idx].start = newVal;
+                this.renderRegions();
                 this.debounceSave();
             }
         },
@@ -29,6 +30,7 @@ export function createSegmentEditor(i18n) {
             if (idx + 1 < this.segments.length && newEnd > oldEnd) {
                 this.segments[idx + 1].start = newEnd;
             }
+            this.renderRegions();
             this.debounceSave();
         },
 
@@ -42,6 +44,7 @@ export function createSegmentEditor(i18n) {
             this.segments.splice(idx, 1);
             this.selected = this.selected.filter(function (i) { return i !== idx; }).map(function (i) { return i > idx ? i - 1 : i; });
             this._clearSuggestions();
+            this.renderRegions();
             this.debounceSave();
         },
 
@@ -52,6 +55,7 @@ export function createSegmentEditor(i18n) {
             var end = next ? next.start : prev.end + 2.0;
             this.segments.splice(idx + 1, 0, { start: start, end: end, text: '' });
             this._clearSuggestions();
+            this.renderRegions();
             this.debounceSave();
         },
 
@@ -75,6 +79,7 @@ export function createSegmentEditor(i18n) {
             this.segments.splice(first, sorted.length, merged);
             this.selected = [];
             this._clearSuggestions();
+            this.renderRegions();
             this.debounceSave();
         },
     };

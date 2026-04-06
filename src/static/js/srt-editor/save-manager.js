@@ -59,6 +59,7 @@ export function createSaveManager(jobId, i18n) {
                 this.glossary = data.glossary || '';
                 this.speakers = data.speakers || [];
                 this.speakerMap = data.speaker_map || {};
+                this.renderRegions();
             } catch (e) {
                 console.error(e);
             } finally {

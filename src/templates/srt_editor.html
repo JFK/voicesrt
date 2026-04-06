@@ -12,6 +12,7 @@ import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
 import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
 import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
 import { createKeyboardShortcuts } from '/static/js/srt-editor/keyboard-shortcuts.js';
+import { createWaveformController } from '/static/js/srt-editor/waveform.js';
 
 // Use |tojson so apostrophes and other special chars survive Jinja
 // autoescape and produce valid JS string literals (e.g. "segment's").
@@ -77,6 +78,7 @@ window.srtEditor = function () {
         createSuggestionManager(jobId),
         createSaveManager(jobId, i18n),
         createKeyboardShortcuts(shortcutI18n),
+        createWaveformController(),
     );
 };
 </script>
@@ -204,15 +206,19 @@ window.srtEditor = function () {
                 <svg x-show="isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
             <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
-            <div class="flex-1 relative h-6 cursor-pointer group" @click="seekAudio($event)">
-                <div class="absolute top-1/2 -translate-y-1/2 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full">
-                    <div class="h-full bg-blue-500 rounded-full transition-all" :style="'width:' + (audioDuration ? (currentTime/audioDuration*100) : 0) + '%'"></div>
-                </div>
-            </div>
+            <div x-ref="waveform" class="flex-1 min-w-0"></div>
+            <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
+                    class="text-xs font-mono rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-1 py-0.5 flex-shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    :title="'{{ t('srt_editor.playback_speed') }}'">
+                <template x-for="r in playbackRates" :key="r">
+                    <option :value="r" x-text="r + 'x'"></option>
+                </template>
+            </select>
             <span x-show="activeSegmentIdx !== null" class="text-xs text-blue-600 font-medium flex-shrink-0" x-text="'#' + (activeSegmentIdx + 1)"></span>
         </div>
         <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"
-               @timeupdate="onTimeUpdate()" @loadedmetadata="audioDuration = $refs.audio.duration"
+               @timeupdate="onTimeUpdate()"
+               @loadedmetadata="audioDuration = $refs.audio.duration; applyPlaybackRate(); initWaveform()"
                @ended="isPlaying = false; activeSegmentIdx = null" @pause="isPlaying = false" @play="isPlaying = true"></audio>
     </div>
 

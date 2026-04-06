@@ -37,6 +37,7 @@ export function createSpeakerManager(jobId) {
             for (var k in this.speakerMap) {
                 if (this.speakerMap[k] === removed) delete this.speakerMap[k];
             }
+            this.renderRegions();
         },
 
         setSpeaker(idx, speaker) {
@@ -47,6 +48,7 @@ export function createSpeakerManager(jobId) {
                 delete m[idx];
                 this.speakerMap = m;
             }
+            this.renderRegions();
             this._debounceSaveSpeakers();
         },
 
