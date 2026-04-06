@@ -36,6 +36,7 @@ from src.errors import (
     upload_failed,
 )
 from src.models import Job
+from src.services.status import status_manager
 from src.templating import templates
 
 logger = logging.getLogger(__name__)
@@ -122,8 +123,6 @@ async def _process_job(job_id: str) -> None:
             job.status = STATUS_FAILED
             job.error_message = classify_error(e)[:500]
             await session.commit()
-            from src.services.status import status_manager
-
             await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
 
@@ -263,24 +262,16 @@ async def get_job_status(job_id: str, request: Request, session: AsyncSession = 
 @router.get("/{job_id}/stream")
 async def stream_job_status(job_id: str, session: AsyncSession = Depends(get_session)):
     """SSE endpoint for real-time job status updates."""
-    from src.services.status import status_manager
-
     job = await _get_job_or_404(session, job_id)
 
-    # If job already finished, send terminal event immediately
-    if job.status in (STATUS_COMPLETED, STATUS_FAILED):
-        data = {"status": job.status}
-        if job.error_message:
-            data["detail"] = job.error_message
+    initial: dict = {"status": job.status}
+    if job.status == STATUS_FAILED and job.error_message:
+        initial["detail"] = job.error_message
 
-        async def done_event():
-            yield status_manager.format_sse(data)
-
-        return StreamingResponse(done_event(), media_type="text/event-stream")
-
-    # Send current status first, then stream updates
     async def event_generator():
-        yield status_manager.format_sse({"status": job.status})
+        yield status_manager.format_sse(initial)
+        if job.status in (STATUS_COMPLETED, STATUS_FAILED):
+            return
         async for data in status_manager.subscribe(job_id):
             yield status_manager.format_sse(data)
 
@@ -487,7 +478,6 @@ async def _generate_meta_job(
     override_model: str | None = None,
 ) -> None:
     """Background task: generate YouTube metadata from existing SRT."""
-    from src.services.status import status_manager
     from src.services.transcribe import _get_credential, _get_model, _run_metadata_generation
 
     async with async_session() as session:

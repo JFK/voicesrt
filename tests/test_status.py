@@ -111,6 +111,20 @@ async def test_multiple_subscribers(manager):
 
 
 @pytest.mark.asyncio
+async def test_late_subscriber_receives_terminal(manager):
+    """Subscriber that arrives after a terminal publish still receives it."""
+    await manager.publish("late-job", "completed")
+
+    received = []
+    async for data in manager.subscribe("late-job"):
+        received.append(data)
+        break
+
+    assert len(received) == 1
+    assert received[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
 async def test_format_sse(manager):
     """SSE formatting produces correct event stream format."""
     assert manager.format_sse(None) == ": keepalive\n\n"
