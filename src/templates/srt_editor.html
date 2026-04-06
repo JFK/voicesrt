@@ -1,5 +1,66 @@
 {% extends "base.html" %}
 {% block title %}SRT Editor - {{ job.filename }}{% endblock %}
+{% block head_scripts %}
+<script type="module">
+// Loaded BEFORE Alpine via the head_scripts block. Both this module and
+// Alpine's CDN script are deferred and execute in document order, so
+// window.srtEditor is guaranteed to exist when Alpine processes x-data.
+import { formatTimeFull, formatTime, parseTime, validateTimes, autoResize } from '/static/js/srt-editor/time-utils.js';
+import { createAudioController } from '/static/js/srt-editor/audio-controller.js';
+import { createSegmentEditor } from '/static/js/srt-editor/segment-editor.js';
+import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
+import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
+import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
+
+var jobId = '{{ job.id }}';
+var i18n = {
+    timeError: '{{ t("srt_editor.time_error") }}',
+    saved: '{{ t("srt_editor.saved") }}',
+    deleteConfirm: '{{ t("srt_editor.delete_confirm") }}',
+    exceedsNext: '{{ t("srt_editor.exceeds_next") }}',
+    mergeConsecutiveOnly: '{{ t("srt_editor.merge_consecutive_only") }}',
+};
+
+window.srtEditor = function () {
+    return Object.assign(
+        {
+            segments: [],
+            verifiedIndices: [],
+            verifyReasons: {},
+            suggestions: {},
+            suggesting: {},
+            loading: true,
+            saving: false,
+            saveMsg: '',
+            saveError: false,
+            glossary: '',
+            glossarySaved: false,
+            speakers: [],
+            speakerMap: {},
+            speakerInput: '',
+            isPlaying: false,
+            currentTime: 0,
+            audioDuration: 0,
+            activeSegmentIdx: null,
+            selected: [],
+            _saveTimer: null,
+            _stopTimer: null,
+            _speakerTimer: null,
+            formatTimeFull: formatTimeFull,
+            formatTime: formatTime,
+            parseTime: parseTime,
+            autoResize: autoResize,
+            validateTimes: function () { return validateTimes(this.segments); },
+        },
+        createAudioController(),
+        createSegmentEditor(i18n),
+        createSpeakerManager(jobId),
+        createSuggestionManager(jobId),
+        createSaveManager(jobId, i18n),
+    );
+};
+</script>
+{% endblock %}
 {% block content %}
 <div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="loadSegments()">
     <div class="sticky top-0 z-10 bg-gray-50 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -268,60 +329,4 @@
     </div>
 </div>
 
-<script type="module">
-import { formatTimeFull, formatTime, parseTime, validateTimes, autoResize } from '/static/js/srt-editor/time-utils.js';
-import { createAudioController } from '/static/js/srt-editor/audio-controller.js';
-import { createSegmentEditor } from '/static/js/srt-editor/segment-editor.js';
-import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
-import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
-import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
-
-var jobId = '{{ job.id }}';
-var i18n = {
-    timeError: '{{ t("srt_editor.time_error") }}',
-    saved: '{{ t("srt_editor.saved") }}',
-    deleteConfirm: '{{ t("srt_editor.delete_confirm") }}',
-    exceedsNext: '{{ t("srt_editor.exceeds_next") }}',
-    mergeConsecutiveOnly: '{{ t("srt_editor.merge_consecutive_only") }}',
-};
-
-window.srtEditor = function () {
-    return Object.assign(
-        {
-            segments: [],
-            verifiedIndices: [],
-            verifyReasons: {},
-            suggestions: {},
-            suggesting: {},
-            loading: true,
-            saving: false,
-            saveMsg: '',
-            saveError: false,
-            glossary: '',
-            glossarySaved: false,
-            speakers: [],
-            speakerMap: {},
-            speakerInput: '',
-            isPlaying: false,
-            currentTime: 0,
-            audioDuration: 0,
-            activeSegmentIdx: null,
-            selected: [],
-            _saveTimer: null,
-            _stopTimer: null,
-            _speakerTimer: null,
-            formatTimeFull: formatTimeFull,
-            formatTime: formatTime,
-            parseTime: parseTime,
-            autoResize: autoResize,
-            validateTimes: function () { return validateTimes(this.segments); },
-        },
-        createAudioController(),
-        createSegmentEditor(i18n),
-        createSpeakerManager(jobId),
-        createSuggestionManager(jobId),
-        createSaveManager(jobId, i18n),
-    );
-};
-</script>
 {% endblock %}
