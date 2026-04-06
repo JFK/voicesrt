@@ -11,7 +11,8 @@ export function createKeyboardShortcuts(i18n) {
             document.addEventListener('keydown', this._boundHandler);
         },
 
-        destroyKeyboard() {
+        // Alpine 3.x calls destroy() automatically on component teardown.
+        destroy() {
             if (this._boundHandler) {
                 document.removeEventListener('keydown', this._boundHandler);
                 this._boundHandler = null;
