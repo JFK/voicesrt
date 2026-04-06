@@ -1,28 +1,28 @@
 {% extends "base.html" %}
 {% block title %}{{ t('history.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 mb-6">{{ t('history.heading') }}</h1>
+<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ t('history.heading') }}</h1>
 
-<div class="bg-white shadow rounded-lg overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
+<div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-900">
             <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_file') }}</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_provider') }}</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_mode') }}</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_duration') }}</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_status') }}</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('history.col_created') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ t('history.col_file') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ t('history.col_provider') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ t('history.col_mode') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ t('history.col_duration') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ t('history.col_status') }}</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ t('history.col_created') }}</th>
             </tr>
         </thead>
         {% for job in jobs %}
-        <tbody class="border-b border-gray-200" id="job-{{ job.id }}">
+        <tbody class="border-b border-gray-200 dark:border-gray-700" id="job-{{ job.id }}">
             <!-- Row 1: Info -->
             <tr>
-                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-900 font-medium">{{ job.filename }}</td>
-                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">{{ job.provider }}</td>
-                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">{{ job.refine_mode or '-' }}</td>
-                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 font-medium">{{ job.filename }}</td>
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ job.provider }}</td>
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ job.refine_mode or '-' }}</td>
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {% if job.audio_duration %}{{ "%.1f"|format(job.audio_duration) }}s{% else %}-{% endif %}
                 </td>
                 <td class="px-6 pt-4 pb-2 max-w-[200px]">
@@ -31,7 +31,7 @@
                         {% include "partials/job_status.html" %}
                     </span>
                 </td>
-                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500">
+                <td class="px-6 pt-4 pb-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else '-' }}
                 </td>
             </tr>
@@ -42,38 +42,38 @@
                         <!-- SRT group -->
                         {% if job.srt_path %}
                         <div class="flex items-center gap-1">
-                            <span class="text-xs text-gray-400 mr-1">SRT</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500 mr-1">SRT</span>
                             <a href="/srt/{{ job.id }}"
-                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">{{ t('history.srt_editor') }}</a>
+                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 hover:bg-blue-100">{{ t('history.srt_editor') }}</a>
                             <a href="/api/jobs/{{ job.id }}/download"
-                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">SRT</a>
+                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 hover:bg-blue-100">SRT</a>
                             <a href="/api/jobs/{{ job.id }}/download-vtt"
-                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">VTT</a>
+                               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 hover:bg-blue-100">VTT</a>
                         </div>
                         {% endif %}
 
                         <!-- YouTube group -->
                         {% if job.srt_path and job.status in ('completed', 'failed') %}
                         <div class="flex items-center gap-1">
-                            <span class="text-xs text-gray-400 mr-1">YouTube</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500 mr-1">YouTube</span>
                             <a href="/meta/{{ job.id }}"
-                               class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.youtube_title %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+                               class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.youtube_title %}bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 hover:bg-green-100{% else %}bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">
                                 <span class="w-1.5 h-1.5 rounded-full {% if job.youtube_title %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
                                 {{ t('history.meta') }}
                             </a>
                             {% if job.youtube_title %}
                             <button onclick="showMetaModal('{{ job.id }}')"
-                                    class="inline-flex items-center rounded-full px-1.5 py-1 text-xs font-medium border bg-green-50 text-green-700 border-green-200 hover:bg-green-100" title="{{ t('history.meta') }}">
+                                    class="inline-flex items-center rounded-full px-1.5 py-1 text-xs font-medium border bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 hover:bg-green-100" title="{{ t('history.meta') }}">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                             </button>
                             {% endif %}
                             <button onclick="generateCatchphrase('{{ job.id }}')"
-                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.catchphrases %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.catchphrases %}bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 hover:bg-green-100{% else %}bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">
                                 <span class="w-1.5 h-1.5 rounded-full {% if job.catchphrases %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
                                 {{ t('history.catchphrase') }}
                             </button>
                             <button onclick="generateQuiz('{{ job.id }}')"
-                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.quiz %}bg-green-50 text-green-700 border-green-200 hover:bg-green-100{% else %}bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100{% endif %}">
+                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border {% if job.quiz %}bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 hover:bg-green-100{% else %}bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">
                                 <span class="w-1.5 h-1.5 rounded-full {% if job.quiz %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
                                 {{ t('history.quiz') }}
                             </button>
@@ -84,7 +84,7 @@
                         <div class="flex items-center ml-auto">
                             <button hx-delete="/api/jobs/{{ job.id }}" hx-confirm="{{ t('history.delete_confirm') }}"
                                     hx-target="#job-{{ job.id }}" hx-swap="delete"
-                                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-red-50 text-red-700 border-red-200 hover:bg-red-100">{{ t('history.del') }}</button>
+                                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 hover:bg-red-100">{{ t('history.del') }}</button>
                         </div>
                     </div>
                 </td>
@@ -94,7 +94,7 @@
         {% if not jobs %}
         <tbody>
             <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">{{ t('history.no_jobs') }}</td>
+                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('history.no_jobs') }}</td>
             </tr>
         </tbody>
         {% endif %}
@@ -104,10 +104,10 @@
 <!-- Meta Modal -->
 <div id="meta-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
      onclick="if(event.target===this)this.style.display='none'">
-    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold">{{ t('history.youtube_metadata') }}</h3>
-            <button onclick="document.getElementById('meta-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            <button onclick="document.getElementById('meta-modal').style.display='none'" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl">&times;</button>
         </div>
         <div id="meta-content" class="space-y-4"></div>
     </div>
@@ -116,16 +116,16 @@
 <!-- Catchphrase Modal -->
 <div id="catchphrase-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
      onclick="if(event.target===this)this.style.display='none'">
-    <div class="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold">{{ t('history.thumbnail_catchphrases') }}</h3>
-            <button onclick="document.getElementById('catchphrase-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            <button onclick="document.getElementById('catchphrase-modal').style.display='none'" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl">&times;</button>
         </div>
         <div id="catchphrase-content"></div>
-        <div id="catchphrase-regen" style="display:none" class="mt-4 pt-3 border-t border-gray-200">
+        <div id="catchphrase-regen" style="display:none" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-2">
-                <select id="catchphrase-provider" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7"></select>
-                <select id="catchphrase-model" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7 max-w-[200px]"></select>
+                <select id="catchphrase-provider" class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1.5 pl-2 pr-7 dark:bg-gray-800 dark:text-gray-100"></select>
+                <select id="catchphrase-model" class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1.5 pl-2 pr-7 max-w-[200px] dark:bg-gray-800 dark:text-gray-100"></select>
                 <button id="catchphrase-regen-btn" class="px-4 py-1.5 bg-purple-600 text-white rounded-md text-xs hover:bg-purple-700">{{ t('history.regenerate') }}</button>
             </div>
         </div>
@@ -135,16 +135,16 @@
 <!-- Quiz Modal -->
 <div id="quiz-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
      onclick="if(event.target===this)this.style.display='none'">
-    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold">{{ t('history.youtube_quiz') }}</h3>
-            <button onclick="document.getElementById('quiz-modal').style.display='none'" class="text-gray-400 hover:text-gray-600">&times;</button>
+            <button onclick="document.getElementById('quiz-modal').style.display='none'" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">&times;</button>
         </div>
         <div id="quiz-content"></div>
-        <div id="quiz-regen" style="display:none" class="mt-4 pt-3 border-t border-gray-200">
+        <div id="quiz-regen" style="display:none" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-2">
-                <select id="quiz-provider" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7"></select>
-                <select id="quiz-model" class="text-xs border-gray-300 rounded-md py-1.5 pl-2 pr-7 max-w-[200px]"></select>
+                <select id="quiz-provider" class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1.5 pl-2 pr-7 dark:bg-gray-800 dark:text-gray-100"></select>
+                <select id="quiz-model" class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1.5 pl-2 pr-7 max-w-[200px] dark:bg-gray-800 dark:text-gray-100"></select>
                 <button id="quiz-regen-btn" class="px-4 py-1.5 bg-purple-600 text-white rounded-md text-xs hover:bg-purple-700">{{ t('history.regenerate') }}</button>
             </div>
         </div>
@@ -163,28 +163,28 @@ async function showMetaModal(jobId) {
 
     content.innerHTML = `
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('history.label_title') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('history.label_title') }}</label>
             <div class="flex">
                 <input type="text" value="${job.youtube_title || ''}" readonly
-                       class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50" id="meta-title">
+                       class="flex-1 rounded-l-md border-gray-300 dark:border-gray-600 text-sm p-2 border bg-gray-50 dark:bg-gray-900" id="meta-title">
                 <button onclick="navigator.clipboard.writeText(document.getElementById('meta-title').value)"
-                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
+                        class="px-3 bg-gray-100 dark:bg-gray-800 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('history.copy') }}</button>
             </div>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('history.label_description') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('history.label_description') }}</label>
             <textarea readonly rows="10" id="meta-desc"
-                      class="w-full rounded-md border-gray-300 text-sm p-2 border bg-gray-50">${job.youtube_description || ''}</textarea>
+                      class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border bg-gray-50 dark:bg-gray-900">${job.youtube_description || ''}</textarea>
             <button onclick="navigator.clipboard.writeText(document.getElementById('meta-desc').value)"
-                    class="mt-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
+                    class="mt-1 px-3 py-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('history.copy') }}</button>
         </div>
         ${tags ? `<div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('history.label_tags') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('history.label_tags') }}</label>
             <div class="flex">
                 <input type="text" value="${tags}" readonly
-                       class="flex-1 rounded-l-md border-gray-300 text-sm p-2 border bg-gray-50" id="meta-tags">
+                       class="flex-1 rounded-l-md border-gray-300 dark:border-gray-600 text-sm p-2 border bg-gray-50 dark:bg-gray-900" id="meta-tags">
                 <button onclick="navigator.clipboard.writeText(document.getElementById('meta-tags').value)"
-                        class="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-xs hover:bg-gray-200">{{ t('history.copy') }}</button>
+                        class="px-3 bg-gray-100 dark:bg-gray-800 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('history.copy') }}</button>
             </div>
         </div>` : ''}`;
 }
@@ -235,7 +235,7 @@ async function generateCatchphrase(jobId, regenerate = false) {
     const regenArea = document.getElementById('catchphrase-regen');
     modal.style.display = 'flex';
     regenArea.style.display = 'none';
-    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-pink-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t("history.loading") }}</span></div>';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-pink-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600 dark:text-gray-300">{{ t("history.loading") }}</span></div>';
 
     try {
         const url = `/api/jobs/${jobId}/generate-catchphrase` + (regenerate ? '?regenerate=true' : '');
@@ -248,16 +248,16 @@ async function generateCatchphrase(jobId, regenerate = false) {
         const data = await res.json();
 
         if (data.catchphrases) {
-            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t("history.saved_result") }}</p>' : '';
+            let html = data.cached ? '<p class="text-xs text-gray-400 dark:text-gray-500 mb-2">{{ t("history.saved_result") }}</p>' : '';
             html += '<div class="space-y-2">';
             data.catchphrases.forEach(p => {
                 html += `<div class="flex items-center justify-between border rounded-lg p-3">
                     <div>
                         <span class="font-bold text-lg">${p.text}</span>
-                        <span class="ml-2 text-xs text-gray-400">${p.style || ''}</span>
+                        <span class="ml-2 text-xs text-gray-400 dark:text-gray-500">${p.style || ''}</span>
                     </div>
                     <button onclick="navigator.clipboard.writeText('${p.text.replace(/'/g, "\\'")}'); this.textContent='{{ t("history.copied") }}'"
-                            class="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs hover:bg-gray-200">{{ t("history.copy") }}</button>
+                            class="px-2 py-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t("history.copy") }}</button>
                 </div>`;
             });
             html += '</div>';
@@ -281,7 +281,7 @@ async function generateQuiz(jobId, regenerate = false) {
     const regenArea = document.getElementById('quiz-regen');
     modal.style.display = 'flex';
     regenArea.style.display = 'none';
-    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600">{{ t("history.loading") }}</span></div>';
+    content.innerHTML = '<div class="flex items-center space-x-2"><div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div><span class="text-sm text-gray-600 dark:text-gray-300">{{ t("history.loading") }}</span></div>';
 
     try {
         const url = `/api/jobs/${jobId}/generate-quiz` + (regenerate ? '?regenerate=true' : '');
@@ -294,7 +294,7 @@ async function generateQuiz(jobId, regenerate = false) {
         const data = await res.json();
 
         if (data.quiz) {
-            let html = data.cached ? '<p class="text-xs text-gray-400 mb-2">{{ t("history.saved_result") }}</p>' : '';
+            let html = data.cached ? '<p class="text-xs text-gray-400 dark:text-gray-500 mb-2">{{ t("history.saved_result") }}</p>' : '';
             html += '<div class="space-y-4">';
             data.quiz.forEach((q, i) => {
                 html += `<div class="border rounded-lg p-3">
@@ -302,7 +302,7 @@ async function generateQuiz(jobId, regenerate = false) {
                     <ul class="space-y-1">`;
                 q.options.forEach((opt, j) => {
                     const isAnswer = j === q.answer_index;
-                    html += `<li class="text-sm ${isAnswer ? 'text-green-700 font-medium' : 'text-gray-600'}">
+                    html += `<li class="text-sm ${isAnswer ? 'text-green-700 dark:text-green-300 font-medium' : 'text-gray-600 dark:text-gray-300'}">
                         ${String.fromCharCode(65+j)}. ${opt} ${isAnswer ? '{{ t("history.correct") }}' : ''}
                     </li>`;
                 });

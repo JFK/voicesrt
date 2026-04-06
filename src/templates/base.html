@@ -1,10 +1,32 @@
 <!DOCTYPE html>
-<html lang="{{ lang }}" class="h-full bg-gray-50">
+<html lang="{{ lang }}" class="h-full bg-gray-50 dark:bg-gray-900">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}VoiceSRT{% endblock %}</title>
+    <script>
+        // Sync theme to <html> before paint to prevent flash of light content
+        (function() {
+            var stored = localStorage.getItem('theme');
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (stored === 'dark' || (stored === null && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+        function toggleTheme() {
+            var isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+        // Set both before AND after the CDN script: the Play CDN replaces
+        // window.tailwind on load in some builds, so the post-load assignment
+        // is the reliable one — but the pre-load assignment avoids a brief
+        // moment where dark: variants compile under prefers-color-scheme.
+        window.tailwind = { config: { darkMode: 'class' } };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' };
+    </script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="/static/js/model-loader.js"></script>
     <script src="/static/js/job-status.js"></script>
@@ -15,7 +37,7 @@
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="h-full" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
     <div class="min-h-full">
         <nav class="bg-gray-800">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -42,8 +64,19 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 text-sm">
+                        <button onclick="toggleTheme()"
+                                class="text-gray-300 hover:text-white p-2 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
+                                aria-label="{{ t('nav.theme_toggle') }}"
+                                title="{{ t('nav.theme_toggle') }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                        </button>
                         <a href="/lang/en" class="text-gray-300 hover:text-white px-2 py-1 rounded {% if lang == 'en' %}bg-gray-700 text-white{% endif %}">EN</a>
-                        <span class="text-gray-500">|</span>
+                        <span class="text-gray-400">|</span>
                         <a href="/lang/ja" class="text-gray-300 hover:text-white px-2 py-1 rounded {% if lang == 'ja' %}bg-gray-700 text-white{% endif %}">JA</a>
                     </div>
                 </div>
@@ -68,9 +101,9 @@
                  x-transition:leave-start="opacity-100"
                  x-transition:leave-end="opacity-0"
                  :class="{
-                     'bg-red-50 border-red-300 text-red-800': toast.type === 'error',
-                     'bg-yellow-50 border-yellow-300 text-yellow-800': toast.type === 'warning',
-                     'bg-green-50 border-green-300 text-green-800': toast.type === 'success'
+                     'bg-red-50 dark:bg-red-900/40 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200': toast.type === 'error',
+                     'bg-yellow-50 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200': toast.type === 'warning',
+                     'bg-green-50 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200': toast.type === 'success'
                  }"
                  class="border rounded-lg shadow-lg p-4 flex items-start gap-3"
                  role="alert">

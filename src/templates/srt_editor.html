@@ -83,14 +83,14 @@ window.srtEditor = function () {
 {% endblock %}
 {% block content %}
 <div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="loadSegments(); initKeyboard()">
-    <div class="sticky top-0 z-10 bg-gray-50 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <div class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">{{ t('srt_editor.title') }}</h1>
-                <p class="text-sm text-gray-500 mt-1">{{ job.filename }}</p>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('srt_editor.title') }}</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ job.filename }}</p>
             </div>
             <div class="flex items-center gap-2">
-                <span x-show="saving" class="text-xs text-gray-400">{{ t('srt_editor.saving') }}</span>
+                <span x-show="saving" class="text-xs text-gray-400 dark:text-gray-500">{{ t('srt_editor.saving') }}</span>
                 <span x-show="saveMsg && !saveError" x-transition class="text-xs text-green-600" x-text="saveMsg"></span>
                 <span x-show="saveMsg && saveError" x-transition class="text-xs text-red-600" x-text="saveMsg"></span>
                 <div class="relative" x-data="{ showGlossary: false }" @glossary-saved.window="showGlossary = false">
@@ -101,12 +101,12 @@ window.srtEditor = function () {
                         {{ t('srt_editor.glossary_label_short') }}
                     </button>
                     <div x-show="showGlossary" x-transition @click.away="showGlossary = false"
-                         class="absolute right-0 top-full mt-1 w-96 bg-white shadow-lg rounded-lg border p-3 z-50">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">{{ t('srt_editor.glossary_label') }}</label>
+                         class="absolute right-0 top-full mt-1 w-96 bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('srt_editor.glossary_label') }}</label>
                         <textarea x-model="glossary" rows="6"
-                                  class="w-full rounded-md border-gray-300 text-xs p-2 border font-mono"
+                                  class="w-full rounded-md border-gray-300 dark:border-gray-600 text-xs p-2 border font-mono dark:bg-gray-800 dark:text-gray-100"
                                   placeholder="{{ t('srt_editor.glossary_placeholder') }}"></textarea>
-                        <p class="text-xs text-gray-400 mt-1">{{ t('srt_editor.glossary_hint') }}</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ t('srt_editor.glossary_hint') }}</p>
                         <div class="flex justify-end mt-2">
                             <button @click="saveGlossary()"
                                     class="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
@@ -124,11 +124,11 @@ window.srtEditor = function () {
                         {{ t('srt_editor.speakers') }}
                     </button>
                     <div x-show="showSpeakers" x-transition @click.away="showSpeakers = false"
-                         class="absolute right-0 top-full mt-1 w-72 bg-white shadow-lg rounded-lg border p-3 z-50">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">{{ t('srt_editor.speakers_label') }}</label>
+                         class="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('srt_editor.speakers_label') }}</label>
                         <input type="text" x-model="speakerInput"
                                @keydown.enter.prevent="addSpeaker()"
-                               class="w-full rounded-md border-gray-300 text-xs p-2 border"
+                               class="w-full rounded-md border-gray-300 dark:border-gray-600 text-xs p-2 border dark:bg-gray-800 dark:text-gray-100"
                                placeholder="{{ t('srt_editor.speaker_add_placeholder') }}">
                         <div class="flex flex-wrap gap-1 mt-2">
                             <template x-for="(sp, i) in speakers" :key="i">
@@ -148,22 +148,22 @@ window.srtEditor = function () {
                     </div>
                 </div>
                 <div class="relative" x-data="{ showSrtMenu: false }">
-                    <div class="inline-flex rounded-md border border-gray-300">
+                    <div class="inline-flex rounded-md border border-gray-300 dark:border-gray-600">
                         <a href="/api/jobs/{{ job.id }}/download"
-                           class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 rounded-l-md">
+                           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 rounded-l-md">
                             SRT
                         </a>
                         <button x-show="speakers.length > 0" @click="showSrtMenu = !showSrtMenu"
-                                class="inline-flex items-center px-1.5 py-2 bg-gray-100 text-gray-700 text-sm hover:bg-gray-200 rounded-r-md border-l border-gray-300">
+                                class="inline-flex items-center px-1.5 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-200 dark:hover:bg-gray-600 rounded-r-md border-l border-gray-300 dark:border-gray-600">
                             <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
                     </div>
                     <div x-show="showSrtMenu" x-transition @click.away="showSrtMenu = false"
-                         class="absolute right-0 top-full mt-1 bg-white shadow-lg rounded-lg border py-1 z-50 min-w-[10rem]">
+                         class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-lg border py-1 z-50 min-w-[10rem]">
                         <template x-for="sp in speakers" :key="sp">
                             <a :href="'/api/jobs/{{ job.id }}/download?speaker=' + encodeURIComponent(sp)"
                                @click="showSrtMenu = false"
-                               class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
+                               class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <span class="inline-block w-2 h-2 rounded-full" :class="getSpeakerColor(sp).dot"></span>
                                 <span x-text="sp"></span>
                             </a>
@@ -171,22 +171,22 @@ window.srtEditor = function () {
                     </div>
                 </div>
                 <div class="relative" x-data="{ showVttMenu: false }">
-                    <div class="inline-flex rounded-md border border-gray-300">
+                    <div class="inline-flex rounded-md border border-gray-300 dark:border-gray-600">
                         <a href="/api/jobs/{{ job.id }}/download-vtt"
-                           class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 rounded-l-md">
+                           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 rounded-l-md">
                             VTT
                         </a>
                         <button x-show="speakers.length > 0" @click="showVttMenu = !showVttMenu"
-                                class="inline-flex items-center px-1.5 py-2 bg-gray-100 text-gray-700 text-sm hover:bg-gray-200 rounded-r-md border-l border-gray-300">
+                                class="inline-flex items-center px-1.5 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-200 dark:hover:bg-gray-600 rounded-r-md border-l border-gray-300 dark:border-gray-600">
                             <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
                     </div>
                     <div x-show="showVttMenu" x-transition @click.away="showVttMenu = false"
-                         class="absolute right-0 top-full mt-1 bg-white shadow-lg rounded-lg border py-1 z-50 min-w-[10rem]">
+                         class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-lg border py-1 z-50 min-w-[10rem]">
                         <template x-for="sp in speakers" :key="sp">
                             <a :href="'/api/jobs/{{ job.id }}/download-vtt?speaker=' + encodeURIComponent(sp)"
                                @click="showVttMenu = false"
-                               class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
+                               class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <span class="inline-block w-2 h-2 rounded-full" :class="getSpeakerColor(sp).dot"></span>
                                 <span x-text="sp"></span>
                             </a>
@@ -197,15 +197,15 @@ window.srtEditor = function () {
         </div>
 
         <!-- Audio player bar -->
-        <div x-show="!loading" class="mt-3 flex flex-nowrap items-center gap-3 bg-white rounded-lg shadow-sm border px-3 py-2">
+        <div x-show="!loading" class="mt-3 flex flex-nowrap items-center gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
             <button @click="togglePlay()"
-                    class="text-gray-600 hover:text-blue-600 transition-colors flex-shrink-0">
+                    class="text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors flex-shrink-0">
                 <svg x-show="!isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg x-show="isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
-            <span class="text-xs font-mono text-gray-500 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
+            <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
             <div class="flex-1 relative h-6 cursor-pointer group" @click="seekAudio($event)">
-                <div class="absolute top-1/2 -translate-y-1/2 w-full h-1.5 bg-gray-200 rounded-full">
+                <div class="absolute top-1/2 -translate-y-1/2 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full">
                     <div class="h-full bg-blue-500 rounded-full transition-all" :style="'width:' + (audioDuration ? (currentTime/audioDuration*100) : 0) + '%'"></div>
                 </div>
             </div>
@@ -219,23 +219,23 @@ window.srtEditor = function () {
     <!-- Loading -->
     <div x-show="loading" class="text-center py-12">
         <div class="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-        <p class="mt-3 text-sm text-gray-500">{{ t('srt_editor.loading') }}</p>
+        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ t('srt_editor.loading') }}</p>
     </div>
 
     <!-- Segments -->
     <div x-show="!loading" class="space-y-3">
         <template x-for="(seg, idx) in segments" :key="idx">
-            <div class="bg-white shadow rounded-lg p-4 border-l-4 transition-colors cursor-pointer"
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 transition-colors cursor-pointer"
                  :id="'seg-' + idx"
                  @click="if (!$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
-                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent'">
+                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent'">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2">
                         <input type="checkbox" :value="idx" x-model.number="selected"
-                               class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                        <span class="text-xs font-mono text-gray-400" x-text="'#' + (idx + 1)"></span>
+                               class="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                        <span class="text-xs font-mono text-gray-400 dark:text-gray-500" x-text="'#' + (idx + 1)"></span>
                         <button @click="playSegment(seg.start, seg.end)"
-                                class="text-gray-400 hover:text-blue-600 transition-colors p-0.5"
+                                class="text-gray-400 dark:text-gray-500 hover:text-blue-600 transition-colors p-0.5"
                                 :title="'Play ' + formatTime(seg.start)">
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </button>
@@ -244,19 +244,19 @@ window.srtEditor = function () {
                             <button @click="nudgeTime(idx, 'start', -0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.start)"
                                    @change="const v = parseTime($event.target.value); if (v !== null) { seg.start = v; debounceSave() } else { $event.target.value = formatTimeFull(seg.start) }"
-                                   class="w-20 text-xs font-mono text-gray-500 bg-transparent border-0 border-b border-dashed border-gray-300 focus:border-blue-500 focus:ring-0 p-0 text-center">
+                                   class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'start', 0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
-                        <span class="text-xs text-gray-400">→</span>
+                        <span class="text-xs text-gray-400 dark:text-gray-500">→</span>
                         <div class="inline-flex items-center gap-0.5">
                             <button @click="nudgeTime(idx, 'end', -0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.end)"
                                    @change="updateEnd(idx, $event.target.value)"
-                                   class="w-20 text-xs font-mono text-gray-500 bg-transparent border-0 border-b border-dashed border-gray-300 focus:border-blue-500 focus:ring-0 p-0 text-center">
+                                   class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'end', 0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
                         <span x-show="verifiedIndices.includes(idx)"
-                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 cursor-help"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 cursor-help"
                               :title="verifyReasons[idx] || ''">
                             {{ t('srt_editor.verified_badge') }}
                         </span>
@@ -279,7 +279,7 @@ window.srtEditor = function () {
                 <div x-show="speakers.length > 0" class="flex items-center gap-2 mb-1">
                     <template x-for="sp in speakers" :key="sp">
                         <label class="inline-flex items-center gap-1 cursor-pointer px-1.5 py-0.5 rounded-full text-xs"
-                               :class="speakerMap[idx] === sp ? getSpeakerColor(sp).bg + ' ' + getSpeakerColor(sp).text + ' font-medium' : 'text-gray-500'">
+                               :class="speakerMap[idx] === sp ? getSpeakerColor(sp).bg + ' ' + getSpeakerColor(sp).text + ' font-medium' : 'text-gray-500 dark:text-gray-400'">
                             <span class="inline-block w-2 h-2 rounded-full" :class="getSpeakerColor(sp).dot"></span>
                             <input type="radio" :name="'speaker-' + idx" :value="sp"
                                    :checked="speakerMap[idx] === sp"
@@ -296,7 +296,7 @@ window.srtEditor = function () {
                 <textarea x-model="seg.text" rows="2"
                           @input="autoResize($event.target); debounceSave()"
                           x-effect="$nextTick(() => autoResize($el))"
-                          class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border resize-none"
+                          class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border resize-none"
                           style="min-height: 3rem;"></textarea>
 
                 <!-- Time error -->
@@ -304,7 +304,7 @@ window.srtEditor = function () {
 
                 <!-- Verify reason -->
                 <p x-show="verifiedIndices.includes(idx) && verifyReasons[idx]"
-                   class="mt-1 text-xs text-yellow-700">
+                   class="mt-1 text-xs text-yellow-700 dark:text-yellow-300">
                     <span class="font-medium">{{ t('srt_editor.reason') }}:</span>
                     <span x-text="verifyReasons[idx]"></span>
                 </p>
@@ -318,7 +318,7 @@ window.srtEditor = function () {
                         {{ t('srt_editor.accept') }}
                     </button>
                     <button @click="dismissSuggestion(idx)"
-                            class="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
                 </div>
 
                 <!-- Add segment button (between segments) -->
@@ -337,7 +337,7 @@ window.srtEditor = function () {
     <div x-show="selected.length >= 2" x-transition
          class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-4">
         <span class="text-sm" x-text="selected.length + ' {{ t('srt_editor.segments_selected') }}'"></span>
-        <button @click="mergeSelected()" class="text-sm px-3 py-1 bg-white text-blue-700 rounded font-medium hover:bg-blue-50">
+        <button @click="mergeSelected()" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 rounded font-medium hover:bg-blue-50">
             {{ t('srt_editor.merge') }}
         </button>
         <button @click="selected = []" class="text-sm text-blue-200 hover:text-white">{{ t('srt_editor.cancel') }}</button>
@@ -345,25 +345,25 @@ window.srtEditor = function () {
 
     <!-- Back link -->
     <div class="mt-6">
-        <a href="/history" class="text-sm text-gray-500 hover:text-gray-700">← {{ t('srt_editor.back_to_history') }}</a>
+        <a href="/history" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← {{ t('srt_editor.back_to_history') }}</a>
     </div>
 
     <!-- Keyboard shortcuts help modal -->
     <div x-show="_helpVisible" x-transition @click.self="_helpVisible = false" @keydown.escape.window="_helpVisible = false"
          class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
          role="dialog" aria-modal="true" aria-labelledby="srt-shortcuts-title" x-cloak>
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6" @click.stop>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6" @click.stop>
             <div class="flex items-center justify-between mb-4">
-                <h3 id="srt-shortcuts-title" class="text-lg font-semibold text-gray-900">{{ t('srt_editor.shortcuts_title') }}</h3>
+                <h3 id="srt-shortcuts-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('srt_editor.shortcuts_title') }}</h3>
                 <button @click="_helpVisible = false"
-                        class="text-gray-400 hover:text-gray-600 text-xl"
+                        class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl"
                         aria-label="{{ t('srt_editor.cancel') }}">&times;</button>
             </div>
             <div class="space-y-1.5">
                 <template x-for="s in getShortcutList()" :key="s.keys">
                     <div class="flex items-center justify-between py-1">
-                        <span class="text-sm text-gray-600" x-text="s.desc"></span>
-                        <kbd class="inline-flex items-center px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs font-mono text-gray-700" x-text="s.keys"></kbd>
+                        <span class="text-sm text-gray-600 dark:text-gray-300" x-text="s.desc"></span>
+                        <kbd class="inline-flex items-center px-2 py-0.5 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs font-mono text-gray-700 dark:text-gray-200" x-text="s.keys"></kbd>
                     </div>
                 </template>
             </div>
@@ -373,7 +373,7 @@ window.srtEditor = function () {
     <!-- Keyboard shortcut hint -->
     <div class="fixed bottom-6 right-6 z-40" x-show="!_helpVisible">
         <button @click="_helpVisible = true"
-                class="w-8 h-8 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-full shadow text-sm font-bold"
+                class="w-8 h-8 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-600 dark:text-gray-300 rounded-full shadow text-sm font-bold"
                 aria-label="{{ t('srt_editor.shortcuts_title') }}"
                 title="{{ t('srt_editor.shortcuts_title') }}">?</button>
     </div>

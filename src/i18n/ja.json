@@ -3,7 +3,10 @@
     "upload": "\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9",
     "history": "履歴",
     "costs": "\u30b3\u30b9\u30c8",
-    "settings": "\u8a2d\u5b9a"
+    "settings": "\u8a2d\u5b9a",
+    "theme_toggle": "テーマ切替",
+    "theme_light": "ライトモードに切替",
+    "theme_dark": "ダークモードに切替"
   },
   "upload": {
     "title": "\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9",

@@ -3,7 +3,10 @@
     "upload": "Upload",
     "history": "History",
     "costs": "Costs",
-    "settings": "Settings"
+    "settings": "Settings",
+    "theme_toggle": "Toggle theme",
+    "theme_light": "Switch to light mode",
+    "theme_dark": "Switch to dark mode"
   },
   "upload": {
     "title": "Upload",
