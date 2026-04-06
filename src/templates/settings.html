@@ -321,17 +321,17 @@ function settingsPage() {
         statusMsg: '',
 
         async loadSettings() {
-            // Fetch all settings in parallel (ModelLoader handles available-models)
-            const [keysRes, modelsRes, ollamaRes, availableData, generalRes, glossaryRes, pricingRes, toneRes, promptsRes] = await Promise.all([
+            // Fetch all settings in parallel (ModelLoader caches available-models internally)
+            const [keysRes, modelsRes, ollamaRes, generalRes, glossaryRes, pricingRes, toneRes, promptsRes] = await Promise.all([
                 fetch('/api/settings/keys'),
                 fetch('/api/settings/models'),
                 fetch('/api/settings/ollama-url'),
-                ModelLoader.load(),
                 fetch('/api/settings/general'),
                 fetch('/api/settings/glossary'),
                 fetch('/api/settings/pricing'),
                 fetch('/api/settings/tone-references'),
                 fetch('/api/settings/refine-prompts'),
+                ModelLoader.load(),
             ]);
             const [keys, modelsData, ollamaData, generalData, glossaryData, pricingData, toneData, promptsData] = await Promise.all([
                 keysRes.json(), modelsRes.json(), ollamaRes.json(),

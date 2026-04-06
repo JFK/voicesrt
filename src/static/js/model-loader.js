@@ -18,7 +18,10 @@ window.ModelLoader = (function () {
             if (_cache) return Promise.resolve(_cache);
             if (_promise) return _promise;
             _promise = fetch('/api/settings/available-models')
-                .then(function (res) { return res.json(); })
+                .then(function (res) {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
                 .then(function (data) {
                     _cache = data;
                     _promise = null;
@@ -27,6 +30,7 @@ window.ModelLoader = (function () {
                 .catch(function (e) {
                     _promise = null;
                     console.error('ModelLoader: failed to load models', e);
+                    // Do not poison the cache — next call will retry.
                     return { available: {}, configured: {}, has_key: {} };
                 });
             return _promise;
