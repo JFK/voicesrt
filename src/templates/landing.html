@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ t('landing.title') }} - VoiceSRT{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Hero -->
+    <section class="text-center py-8 sm:py-12">
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100">
+            {{ t('landing.hero_title') }}
+        </h1>
+        <p class="mt-3 text-base sm:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            {{ t('landing.hero_subtitle') }}
+        </p>
+        <a href="/upload"
+           class="mt-6 inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+            {{ t('landing.cta_upload_now') }}
+        </a>
+    </section>
+
+    <!-- Persona cards -->
+    <section class="mt-4">
+        <h2 class="sr-only">{{ t('landing.personas_heading') }}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <!-- YouTubers -->
+            <a href="/upload?persona=youtuber"
+               class="block bg-white dark:bg-gray-800 shadow rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md transition">
+                <div class="text-3xl mb-2" aria-hidden="true">🎬</div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {{ t('landing.persona_youtuber_title') }}
+                </h3>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                    {{ t('landing.persona_youtuber_desc') }}
+                </p>
+                <span class="mt-4 inline-block text-sm font-medium text-blue-600 dark:text-blue-400">
+                    {{ t('landing.persona_cta') }} &rarr;
+                </span>
+            </a>
+
+            <!-- Meeting / Interview -->
+            <a href="/upload?persona=meeting"
+               class="block bg-white dark:bg-gray-800 shadow rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md transition">
+                <div class="text-3xl mb-2" aria-hidden="true">🎙️</div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {{ t('landing.persona_meeting_title') }}
+                </h3>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                    {{ t('landing.persona_meeting_desc') }}
+                </p>
+                <span class="mt-4 inline-block text-sm font-medium text-blue-600 dark:text-blue-400">
+                    {{ t('landing.persona_cta') }} &rarr;
+                </span>
+            </a>
+
+            <!-- Subtitle Editors -->
+            <a href="/upload?persona=editor"
+               class="block bg-white dark:bg-gray-800 shadow rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md transition">
+                <div class="text-3xl mb-2" aria-hidden="true">✏️</div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {{ t('landing.persona_editor_title') }}
+                </h3>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                    {{ t('landing.persona_editor_desc') }}
+                </p>
+                <span class="mt-4 inline-block text-sm font-medium text-blue-600 dark:text-blue-400">
+                    {{ t('landing.persona_cta') }} &rarr;
+                </span>
+            </a>
+        </div>
+    </section>
+
+    <!-- Provider comparison -->
+    <section class="mt-12">
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            {{ t('landing.providers_heading') }}
+        </h2>
+        <div class="overflow-x-auto bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-900/40 text-gray-700 dark:text-gray-200">
+                    <tr>
+                        <th class="px-4 py-2 text-left font-medium">{{ t('landing.col_provider') }}</th>
+                        <th class="px-4 py-2 text-left font-medium">{{ t('landing.col_strength') }}</th>
+                        <th class="px-4 py-2 text-left font-medium">{{ t('landing.col_cost') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                    <tr>
+                        <td class="px-4 py-2 font-medium">OpenAI Whisper</td>
+                        <td class="px-4 py-2">{{ t('landing.provider_whisper_strength') }}</td>
+                        <td class="px-4 py-2">$$</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-2 font-medium">Google Gemini</td>
+                        <td class="px-4 py-2">{{ t('landing.provider_gemini_strength') }}</td>
+                        <td class="px-4 py-2">$</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-2 font-medium">Ollama</td>
+                        <td class="px-4 py-2">{{ t('landing.provider_ollama_strength') }}</td>
+                        <td class="px-4 py-2">{{ t('landing.provider_ollama_cost') }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Get started in 2 minutes -->
+    <section class="mt-12 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            {{ t('landing.getstarted_heading') }}
+        </h2>
+        <ol class="space-y-2 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside">
+            <li>{{ t('landing.getstarted_step1') }}</li>
+            <li>{{ t('landing.getstarted_step2') }}</li>
+            <li>{{ t('landing.getstarted_step3') }}</li>
+        </ol>
+    </section>
+</div>
+{% endblock %}

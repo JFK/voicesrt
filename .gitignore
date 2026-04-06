@@ -15,6 +15,7 @@ data/assets/
 
 .env
 *.db
+.mcp.json
 
 .ruff_cache/
 .pytest_cache/

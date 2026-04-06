@@ -16,13 +16,26 @@ def _i18n_context(request: Request) -> dict:
     return {"t": get_translator(lang), "lang": lang}
 
 
-@router.get("/")
-async def upload_page(request: Request, session: AsyncSession = Depends(get_session)):
+async def _has_api_keys(session: AsyncSession) -> bool:
     from src.models import Setting
 
     result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
-    has_keys = result.first() is not None
-    if not has_keys:
+    return result.first() is not None
+
+
+@router.get("/")
+async def landing_page(request: Request, session: AsyncSession = Depends(get_session)):
+    if not await _has_api_keys(session):
+        return RedirectResponse("/setup")
+    # Preserve bookmarked job-restore links: /?job=xxx -> /upload?job=xxx
+    if request.query_params.get("job"):
+        return RedirectResponse(f"/upload?{request.query_params}")
+    return templates.TemplateResponse(request, "landing.html", {"active_page": "landing", **_i18n_context(request)})
+
+
+@router.get("/upload")
+async def upload_page(request: Request, session: AsyncSession = Depends(get_session)):
+    if not await _has_api_keys(session):
         return RedirectResponse("/setup")
     return templates.TemplateResponse(request, "upload.html", {"active_page": "upload", **_i18n_context(request)})
 

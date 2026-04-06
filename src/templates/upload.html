@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% block title %}{{ t('upload.title') }} - VoiceSRT{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="restoreFromUrl(); loadModels()"
+<div class="max-w-2xl mx-auto" x-data="uploadForm()" x-init="applyPersona(); restoreFromUrl(); loadModels()"
      data-i18n-starting="{{ t('upload.starting') }}"
      data-i18n-elapsed="{{ t('upload.elapsed') }}"
-     data-i18n-upload-failed="{{ t('upload.upload_failed') }}">
+     data-i18n-upload-failed="{{ t('upload.upload_failed') }}"
+     data-i18n-persona-youtuber="{{ t('upload.persona_hint_youtuber') }}"
+     data-i18n-persona-meeting="{{ t('upload.persona_hint_meeting') }}"
+     data-i18n-persona-editor="{{ t('upload.persona_hint_editor') }}">
     <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ t('upload.title') }}</h1>
+
+    <!-- Persona hint -->
+    <div x-show="personaHint" x-cloak
+         class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+        <span aria-hidden="true">✨</span>
+        <span x-text="personaHint"></span>
+    </div>
 
     <!-- Upload Form (hidden during processing) -->
     <form x-show="!jobId" @submit.prevent="submitForm" class="space-y-6 bg-white dark:bg-gray-800 shadow rounded-lg p-6">
@@ -192,7 +202,28 @@ function uploadForm() {
         jobId: null,
         completedJobId: null,
         dragover: false,
+        personaHint: '',
 
+        applyPersona() {
+            const params = new URLSearchParams(window.location.search);
+            const persona = params.get('persona');
+            if (!persona) return;
+            // Each persona pre-selects refine settings tuned for the use case.
+            // The Settings/post-processing model still applies as configured.
+            if (persona === 'youtuber') {
+                this.enableRefine = true;
+                this.refineMode = 'caption';
+                this.personaHint = this.$root.dataset.i18nPersonaYoutuber;
+            } else if (persona === 'meeting') {
+                this.enableRefine = true;
+                this.refineMode = 'verbatim';
+                this.personaHint = this.$root.dataset.i18nPersonaMeeting;
+            } else if (persona === 'editor') {
+                this.enableRefine = true;
+                this.refineMode = 'standard';
+                this.personaHint = this.$root.dataset.i18nPersonaEditor;
+            }
+        },
         async loadModels() {
             await ModelLoader.load();
             this.ppProviders.forEach(p => {
@@ -231,7 +262,7 @@ function uploadForm() {
             if (this._statusClient) { this._statusClient.destroy(); this._statusClient = null; }
             if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
             this.elapsed = 0;
-            history.replaceState(null, '', '/');
+            history.replaceState(null, '', '/upload');
         },
         async restoreFromUrl() {
             const params = new URLSearchParams(window.location.search);
@@ -290,7 +321,7 @@ function uploadForm() {
                 const data = await res.json();
                 this.jobId = data.id;
                 // Update URL so user can bookmark/refresh to check status
-                history.replaceState(null, '', '/?job=' + data.id);
+                history.replaceState(null, '', '/upload?job=' + data.id);
                 this.startPolling(data.id);
             } catch (e) {
                 showToast(this.$root.dataset.i18nUploadFailed + ' ' + e.message, 'error');
