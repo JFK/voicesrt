@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.constants import STATUS_COMPLETED, STATUS_FAILED, get_provider_name
+from src.constants import STATUS_COMPLETED, STATUS_FAILED, STATUS_GENERATING_METADATA, get_provider_name
 from src.database import async_session, get_session
 from src.errors import (
     AppError,
@@ -260,17 +260,24 @@ async def get_job_status(job_id: str, request: Request, session: AsyncSession = 
 
 
 @router.get("/{job_id}/stream")
-async def stream_job_status(job_id: str, session: AsyncSession = Depends(get_session)):
-    """SSE endpoint for real-time job status updates."""
-    job = await _get_job_or_404(session, job_id)
+async def stream_job_status(job_id: str):
+    """SSE endpoint for real-time job status updates.
 
-    initial: dict = {"status": job.status}
-    if job.status == STATUS_FAILED and job.error_message:
-        initial["detail"] = job.error_message
+    Uses a short-lived session for the initial DB lookup so the connection
+    pool is not held for the lifetime of the stream.
+    """
+    async with async_session() as session:
+        job = await _get_job_or_404(session, job_id)
+        initial_status = job.status
+        initial_detail = job.error_message if job.status == STATUS_FAILED else None
+
+    initial: dict = {"status": initial_status}
+    if initial_detail:
+        initial["detail"] = initial_detail
 
     async def event_generator():
         yield status_manager.format_sse(initial)
-        if job.status in (STATUS_COMPLETED, STATUS_FAILED):
+        if initial_status in (STATUS_COMPLETED, STATUS_FAILED):
             return
         async for data in status_manager.subscribe(job_id):
             yield status_manager.format_sse(data)
@@ -419,7 +426,7 @@ async def generate_meta(
     background_tasks.add_task(
         _generate_meta_job, job_id, custom_prompt, fixed_footer, tone_references, override_provider, override_model
     )
-    return {"status": "generating_metadata"}
+    return {"status": STATUS_GENERATING_METADATA}
 
 
 async def _get_tone_references(session: AsyncSession) -> str | None:
@@ -487,9 +494,9 @@ async def _generate_meta_job(
             return
 
         try:
-            job.status = "generating_metadata"
+            job.status = STATUS_GENERATING_METADATA
             await session.commit()
-            await status_manager.publish(job_id, "generating_metadata")
+            await status_manager.publish(job_id, STATUS_GENERATING_METADATA)
 
             provider = _normalize_provider(override_provider) or job.provider
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
@@ -809,4 +816,5 @@ async def delete_job(job_id: str, session: AsyncSession = Depends(get_session)):
         for f in d.glob(f"{job.id}.*"):
             f.unlink(missing_ok=True)
 
+    status_manager.forget_terminal(job_id)
     return {"deleted": True}

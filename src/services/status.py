@@ -3,11 +3,16 @@
 import asyncio
 import json
 import logging
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
 from src.constants import TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
+
+# Cap on the cached terminal events. A long-running server may process tens of
+# thousands of jobs over its lifetime; this is a TOCTOU safety net for
+# subscribers that arrive within seconds of the publish, not a job archive.
+_TERMINAL_CACHE_SIZE = 256
 
 
 class JobStatusManager:
@@ -15,9 +20,7 @@ class JobStatusManager:
 
     def __init__(self) -> None:
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
-        # Last terminal event per job, retained briefly so late subscribers can
-        # observe completion (closes the publish-then-subscribe TOCTOU window).
-        self._last_terminal: dict[str, dict] = {}
+        self._last_terminal: OrderedDict[str, dict] = OrderedDict()
 
     async def publish(self, job_id: str, status: str, detail: str | None = None) -> None:
         """Broadcast a status event to all subscribers of a job."""
@@ -31,6 +34,9 @@ class JobStatusManager:
                 logger.debug("Dropping status event for slow subscriber on job %s", job_id)
         if status in TERMINAL_STATUSES:
             self._last_terminal[job_id] = data
+            self._last_terminal.move_to_end(job_id)
+            while len(self._last_terminal) > _TERMINAL_CACHE_SIZE:
+                self._last_terminal.popitem(last=False)
             self._subscribers.pop(job_id, None)
 
     async def subscribe(self, job_id: str):

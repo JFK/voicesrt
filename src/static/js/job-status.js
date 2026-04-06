@@ -29,6 +29,11 @@ window.JobStatusClient = function (jobId, options) {
     function handleData(data) {
         if (self._destroyed) return;
         self._retryCount = 0;
+        // Normalize: the polling endpoint returns `error_message` while SSE
+        // events use `detail`. Callers should always read `data.detail`.
+        if (data && data.error_message && !data.detail) {
+            data.detail = data.error_message;
+        }
         self._onStatus(data);
         if (data.status === 'completed' || data.status === 'failed') {
             self._onComplete(data);
