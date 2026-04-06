@@ -179,7 +179,6 @@ function uploadForm() {
         ],
         ppModels: [],
         selectedModel: '',
-        _modelData: null,  // populated by ModelLoader
         language: '',
         enableRefine: true,
         enableVerify: false,
@@ -195,7 +194,7 @@ function uploadForm() {
         dragover: false,
 
         async loadModels() {
-            this._modelData = await ModelLoader.load();
+            await ModelLoader.load();
             this.ppProviders.forEach(p => {
                 p.available = ModelLoader.hasKey(p.id);
             });
@@ -204,7 +203,6 @@ function uploadForm() {
             this.onPpProviderChange();
         },
         onPpProviderChange() {
-            if (!this._modelData) return;
             this.ppModels = ModelLoader.getModels(this.ppProvider);
             this.selectedModel = ModelLoader.getConfigured(this.ppProvider) || this.ppModels[0] || '';
         },
