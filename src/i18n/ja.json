@@ -279,7 +279,8 @@
     "shortcut_nudge_back": "時間を戻す",
     "shortcut_nudge_forward": "時間を進める",
     "shortcut_tab_nav": "次 / 前のセグメント",
-    "shortcut_help": "ショートカット表示"
+    "shortcut_help": "ショートカット表示",
+    "playback_speed": "再生速度"
   },
   "status": {
     "pending": "\u5f85\u6a5f\u4e2d",

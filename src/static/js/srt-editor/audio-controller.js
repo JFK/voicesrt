@@ -1,7 +1,29 @@
 /** Audio playback methods — uses Alpine `this` for $refs.audio and state. */
 
+var PLAYBACK_RATE_KEY = 'voicesrt.playbackRate';
+export var PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+function loadStoredRate() {
+    var raw = parseFloat(localStorage.getItem(PLAYBACK_RATE_KEY));
+    return PLAYBACK_RATES.indexOf(raw) >= 0 ? raw : 1;
+}
+
 export function createAudioController() {
     return {
+        playbackRate: loadStoredRate(),
+        playbackRates: PLAYBACK_RATES,
+
+        applyPlaybackRate() {
+            var audio = this.$refs.audio;
+            if (audio) audio.playbackRate = this.playbackRate;
+        },
+
+        setPlaybackRate(rate) {
+            this.playbackRate = rate;
+            localStorage.setItem(PLAYBACK_RATE_KEY, String(rate));
+            this.applyPlaybackRate();
+        },
+
         togglePlay() {
             var audio = this.$refs.audio;
             if (!audio) return;
@@ -11,15 +33,6 @@ export function createAudioController() {
                 audio.pause();
                 if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
             }
-        },
-
-        seekAudio(event) {
-            var audio = this.$refs.audio;
-            if (!audio || !audio.duration) return;
-            var rect = event.currentTarget.getBoundingClientRect();
-            var ratio = (event.clientX - rect.left) / rect.width;
-            audio.currentTime = ratio * audio.duration;
-            if (audio.paused) audio.play();
         },
 
         onTimeUpdate() {
@@ -52,7 +65,12 @@ export function createAudioController() {
             if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
             audio.currentTime = start;
             audio.play();
-            var duration = (end - start) * 1000;
+            // Wall-clock duration scales inversely with playbackRate so 2x
+            // finishes the segment in half the time. We snapshot the rate at
+            // play start; if the user changes rate mid-segment the timer will
+            // be slightly off, which is acceptable for a quick preview.
+            var rate = audio.playbackRate || 1;
+            var duration = ((end - start) * 1000) / rate;
             var self = this;
             this._stopTimer = setTimeout(function () {
                 audio.pause();
