@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-07
+
+**Visual & Discovery** — surface what the app does at a glance and make audio structure visible.
+
+### Added
+- **Landing page with persona-based use cases**: `/` now shows a hero, three persona cards (YouTubers, Meetings/Interviews, Subtitle Editors), a provider comparison table, and a "get started in 2 minutes" guide. Each persona deep-links to `/upload?persona=...` which pre-selects refine settings tuned for the use case (caption / verbatim / standard) and shows a hint banner. The upload form moved to `/upload`; bookmarked `/?job=xxx` URLs still work via a 307 redirect (#18)
+- **Waveform visualization in the SRT editor**: Replace the thin progress bar with a wavesurfer.js v7 waveform that surfaces audio structure (silence vs speech, loudness peaks) at a glance. Each segment is overlaid as a clickable region tinted by its assigned speaker so the speaker palette in the dot/badge UI matches the waveform. Click-to-seek, dark mode color sync via `MutationObserver`, and full responsiveness (#20)
+- **Playback speed control**: 0.5x–2x speed selector next to the play button in the SRT editor, persisted to `localStorage` under `voicesrt.playbackRate`. `playSegment` scales its stop timer by `playbackRate` so previewing a segment at 2x stops at the segment end instead of overshooting
+- **Dark mode**: Class-based Tailwind dark mode toggle in the nav, persisted to `localStorage` and synced to `prefers-color-scheme` on first load. Pre-paint script avoids the flash of light content. Every template has explicit `dark:` variants for backgrounds, borders, text, and form controls (#22)
+- **2-minute mp3 test fixture** at `tests/fixtures/test.mp3` for end-to-end transcription smoke tests against live providers
+- **Playwright UI verification step** in `/self-review`: when `src/templates/`, `src/static/`, or `src/i18n/` change, the workflow now walks through launching a dev uvicorn on a non-conflicting port and using the Playwright MCP browser tools to verify rendering, Alpine state, and console errors
+
+### Changed
+- **Speaker palette unified**: `SPEAKER_COLORS` in `speaker-manager.js` now carries a `tint` field (RGBA) used for waveform regions, eliminating drift between badges, dots, borders, and waveform tints
+- **Nav Upload link**: now points to `/upload` (logo still links home to the new landing page)
+
+### Fixed
+- **`speakerMap` reindexing on structural edits**: Pre-existing bug where `deleteSegment`, `addSegmentAfter`, and `mergeSelected` left `speakerMap` keyed to the old segment indices, silently miscoloring segment row borders. Exposed by waveform regions and fixed via a new `_remapSpeakers(remap)` helper on the speaker manager
+- **Meta editor null `audio_duration` guard**: Prevents the cost panel from crashing on jobs that finished before duration tracking was added (#45)
+- **Bookmarked `/?job=xxx` upload links**: 307-redirect to `/upload?job=xxx` so old bookmarks keep working after the landing-page move
+- **Address bar / page mismatch in upload**: `history.replaceState` writes `/upload` and `/upload?job=...` instead of `/` and `/?job=...`, so the URL matches the served page and a refresh no longer hits the legacy redirect
+- **`.mcp.json` gitignored**: prevents accidental commit of MCP bearer tokens
+
 ## [0.5.0] - 2026-04-06
 
 ### Added
