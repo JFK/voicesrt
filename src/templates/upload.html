@@ -179,7 +179,6 @@ function uploadForm() {
         ],
         ppModels: [],
         selectedModel: '',
-        _modelData: null,
         language: '',
         enableRefine: true,
         enableVerify: false,
@@ -195,23 +194,17 @@ function uploadForm() {
         dragover: false,
 
         async loadModels() {
-            try {
-                const res = await fetch('/api/settings/available-models');
-                this._modelData = await res.json();
-                // Update provider availability
-                this.ppProviders.forEach(p => {
-                    p.available = this._modelData.has_key[p.id] || false;
-                });
-                // Pick first available provider
-                const first = this.ppProviders.find(p => p.available);
-                if (first) this.ppProvider = first.id;
-                this.onPpProviderChange();
-            } catch (e) { console.error(e); }
+            await ModelLoader.load();
+            this.ppProviders.forEach(p => {
+                p.available = ModelLoader.hasKey(p.id);
+            });
+            const first = this.ppProviders.find(p => p.available);
+            if (first) this.ppProvider = first.id;
+            this.onPpProviderChange();
         },
         onPpProviderChange() {
-            if (!this._modelData) return;
-            this.ppModels = this._modelData.available[this.ppProvider] || [];
-            this.selectedModel = this._modelData.configured[this.ppProvider] || this.ppModels[0] || '';
+            this.ppModels = ModelLoader.getModels(this.ppProvider);
+            this.selectedModel = ModelLoader.getConfigured(this.ppProvider) || this.ppModels[0] || '';
         },
         handleFile(e) {
             this.file = e.target.files[0];

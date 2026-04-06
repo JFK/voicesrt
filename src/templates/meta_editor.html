@@ -235,30 +235,23 @@ Return a JSON object:
         result: { title: '', titles: [], description: '', tags: [] },
         toast: '',
         availableProviders: ['openai', 'gemini', 'ollama'],
-        availableModels: {},
         hasKey: {},
-        configuredModels: {},
         selectedProvider: '',
         selectedModel: '',
         currentModels: [],
 
         async loadModels() {
-            try {
-                const res = await fetch('/api/settings/available-models');
-                const data = await res.json();
-                this.availableModels = data.available;
-                this.configuredModels = data.configured;
-                this.hasKey = data.has_key;
-                for (const p of this.availableProviders) {
-                    if (this.hasKey[p]) { this.selectedProvider = p; break; }
-                }
-                this.onProviderChange();
-            } catch (e) { console.error(e); }
+            const data = await ModelLoader.load();
+            this.hasKey = data.has_key;
+            for (const p of this.availableProviders) {
+                if (ModelLoader.hasKey(p)) { this.selectedProvider = p; break; }
+            }
+            this.onProviderChange();
         },
 
         onProviderChange() {
-            this.currentModels = this.availableModels[this.selectedProvider] || [];
-            this.selectedModel = this.configuredModels[this.selectedProvider] || this.currentModels[0] || '';
+            this.currentModels = ModelLoader.getModels(this.selectedProvider);
+            this.selectedModel = ModelLoader.getConfigured(this.selectedProvider) || this.currentModels[0] || '';
         },
 
         async loadSavedContext() {

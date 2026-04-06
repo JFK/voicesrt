@@ -189,24 +189,15 @@ async function showMetaModal(jobId) {
         </div>` : ''}`;
 }
 
-// Model data cache (loaded once)
-let _modelData = null;
-async function loadModelData() {
-    if (_modelData) return _modelData;
-    const res = await fetch('/api/settings/available-models');
-    _modelData = await res.json();
-    return _modelData;
-}
-
 function setupModelSelector(providerSelectId, modelSelectId, onReady) {
-    loadModelData().then(data => {
+    ModelLoader.load().then(function () {
         const providerEl = document.getElementById(providerSelectId);
         const modelEl = document.getElementById(modelSelectId);
         providerEl.innerHTML = '';
         const providers = ['openai', 'gemini', 'ollama'];
         let defaultProvider = '';
-        providers.forEach(p => {
-            if (!data.has_key[p]) return;
+        providers.forEach(function (p) {
+            if (!ModelLoader.hasKey(p)) return;
             const opt = document.createElement('option');
             opt.value = p; opt.textContent = p;
             providerEl.appendChild(opt);
@@ -216,14 +207,14 @@ function setupModelSelector(providerSelectId, modelSelectId, onReady) {
 
         function updateModels() {
             const p = providerEl.value;
-            const models = data.available[p] || [];
+            const models = ModelLoader.getModels(p);
             modelEl.innerHTML = '';
-            models.forEach(m => {
+            models.forEach(function (m) {
                 const opt = document.createElement('option');
                 opt.value = m; opt.textContent = m;
                 modelEl.appendChild(opt);
             });
-            modelEl.value = data.configured[p] || models[0] || '';
+            modelEl.value = ModelLoader.getConfigured(p) || models[0] || '';
         }
         providerEl.addEventListener('change', updateModels);
         updateModels();
