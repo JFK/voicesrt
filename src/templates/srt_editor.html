@@ -24,19 +24,20 @@ var i18n = {
     mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
 };
 var shortcutI18n = {
-    navUp: '{{ t("srt_editor.shortcut_nav_up") }}',
-    navDown: '{{ t("srt_editor.shortcut_nav_down") }}',
-    expand: '{{ t("srt_editor.shortcut_expand") }}',
-    collapse: '{{ t("srt_editor.shortcut_collapse") }}',
-    playSegment: '{{ t("srt_editor.shortcut_play_segment") }}',
-    playGlobal: '{{ t("srt_editor.shortcut_play_global") }}',
-    save: '{{ t("srt_editor.shortcut_save") }}',
-    merge: '{{ t("srt_editor.shortcut_merge") }}',
-    deleteKey: '{{ t("srt_editor.shortcut_delete") }}',
-    suggest: '{{ t("srt_editor.shortcut_suggest") }}',
-    nudgeBack: '{{ t("srt_editor.shortcut_nudge_back") }}',
-    nudgeForward: '{{ t("srt_editor.shortcut_nudge_forward") }}',
-    help: '{{ t("srt_editor.shortcut_help") }}',
+    navUp: {{ t("srt_editor.shortcut_nav_up")|tojson }},
+    navDown: {{ t("srt_editor.shortcut_nav_down")|tojson }},
+    expand: {{ t("srt_editor.shortcut_expand")|tojson }},
+    collapse: {{ t("srt_editor.shortcut_collapse")|tojson }},
+    playSegment: {{ t("srt_editor.shortcut_play_segment")|tojson }},
+    playGlobal: {{ t("srt_editor.shortcut_play_global")|tojson }},
+    save: {{ t("srt_editor.shortcut_save")|tojson }},
+    merge: {{ t("srt_editor.shortcut_merge")|tojson }},
+    deleteKey: {{ t("srt_editor.shortcut_delete")|tojson }},
+    suggest: {{ t("srt_editor.shortcut_suggest")|tojson }},
+    nudgeBack: {{ t("srt_editor.shortcut_nudge_back")|tojson }},
+    nudgeForward: {{ t("srt_editor.shortcut_nudge_forward")|tojson }},
+    tabNav: {{ t("srt_editor.shortcut_tab_nav")|tojson }},
+    help: {{ t("srt_editor.shortcut_help")|tojson }},
 };
 
 window.srtEditor = function () {
@@ -349,11 +350,14 @@ window.srtEditor = function () {
 
     <!-- Keyboard shortcuts help modal -->
     <div x-show="_helpVisible" x-transition @click.self="_helpVisible = false" @keydown.escape.window="_helpVisible = false"
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" x-cloak>
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+         role="dialog" aria-modal="true" aria-labelledby="srt-shortcuts-title" x-cloak>
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6" @click.stop>
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900">{{ t('srt_editor.shortcuts_title') }}</h3>
-                <button @click="_helpVisible = false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+                <h3 id="srt-shortcuts-title" class="text-lg font-semibold text-gray-900">{{ t('srt_editor.shortcuts_title') }}</h3>
+                <button @click="_helpVisible = false"
+                        class="text-gray-400 hover:text-gray-600 text-xl"
+                        aria-label="{{ t('srt_editor.cancel') }}">&times;</button>
             </div>
             <div class="space-y-1.5">
                 <template x-for="s in getShortcutList()" :key="s.keys">
@@ -370,6 +374,7 @@ window.srtEditor = function () {
     <div class="fixed bottom-6 right-6 z-40" x-show="!_helpVisible">
         <button @click="_helpVisible = true"
                 class="w-8 h-8 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-full shadow text-sm font-bold"
+                aria-label="{{ t('srt_editor.shortcuts_title') }}"
                 title="{{ t('srt_editor.shortcuts_title') }}">?</button>
     </div>
 </div>
