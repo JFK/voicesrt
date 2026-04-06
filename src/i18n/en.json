@@ -279,7 +279,8 @@
     "shortcut_nudge_back": "Nudge time back",
     "shortcut_nudge_forward": "Nudge time forward",
     "shortcut_tab_nav": "Next / previous segment",
-    "shortcut_help": "Show shortcuts"
+    "shortcut_help": "Show shortcuts",
+    "playback_speed": "Playback speed"
   },
   "status": {
     "pending": "Pending",
