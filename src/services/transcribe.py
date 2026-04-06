@@ -14,6 +14,12 @@ from src.constants import (
     KEY_MODEL_OLLAMA,
     KEY_MODEL_OPENAI,
     KEY_OLLAMA_BASE_URL,
+    STATUS_COMPLETED,
+    STATUS_EXTRACTING,
+    STATUS_GENERATING_METADATA,
+    STATUS_REFINING,
+    STATUS_TRANSCRIBING,
+    STATUS_VERIFYING,
     get_provider_name,
 )
 from src.errors import actionable_error
@@ -22,6 +28,7 @@ from src.services.audio import extract_audio, extract_audio_mp3, get_audio_durat
 from src.services.cost import estimate_gemini_cost, estimate_llm_cost, estimate_whisper_cost, log_cost
 from src.services.crypto import decrypt
 from src.services.srt import generate_srt, save_srt
+from src.services.status import status_manager
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +86,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
     try:
         # Step 1: Extract audio
-        job.status = "extracting"
+        job.status = STATUS_EXTRACTING
         await session.commit()
+        await status_manager.publish(job.id, STATUS_EXTRACTING)
 
         if transcription_provider == "whisper":
             audio_path = settings.audio_dir / f"{job.id}.wav"
@@ -100,8 +108,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         combined_glossary = "\n".join(filter(None, [global_glossary.strip(), job_glossary.strip()]))
 
         # Step 2: Transcribe
-        job.status = "transcribing"
+        job.status = STATUS_TRANSCRIBING
         await session.commit()
+        await status_manager.publish(job.id, STATUS_TRANSCRIBING)
 
         segments = await _run_transcription(
             job, session, audio_path, api_key, duration, combined_glossary, transcription_provider
@@ -112,8 +121,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         # Step 3: LLM post-processing (refine) if enabled
         if job.enable_refine:
-            job.status = "refining"
+            job.status = STATUS_REFINING
             await session.commit()
+            await status_manager.publish(job.id, STATUS_REFINING)
             try:
                 segments = await _run_refinement(job, session, segments, pp_api_key, combined_glossary)
             except Exception as e:
@@ -124,8 +134,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         # Step 3.5: Verify (full-text consistency check) if enabled
         if job.enable_verify:
-            job.status = "verifying"
+            job.status = STATUS_VERIFYING
             await session.commit()
+            await status_manager.publish(job.id, STATUS_VERIFYING)
             try:
                 segments, changed_indices, reasons = await _run_verification(
                     job,
@@ -150,8 +161,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         # Step 5: Generate metadata if enabled (non-fatal)
         if job.enable_metadata:
-            job.status = "generating_metadata"
+            job.status = STATUS_GENERATING_METADATA
             await session.commit()
+            await status_manager.publish(job.id, STATUS_GENERATING_METADATA)
             try:
                 await _run_metadata_generation(job, session, srt_content, pp_api_key)
             except Exception as e:
@@ -163,9 +175,10 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                 )
 
         # Done
-        job.status = "completed"
+        job.status = STATUS_COMPLETED
         job.completed_at = datetime.now(UTC)
         await session.commit()
+        await status_manager.publish(job.id, STATUS_COMPLETED)
 
     finally:
         # Cleanup temporary files regardless of success/failure

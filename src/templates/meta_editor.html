@@ -324,29 +324,32 @@ Return a JSON object:
                         model: this.selectedModel
                     })
                 });
-                const poll = setInterval(async () => {
-                    const r = await fetch(`/api/jobs/${this.jobId}`);
-                    const job = await r.json();
-                    if (job.youtube_title) {
-                        clearInterval(poll);
-                        const rawTitle = job.youtube_title;
-                        if (rawTitle.includes('\n') || rawTitle.includes('\r')) {
-                            this.result.titles = rawTitle.split(/\r?\n/).map(t => t.trim()).filter(t => t);
-                            this.result.title = this.result.titles[0] || '';
+                const self = this;
+                new JobStatusClient(this.jobId, {
+                    onComplete(data) {
+                        if (data.status === 'completed') {
+                            fetch('/api/jobs/' + self.jobId)
+                                .then(function (r) { return r.json(); })
+                                .then(function (job) {
+                                    const rawTitle = job.youtube_title || '';
+                                    if (rawTitle.includes('\n') || rawTitle.includes('\r')) {
+                                        self.result.titles = rawTitle.split(/\r?\n/).map(function (t) { return t.trim(); }).filter(function (t) { return t; });
+                                        self.result.title = self.result.titles[0] || '';
+                                    } else {
+                                        self.result.title = rawTitle.trim();
+                                        self.result.titles = [];
+                                    }
+                                    self.result.description = job.youtube_description;
+                                    try { self.result.tags = JSON.parse(job.youtube_tags || '[]'); } catch(e) { self.result.tags = []; }
+                                    self.step = 'result';
+                                    self.generating = false;
+                                });
                         } else {
-                            this.result.title = rawTitle.trim();
-                            this.result.titles = [];
+                            showToast('{{ t("meta.generation_failed") }}' + (data.detail || 'Unknown error'));
+                            self.generating = false;
                         }
-                        this.result.description = job.youtube_description;
-                        try { this.result.tags = JSON.parse(job.youtube_tags || '[]'); } catch(e) { this.result.tags = []; }
-                        this.step = 'result';
-                        this.generating = false;
-                    } else if (job.status === 'failed') {
-                        clearInterval(poll);
-                        showToast('{{ t("meta.generation_failed") }}' + (job.error_message || 'Unknown error'));
-                        this.generating = false;
-                    }
-                }, 2000);
+                    },
+                });
             } catch (e) {
                 showToast('{{ t("meta.generation_failed") }}' + e.message);
                 this.generating = false;

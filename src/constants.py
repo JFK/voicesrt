@@ -14,9 +14,11 @@ STATUS_PENDING = "pending"
 STATUS_EXTRACTING = "extracting"
 STATUS_TRANSCRIBING = "transcribing"
 STATUS_REFINING = "refining"
+STATUS_VERIFYING = "verifying"
 STATUS_GENERATING_METADATA = "generating_metadata"
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
+TERMINAL_STATUSES = (STATUS_COMPLETED, STATUS_FAILED)
 
 
 def get_provider_name(job_provider: str) -> str:

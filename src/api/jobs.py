@@ -5,12 +5,12 @@ from pathlib import Path
 
 import aiofiles
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.constants import STATUS_COMPLETED, STATUS_FAILED, get_provider_name
+from src.constants import STATUS_COMPLETED, STATUS_FAILED, STATUS_GENERATING_METADATA, get_provider_name
 from src.database import async_session, get_session
 from src.errors import (
     AppError,
@@ -36,6 +36,7 @@ from src.errors import (
     upload_failed,
 )
 from src.models import Job
+from src.services.status import status_manager
 from src.templating import templates
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,7 @@ async def _process_job(job_id: str) -> None:
             job.status = STATUS_FAILED
             job.error_message = classify_error(e)[:500]
             await session.commit()
+            await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
 
 VALID_REFINE_MODES = {"verbatim", "standard", "caption"}
@@ -255,6 +257,36 @@ async def get_job_status(job_id: str, request: Request, session: AsyncSession = 
         return templates.TemplateResponse(request, "partials/job_status.html", {"job": job, "t": t})
 
     return {"status": job.status, "error_message": job.error_message}
+
+
+@router.get("/{job_id}/stream")
+async def stream_job_status(job_id: str):
+    """SSE endpoint for real-time job status updates.
+
+    Uses a short-lived session for the initial DB lookup so the connection
+    pool is not held for the lifetime of the stream.
+    """
+    async with async_session() as session:
+        job = await _get_job_or_404(session, job_id)
+        initial_status = job.status
+        initial_detail = job.error_message if job.status == STATUS_FAILED else None
+
+    initial: dict = {"status": initial_status}
+    if initial_detail:
+        initial["detail"] = initial_detail
+
+    async def event_generator():
+        yield status_manager.format_sse(initial)
+        if initial_status in (STATUS_COMPLETED, STATUS_FAILED):
+            return
+        async for data in status_manager.subscribe(job_id):
+            yield status_manager.format_sse(data)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/{job_id}/download")
@@ -394,7 +426,7 @@ async def generate_meta(
     background_tasks.add_task(
         _generate_meta_job, job_id, custom_prompt, fixed_footer, tone_references, override_provider, override_model
     )
-    return {"status": "generating_metadata"}
+    return {"status": STATUS_GENERATING_METADATA}
 
 
 async def _get_tone_references(session: AsyncSession) -> str | None:
@@ -462,8 +494,9 @@ async def _generate_meta_job(
             return
 
         try:
-            job.status = "generating_metadata"
+            job.status = STATUS_GENERATING_METADATA
             await session.commit()
+            await status_manager.publish(job_id, STATUS_GENERATING_METADATA)
 
             provider = _normalize_provider(override_provider) or job.provider
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
@@ -478,12 +511,14 @@ async def _generate_meta_job(
 
             job.status = STATUS_COMPLETED
             await session.commit()
+            await status_manager.publish(job_id, STATUS_COMPLETED)
             logger.info("Metadata generated for job %s", job_id)
         except Exception as e:
             logger.exception("Metadata generation failed for job %s", job_id)
             job.status = STATUS_FAILED
             job.error_message = f"Metadata generation failed: {str(e)[:400]}"
             await session.commit()
+            await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
 
 @router.post("/{job_id}/generate-catchphrase")
@@ -781,4 +816,5 @@ async def delete_job(job_id: str, session: AsyncSession = Depends(get_session)):
         for f in d.glob(f"{job.id}.*"):
             f.unlink(missing_ok=True)
 
+    status_manager.forget_terminal(job_id)
     return {"deleted": True}
