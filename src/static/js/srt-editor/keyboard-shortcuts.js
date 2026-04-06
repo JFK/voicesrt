@@ -22,6 +22,7 @@ export function createKeyboardShortcuts(i18n) {
         getShortcutList() {
             return [
                 { keys: '\u2191 / \u2193', desc: i18n.navUp + ' / ' + i18n.navDown },
+                { keys: 'Tab / Shift+Tab', desc: i18n.tabNav },
                 { keys: 'Enter', desc: i18n.expand },
                 { keys: 'Escape', desc: i18n.collapse },
                 { keys: 'Space', desc: i18n.playSegment },
@@ -35,13 +36,33 @@ export function createKeyboardShortcuts(i18n) {
             ];
         },
 
+        _isEditableTarget(target) {
+            if (!target) return false;
+            if (target.isContentEditable) return true;
+            // Tag-based check covers form fields and interactive controls
+            // that natively respond to Space/Enter (buttons, links, selects).
+            switch (target.tagName) {
+                case 'TEXTAREA':
+                case 'INPUT':
+                case 'SELECT':
+                case 'BUTTON':
+                case 'A':
+                    return true;
+                default:
+                    return false;
+            }
+        },
+
         _handleKeydown(e) {
-            var inInput = (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT');
+            var inInput = this._isEditableTarget(e.target);
             var ctrl = e.ctrlKey || e.metaKey;
+            // Normalize letter keys: e.key is 'S' when Caps Lock is on or
+            // Shift is held, so we lowercase before matching.
+            var key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
 
             // Ctrl combos — always active
             if (ctrl) {
-                switch (e.key) {
+                switch (key) {
                     case 's':
                         e.preventDefault();
                         this.saveSegments();
@@ -66,7 +87,7 @@ export function createKeyboardShortcuts(i18n) {
             }
 
             // Escape — always active
-            if (e.key === 'Escape') {
+            if (key === 'Escape') {
                 e.preventDefault();
                 this._helpVisible = false;
                 this.activeSegmentIdx = null;
@@ -75,10 +96,22 @@ export function createKeyboardShortcuts(i18n) {
                 return;
             }
 
-            // Skip remaining shortcuts when in text fields
+            // When the help modal is open, only Escape and ? are handled
+            // (Escape is above; ? toggles the modal). Block all other keys
+            // so they don't mutate editor state behind the modal.
+            if (this._helpVisible) {
+                if (key === '?') {
+                    e.preventDefault();
+                    this._helpVisible = false;
+                }
+                return;
+            }
+
+            // Skip remaining shortcuts when focus is on an editable/interactive
+            // element so we don't hijack native keyboard behavior.
             if (inInput) return;
 
-            switch (e.key) {
+            switch (key) {
                 case 'ArrowUp':
                     e.preventDefault();
                     this._navigateSegment(-1);
@@ -117,6 +150,7 @@ export function createKeyboardShortcuts(i18n) {
                     }
                     return;
                 case '?':
+                    e.preventDefault();
                     this._helpVisible = !this._helpVisible;
                     return;
             }
