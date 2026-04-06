@@ -5,7 +5,7 @@ from pathlib import Path
 
 import aiofiles
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,6 +122,9 @@ async def _process_job(job_id: str) -> None:
             job.status = STATUS_FAILED
             job.error_message = classify_error(e)[:500]
             await session.commit()
+            from src.services.status import status_manager
+
+            await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
 
 VALID_REFINE_MODES = {"verbatim", "standard", "caption"}
@@ -255,6 +258,37 @@ async def get_job_status(job_id: str, request: Request, session: AsyncSession = 
         return templates.TemplateResponse(request, "partials/job_status.html", {"job": job, "t": t})
 
     return {"status": job.status, "error_message": job.error_message}
+
+
+@router.get("/{job_id}/stream")
+async def stream_job_status(job_id: str, session: AsyncSession = Depends(get_session)):
+    """SSE endpoint for real-time job status updates."""
+    from src.services.status import status_manager
+
+    job = await _get_job_or_404(session, job_id)
+
+    # If job already finished, send terminal event immediately
+    if job.status in (STATUS_COMPLETED, STATUS_FAILED):
+        data = {"status": job.status}
+        if job.error_message:
+            data["detail"] = job.error_message
+
+        async def done_event():
+            yield status_manager.format_sse(data)
+
+        return StreamingResponse(done_event(), media_type="text/event-stream")
+
+    # Send current status first, then stream updates
+    async def event_generator():
+        yield status_manager.format_sse({"status": job.status})
+        async for data in status_manager.subscribe(job_id):
+            yield status_manager.format_sse(data)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/{job_id}/download")
@@ -453,6 +487,7 @@ async def _generate_meta_job(
     override_model: str | None = None,
 ) -> None:
     """Background task: generate YouTube metadata from existing SRT."""
+    from src.services.status import status_manager
     from src.services.transcribe import _get_credential, _get_model, _run_metadata_generation
 
     async with async_session() as session:
@@ -464,6 +499,7 @@ async def _generate_meta_job(
         try:
             job.status = "generating_metadata"
             await session.commit()
+            await status_manager.publish(job_id, "generating_metadata")
 
             provider = _normalize_provider(override_provider) or job.provider
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
@@ -478,12 +514,14 @@ async def _generate_meta_job(
 
             job.status = STATUS_COMPLETED
             await session.commit()
+            await status_manager.publish(job_id, STATUS_COMPLETED)
             logger.info("Metadata generated for job %s", job_id)
         except Exception as e:
             logger.exception("Metadata generation failed for job %s", job_id)
             job.status = STATUS_FAILED
             job.error_message = f"Metadata generation failed: {str(e)[:400]}"
             await session.commit()
+            await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
 
 @router.post("/{job_id}/generate-catchphrase")

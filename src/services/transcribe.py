@@ -22,6 +22,7 @@ from src.services.audio import extract_audio, extract_audio_mp3, get_audio_durat
 from src.services.cost import estimate_gemini_cost, estimate_llm_cost, estimate_whisper_cost, log_cost
 from src.services.crypto import decrypt
 from src.services.srt import generate_srt, save_srt
+from src.services.status import status_manager
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         # Step 1: Extract audio
         job.status = "extracting"
         await session.commit()
+        await status_manager.publish(job.id, "extracting")
 
         if transcription_provider == "whisper":
             audio_path = settings.audio_dir / f"{job.id}.wav"
@@ -102,6 +104,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         # Step 2: Transcribe
         job.status = "transcribing"
         await session.commit()
+        await status_manager.publish(job.id, "transcribing")
 
         segments = await _run_transcription(
             job, session, audio_path, api_key, duration, combined_glossary, transcription_provider
@@ -114,6 +117,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         if job.enable_refine:
             job.status = "refining"
             await session.commit()
+            await status_manager.publish(job.id, "refining")
             try:
                 segments = await _run_refinement(job, session, segments, pp_api_key, combined_glossary)
             except Exception as e:
@@ -126,6 +130,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         if job.enable_verify:
             job.status = "verifying"
             await session.commit()
+            await status_manager.publish(job.id, "verifying")
             try:
                 segments, changed_indices, reasons = await _run_verification(
                     job,
@@ -152,6 +157,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         if job.enable_metadata:
             job.status = "generating_metadata"
             await session.commit()
+            await status_manager.publish(job.id, "generating_metadata")
             try:
                 await _run_metadata_generation(job, session, srt_content, pp_api_key)
             except Exception as e:
@@ -166,6 +172,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         job.status = "completed"
         job.completed_at = datetime.now(UTC)
         await session.commit()
+        await status_manager.publish(job.id, "completed")
 
     finally:
         # Cleanup temporary files regardless of success/failure

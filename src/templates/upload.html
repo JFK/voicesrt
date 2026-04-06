@@ -185,7 +185,7 @@ function uploadForm() {
         refineMode: 'standard',
         glossary: '',
         statusHtml: '',
-        pollTimer: null,
+        _statusClient: null,
         elapsedTimer: null,
         elapsed: 0,
         uploading: false,
@@ -228,7 +228,7 @@ function uploadForm() {
             this.jobId = null;
             this.completedJobId = null;
             this.statusHtml = '';
-            if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+            if (this._statusClient) { this._statusClient.destroy(); this._statusClient = null; }
             if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
             this.elapsed = 0;
             history.replaceState(null, '', '/');
@@ -300,26 +300,24 @@ function uploadForm() {
         },
 
         startPolling(jobId) {
-            if (this.pollTimer) clearInterval(this.pollTimer);
+            if (this._statusClient) this._statusClient.destroy();
             if (this.elapsedTimer) clearInterval(this.elapsedTimer);
             this.elapsed = 0;
             this.elapsedTimer = setInterval(() => this.elapsed++, 1000);
-            this.pollTimer = setInterval(async () => {
-                try {
-                    const res = await fetch(`/api/jobs/${jobId}/status`, {
+            const self = this;
+            this._statusClient = new JobStatusClient(jobId, {
+                onStatus(data) {
+                    // Fetch rendered HTML partial for display
+                    fetch('/api/jobs/' + jobId + '/status', {
                         headers: { 'HX-Request': 'true' }
-                    });
-                    this.statusHtml = await res.text();
-                    if (this.statusHtml.includes('completed') || this.statusHtml.includes('failed')) {
-                        clearInterval(this.pollTimer);
-                        this.pollTimer = null;
-                        if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
-                        this.completedJobId = this.jobId;
-                    }
-                } catch (e) {
-                    console.error('Polling error:', e);
-                }
-            }, 2000);
+                    }).then(function (res) { return res.text(); })
+                      .then(function (html) { self.statusHtml = html; });
+                },
+                onComplete() {
+                    if (self.elapsedTimer) { clearInterval(self.elapsedTimer); self.elapsedTimer = null; }
+                    self.completedJobId = self.jobId;
+                },
+            });
         }
     };
 }
