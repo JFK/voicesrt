@@ -62,8 +62,8 @@ def test_upload_page_form(page: Page, base_url: str):
         data={"key": "sk-test-fake-key-for-e2e-testing-only"},
     )
 
-    page.goto(base_url + "/")
-    page.wait_for_url("**/")
+    page.goto(base_url + "/upload")
+    page.wait_for_url("**/upload")
 
     # Page heading
     heading = page.locator("h1")
