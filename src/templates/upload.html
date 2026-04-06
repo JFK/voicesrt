@@ -262,7 +262,7 @@ function uploadForm() {
             if (this._statusClient) { this._statusClient.destroy(); this._statusClient = null; }
             if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null; }
             this.elapsed = 0;
-            history.replaceState(null, '', '/');
+            history.replaceState(null, '', '/upload');
         },
         async restoreFromUrl() {
             const params = new URLSearchParams(window.location.search);
@@ -321,7 +321,7 @@ function uploadForm() {
                 const data = await res.json();
                 this.jobId = data.id;
                 // Update URL so user can bookmark/refresh to check status
-                history.replaceState(null, '', '/?job=' + data.id);
+                history.replaceState(null, '', '/upload?job=' + data.id);
                 this.startPolling(data.id);
             } catch (e) {
                 showToast(this.$root.dataset.i18nUploadFailed + ' ' + e.message, 'error');

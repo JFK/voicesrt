@@ -93,6 +93,35 @@ def test_upload_page_form(page: Page, base_url: str):
     expect(pp_provider).to_be_visible()
 
 
+def test_landing_persona_presets(page: Page, base_url: str):
+    """Each persona deep-link pre-selects refine settings and shows the hint banner."""
+    # Ensure an API key exists so /upload doesn't bounce to /setup
+    page.request.put(
+        base_url + "/api/settings/keys/openai",
+        data={"key": "sk-test-fake-key-for-e2e-testing-only"},
+    )
+
+    cases = [
+        ("youtuber", "caption"),
+        ("meeting", "verbatim"),
+        ("editor", "standard"),
+    ]
+    for persona, expected_mode in cases:
+        page.goto(f"{base_url}/upload?persona={persona}")
+        page.wait_for_function("window.Alpine !== undefined")
+        # Wait until applyPersona() has run and personaHint is populated
+        page.wait_for_function("() => Alpine.$data(document.querySelector('[x-data]')).personaHint !== ''")
+        state = page.evaluate(
+            "() => { const d = Alpine.$data(document.querySelector('[x-data]')); "
+            "return { enableRefine: d.enableRefine, refineMode: d.refineMode, personaHint: d.personaHint }; }"
+        )
+        assert state["enableRefine"] is True, f"persona={persona} should enable refine"
+        assert state["refineMode"] == expected_mode, (
+            f"persona={persona} expected refineMode={expected_mode}, got {state['refineMode']}"
+        )
+        assert state["personaHint"], f"persona={persona} should set a hint banner"
+
+
 def test_navigation(page: Page, base_url: str):
     """Nav links work and page headings render correctly."""
     pages = [
