@@ -321,20 +321,20 @@ function settingsPage() {
         statusMsg: '',
 
         async loadSettings() {
-            // Fetch all settings in parallel
-            const [keysRes, modelsRes, ollamaRes, availableRes, generalRes, glossaryRes, pricingRes, toneRes, promptsRes] = await Promise.all([
+            // Fetch all settings in parallel (ModelLoader handles available-models)
+            const [keysRes, modelsRes, ollamaRes, availableData, generalRes, glossaryRes, pricingRes, toneRes, promptsRes] = await Promise.all([
                 fetch('/api/settings/keys'),
                 fetch('/api/settings/models'),
                 fetch('/api/settings/ollama-url'),
-                fetch('/api/settings/available-models'),
+                ModelLoader.load(),
                 fetch('/api/settings/general'),
                 fetch('/api/settings/glossary'),
                 fetch('/api/settings/pricing'),
                 fetch('/api/settings/tone-references'),
                 fetch('/api/settings/refine-prompts'),
             ]);
-            const [keys, modelsData, ollamaData, availableData, generalData, glossaryData, pricingData, toneData, promptsData] = await Promise.all([
-                keysRes.json(), modelsRes.json(), ollamaRes.json(), availableRes.json(),
+            const [keys, modelsData, ollamaData, generalData, glossaryData, pricingData, toneData, promptsData] = await Promise.all([
+                keysRes.json(), modelsRes.json(), ollamaRes.json(),
                 generalRes.json(), glossaryRes.json(), pricingRes.json(), toneRes.json(), promptsRes.json(),
             ]);
 
@@ -348,9 +348,9 @@ function settingsPage() {
             // Ollama URL
             this.ollamaUrl = ollamaData.url || 'http://host.docker.internal:11434';
             // Available model lists
-            this.openaiModels = availableData.available?.openai || [];
-            this.geminiModels = availableData.available?.gemini || [];
-            this.ollamaModels = availableData.available?.ollama || [];
+            this.openaiModels = ModelLoader.getModels('openai');
+            this.geminiModels = ModelLoader.getModels('gemini');
+            this.ollamaModels = ModelLoader.getModels('ollama');
             for (const [key, models] of [['openai', this.openaiModels], ['gemini', this.geminiModels], ['ollama', this.ollamaModels]]) {
                 if (this.models[key] && !models.includes(this.models[key])) models.unshift(this.models[key]);
             }
@@ -408,21 +408,17 @@ function settingsPage() {
         },
 
         async loadAvailableModels() {
-            try {
-                const res = await fetch('/api/settings/available-models');
-                const data = await res.json();
-                this.openaiModels = data.available.openai || [];
-                this.geminiModels = data.available.gemini || [];
-                this.ollamaModels = data.available.ollama || [];
-                // Ensure current configured values are in the lists
-                for (const [key, models] of [['openai', this.openaiModels], ['gemini', this.geminiModels], ['ollama', this.ollamaModels]]) {
-                    if (this.models[key] && !models.includes(this.models[key])) {
-                        models.unshift(this.models[key]);
-                    }
+            ModelLoader.invalidate();
+            await ModelLoader.load();
+            this.openaiModels = ModelLoader.getModels('openai');
+            this.geminiModels = ModelLoader.getModels('gemini');
+            this.ollamaModels = ModelLoader.getModels('ollama');
+            for (const [key, models] of [['openai', this.openaiModels], ['gemini', this.geminiModels], ['ollama', this.ollamaModels]]) {
+                if (this.models[key] && !models.includes(this.models[key])) {
+                    models.unshift(this.models[key]);
                 }
-                // Ensure refine model saved values are in the lists too
-                this._ensureRefineValuesInLists();
-            } catch (e) { /* Ollama may not be running */ }
+            }
+            this._ensureRefineValuesInLists();
         },
 
         _ensureRefineValuesInLists() {
