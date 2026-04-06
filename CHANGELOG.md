@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-04-06
+
+### Added
+- **Real-time job status via SSE**: New `GET /api/jobs/{id}/stream` endpoint with in-memory `JobStatusManager` pub/sub. Frontend `JobStatusClient` uses EventSource with auto-reconnect and polling fallback. Replaces `setInterval` polling on upload and metadata pages and fixes a memory leak in the meta editor (#29)
+- **SRT editor keyboard shortcuts**: 12 power-user shortcuts (Arrow/Tab navigation, Space playback, `[`/`]` time nudge, `Ctrl+S/M/D/Enter` save/merge/delete/suggest, `?` help modal). Scope-aware so they don't hijack typing in textareas. Cross-platform (`Ctrl`/`Cmd`). Help modal with `role="dialog"` and ARIA labels (#19)
+
+### Changed
+- **SRT editor extracted into ES modules**: 377 lines of inline JS split into 6 modules under `src/static/js/srt-editor/` (`time-utils`, `audio-controller`, `segment-editor`, `speaker-manager`, `suggestion-manager`, `save-manager`, `keyboard-shortcuts`). Template reduced from 648 → 327 lines. Loaded via a new `head_scripts` block before Alpine to guarantee `srtEditor` is defined when Alpine processes `x-data` (#25)
+- **Shared model-loader utility**: 4 duplicate `available-models` fetch implementations (settings, upload, meta-editor, history) replaced with a single `window.ModelLoader` IIFE that caches responses and dedupes concurrent requests (#28)
+- **`onTimeUpdate` no-op guard**: Round audio current time to 0.1s and bail when unchanged — eliminates per-frame Alpine reactivity churn at 60Hz
+- **`STATUS_VERIFYING` constant**: Added to `src/constants.py`; all transcribe pipeline status writes use the constants instead of raw strings
+
+### Fixed
+- **SRT editor empty-component race**: Inline ES modules executed after Alpine started, leaving `x-data="srtEditor()"` bound to an empty proxy. Module now loads before Alpine via the new `head_scripts` block — caught by Playwright verification, would have shipped a broken editor otherwise
+- **SSE TOCTOU race**: Subscribers arriving between status check and queue registration hung for 30s on the keepalive timeout. `JobStatusManager` now caches the last terminal event (bounded LRU, 256 entries) so late subscribers receive completion immediately
+- **SSE long-lived DB session**: `stream_job_status` no longer holds an `AsyncSession` for the lifetime of the stream; uses a short-lived session for the initial lookup
+- **Polling fallback payload mismatch**: `JobStatusClient.handleData` normalizes `error_message` → `detail` so SSE and polling deliver the same shape
+- **i18n HTML escaping**: SRT editor i18n strings now use `|tojson` instead of quoted Jinja expressions, preventing apostrophes (e.g. `segment's`) from rendering as `&#39;`
+- **Keyboard shortcut case sensitivity**: Letter keys are normalized with `toLowerCase` so `Ctrl+S/M/D` work with Caps Lock or Shift held
+- **Modal-open shortcut leakage**: Arrow/Tab/Space/bracket keys are blocked while the help modal is visible
+- **Editable target detection**: Shortcuts now skip `BUTTON`, `SELECT`, `A`, and `contenteditable` elements — not just `TEXTAREA`/`INPUT` — to avoid hijacking native keyboard behavior
+
 ## [0.4.0] - 2026-04-06
 
 ### Added
