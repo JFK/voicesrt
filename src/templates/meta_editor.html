@@ -3,7 +3,7 @@
 {% block content %}
 <div class="max-w-3xl mx-auto" x-data="metaEditor()" x-init="loadSavedContext(); loadModels()">
     <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ t('meta.heading') }}</h1>
-    <p class="text-sm text-gray-500 mb-6">{{ job.filename }} ({{ "%.1f"|format(job.audio_duration) }}s)</p>
+    <p class="text-sm text-gray-500 mb-6">{{ job.filename }}{% if job.audio_duration %} ({{ "%.1f"|format(job.audio_duration) }}s){% endif %}</p>
 
     <!-- Step 1: Context & Prompt Editor -->
     <div x-show="step === 'edit'" class="space-y-4">
