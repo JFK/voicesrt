@@ -25,8 +25,11 @@ export function createAudioController() {
         onTimeUpdate() {
             var audio = this.$refs.audio;
             if (!audio) return;
-            this.currentTime = audio.currentTime;
-            var t = audio.currentTime;
+            // Round to 0.1s — timeupdate fires up to 60Hz; integer-second
+            // displays would otherwise re-render every frame.
+            var t = Math.round(audio.currentTime * 10) / 10;
+            if (t === this.currentTime) return;
+            this.currentTime = t;
             var found = null;
             for (var i = 0; i < this.segments.length; i++) {
                 if (t >= this.segments[i].start && t < this.segments[i].end) {

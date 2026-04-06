@@ -2,7 +2,7 @@
 
 import { formatTimeFull, parseTime } from './time-utils.js';
 
-export function createSegmentEditor(jobId, i18n) {
+export function createSegmentEditor(i18n) {
     return {
         nudgeTime(idx, field, delta) {
             var newVal = Math.max(0, Math.round((this.segments[idx][field] + delta) * 10) / 10);
