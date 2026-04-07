@@ -9,6 +9,9 @@ All API errors return a consistent JSON format:
 }
 """
 
+import json
+from datetime import UTC, datetime
+
 from fastapi import HTTPException
 
 
@@ -158,3 +161,54 @@ def actionable_error(step: str, exc: Exception, recovery: str) -> str:
     """Build a user-facing error message with context and recovery hint."""
     cause = classify_error(exc)
     return f"{step}: {cause}\n{recovery}"[:500]
+
+
+def build_error_detail(
+    exc: Exception,
+    stage: str,
+    provider: str | None = None,
+    model: str | None = None,
+) -> dict:
+    """Build a structured error detail dict that preserves the raw exception.
+
+    Used alongside the user-facing message from `actionable_error()` so that
+    the original exception class and raw message survive even when the
+    user-facing message goes through keyword translation. Stored as JSON in
+    `Job.error_detail` and surfaced via the History page "Show details" UI.
+    """
+    # Compact ISO-8601 with `Z` suffix and second precision — predictable for
+    # UI rendering and any future client parsing.
+    occurred_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return {
+        "exception_class": f"{type(exc).__module__}.{type(exc).__qualname__}",
+        "raw_message": str(exc)[:2000],
+        "stage": stage,
+        "provider": provider,
+        "model": model,
+        "occurred_at": occurred_at,
+    }
+
+
+def serialize_error_detail(
+    exc: Exception,
+    stage: str,
+    provider: str | None = None,
+    model: str | None = None,
+) -> str:
+    """Build the error detail dict and return it JSON-encoded for `Job.error_detail`."""
+    return json.dumps(build_error_detail(exc, stage, provider, model), ensure_ascii=False)
+
+
+def parse_error_detail(raw: str | None) -> dict | None:
+    """Parse a stored `Job.error_detail` JSON blob back into a dict.
+
+    Returns None for empty/invalid input so callers (API responses and the
+    Jinja `parse_error_detail` filter) can render defensively.
+    """
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    return value if isinstance(value, dict) else None

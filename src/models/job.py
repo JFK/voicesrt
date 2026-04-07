@@ -15,6 +15,7 @@ class Job(Base):
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending", index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: structured exception info
     provider: Mapped[str] = mapped_column(String, nullable=False)
     language: Mapped[str | None] = mapped_column(String, nullable=True)
     audio_duration: Mapped[float | None] = mapped_column(Float, nullable=True)

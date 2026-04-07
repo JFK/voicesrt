@@ -4,6 +4,8 @@ from pathlib import Path
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from src.errors import parse_error_detail
+
 _i18n_dir = Path(__file__).parent / "i18n"
 _translations: dict[str, dict] = {}
 
@@ -49,3 +51,4 @@ def get_lang(request: Request) -> str:
 
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+templates.env.filters["parse_error_detail"] = parse_error_detail

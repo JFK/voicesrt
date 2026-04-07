@@ -98,6 +98,7 @@
     "download": "DL",
     "delete_confirm": "このアップロードと関連データを削除しますか？",
     "no_jobs": "アップロードがありません。メディアファイルをアップロードしてください。",
+    "show_details": "詳細を表示",
     "youtube_metadata": "YouTube\u30e1\u30bf\u30c7\u30fc\u30bf",
     "thumbnail_catchphrases": "キャッチコピー",
     "youtube_quiz": "YouTube\u30af\u30a4\u30ba",
