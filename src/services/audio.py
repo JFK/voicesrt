@@ -118,8 +118,13 @@ async def find_all_silences(audio_path: Path) -> list[tuple[float, float]]:
     Returns list of (start, end) silence ranges, or empty list if detection
     fails — callers fall back to fixed-length cuts.
     """
+    # -nostats / -hide_banner suppress per-frame progress output so stderr
+    # only contains silencedetect lines (plus a small banner). Without these,
+    # `communicate()` would buffer megabytes of progress text for long files.
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg",
+        "-nostats",
+        "-hide_banner",
         "-i",
         str(audio_path),
         "-af",
@@ -186,6 +191,14 @@ async def split_audio(audio_path: Path, chunk_duration_sec: int | None = None) -
 
     silences = await find_all_silences(audio_path)
     boundaries = _compute_chunk_boundaries(duration, float(chunk_duration_sec), silences)
+
+    # If boundary computation rejected every internal split point (e.g. the
+    # only target was within _MIN_CHUNK_SEC of the end), boundaries collapses
+    # to [0.0, total_duration]. Return the original path so the caller's
+    # `len(chunks) == 1` short-circuit avoids a redundant ffmpeg invocation
+    # and a leftover _chunk000 file.
+    if len(boundaries) == 2:
+        return [audio_path]
 
     chunks = []
     for idx in range(len(boundaries) - 1):

@@ -83,6 +83,24 @@ async def test_split_audio_short_circuits_when_under_chunk_size():
 
 
 @pytest.mark.asyncio
+async def test_split_audio_short_circuits_when_only_tail_remains():
+    """Audio just slightly longer than chunk_duration → boundary computation
+    rejects the only target as too-close-to-end. split_audio must return the
+    original path instead of creating a single redundant chunk file.
+    """
+    audio = Path("/tmp/borderline.wav")
+    # 600.5s with chunk_duration=600 → boundaries collapse to [0.0, 600.5]
+    with (
+        patch("src.services.audio.get_audio_duration", new=AsyncMock(return_value=600.5)),
+        patch("src.services.audio.find_all_silences", new=AsyncMock(return_value=[])),
+        patch("src.services.audio._run_ffmpeg", new=AsyncMock(return_value=b"")) as mock_ffmpeg,
+    ):
+        result = await split_audio(audio, chunk_duration_sec=600)
+    assert result == [audio]
+    assert mock_ffmpeg.call_count == 0
+
+
+@pytest.mark.asyncio
 async def test_split_audio_creates_chunks_at_boundaries(tmp_path):
     """split_audio invokes ffmpeg once per chunk with -ss / -t / -c copy."""
     audio = tmp_path / "long.wav"
