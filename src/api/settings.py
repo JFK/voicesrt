@@ -1,6 +1,7 @@
 import logging
 from datetime import UTC, datetime
 
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -62,11 +63,13 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
         }
         try:
             entry["masked"] = _mask_key(decrypt(k.value))
-        except Exception as e:
-            # Decryption typically fails when ENCRYPTION_KEY has been rotated
-            # since this row was written. Surface the row in an error state
-            # so the UI can prompt re-entry, instead of crashing the whole
-            # endpoint and blanking the settings page.
+        except InvalidToken as e:
+            # Row was encrypted with a different ENCRYPTION_KEY (rotation, DB
+            # restore from another env). Surface in an error state so the UI
+            # can prompt re-entry instead of crashing the whole endpoint.
+            # NOTE: only InvalidToken is swallowed — config errors like a
+            # missing ENCRYPTION_KEY raise RuntimeError from crypto.py and
+            # must propagate so they aren't silently masked.
             logger.warning("Failed to decrypt %s: %s", k.key, e)
             entry["masked"] = "****"
             entry["decryption_error"] = True

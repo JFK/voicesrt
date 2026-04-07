@@ -15,13 +15,24 @@ async def test_list_keys_tolerates_undecryptable_row(make_client):
     The endpoint should surface them with `decryption_error: True` instead of
     returning HTTP 500.
     """
-    # Insert a row with raw bytes that are NOT a valid Fernet token.
-    # Use delete-then-insert in case a previous test left a google row behind.
+    # Generate a syntactically valid Fernet token using a *different* key,
+    # so the row decodes structurally but fails signature verification under
+    # the active ENCRYPTION_KEY — exactly the post-rotation scenario.
+    from cryptography.fernet import Fernet
     from sqlalchemy import delete
 
+    from src.services.crypto import encrypt
+
+    foreign_key = Fernet.generate_key()
+    foreign_token = Fernet(foreign_key).encrypt(b"sk-foreign").decode()
+
+    # Re-seed openai with a fresh, valid token under the active key — the
+    # shared dev DB may carry a stale row left by a different ENCRYPTION_KEY.
     async with async_session() as s:
+        await s.execute(delete(Setting).where(Setting.key == "api_key.openai"))
         await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
-        s.add(Setting(key="api_key.google", value="not-a-valid-fernet-token", encrypted=True))
+        s.add(Setting(key="api_key.openai", value=encrypt("sk-test"), encrypted=True))
+        s.add(Setting(key="api_key.google", value=foreign_token, encrypted=True))
         await s.commit()
 
     try:
@@ -38,10 +49,9 @@ async def test_list_keys_tolerates_undecryptable_row(make_client):
         assert openai_entry is not None
         assert openai_entry.get("decryption_error") is not True
     finally:
-        # Cleanup so other tests aren't affected
+        # Cleanup so other tests aren't affected. Leave openai re-seeded with
+        # the valid test token (the autouse fixture relies on its presence).
         async with async_session() as s:
-            from sqlalchemy import delete
-
             await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
             await s.commit()
 
