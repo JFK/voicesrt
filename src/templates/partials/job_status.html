@@ -20,6 +20,7 @@
 {% if job.error_message %}
 {% set is_warning = job.status == 'completed' %}
 {% set error_lines = job.error_message.splitlines() %}
+{% set detail = job.error_detail | parse_error_detail %}
 <div class="mt-2 p-3 {{ 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200' if is_warning else 'bg-red-50 dark:bg-red-900/30 border-red-200' }} border rounded-md">
     <p class="text-xs font-medium {{ 'text-yellow-800 dark:text-yellow-300' if is_warning else 'text-red-800 dark:text-red-300' }}">
         {{ '⚠' if is_warning else '✗' }} {{ error_lines[0] }}
@@ -28,6 +29,21 @@
     <p class="text-xs {{ 'text-yellow-700 dark:text-yellow-300' if is_warning else 'text-red-700 dark:text-red-300' }} mt-1">
         → {{ error_lines[1] }}
     </p>
+    {% endif %}
+    {% if detail %}
+    <details class="mt-2">
+        <summary class="text-xs cursor-pointer {{ 'text-yellow-700 dark:text-yellow-300' if is_warning else 'text-red-700 dark:text-red-300' }} hover:underline">
+            {{ t('history.show_details') if t is defined else 'Show details' }}
+        </summary>
+        <div class="mt-2 p-2 bg-white/60 dark:bg-black/30 rounded font-mono text-[11px] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all">
+            <div><span class="opacity-60">exception:</span> {{ detail.exception_class }}</div>
+            {% if detail.stage %}<div><span class="opacity-60">stage:</span> {{ detail.stage }}</div>{% endif %}
+            {% if detail.provider %}<div><span class="opacity-60">provider:</span> {{ detail.provider }}</div>{% endif %}
+            {% if detail.model %}<div><span class="opacity-60">model:</span> {{ detail.model }}</div>{% endif %}
+            {% if detail.occurred_at %}<div><span class="opacity-60">at:</span> {{ detail.occurred_at }}</div>{% endif %}
+            {% if detail.raw_message %}<div class="mt-1 pt-1 border-t border-current/20"><span class="opacity-60">raw:</span> {{ detail.raw_message }}</div>{% endif %}
+        </div>
+    </details>
     {% endif %}
 </div>
 {% endif %}

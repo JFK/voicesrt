@@ -98,6 +98,7 @@
     "download": "DL",
     "delete_confirm": "Delete this upload and all generated data?",
     "no_jobs": "No uploads yet. Upload a media file to get started.",
+    "show_details": "Show details",
     "youtube_metadata": "YouTube Metadata",
     "thumbnail_catchphrases": "Catchphrases",
     "youtube_quiz": "YouTube Quiz",

@@ -1,9 +1,11 @@
 """Tests for transcription/refinement pipeline with mocked external APIs."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.errors import build_error_detail, classify_error, parse_error_detail, serialize_error_detail
 from src.services.refine import refine_with_llm
 from tests.helpers import mock_openai_response
 
@@ -167,6 +169,126 @@ async def test_refine_temperature():
         await refine_with_llm(MOCK_SEGMENTS, "fake-key", "openai", "gpt-test")
 
     assert mock_client.chat.completions.create.call_args.kwargs["temperature"] == 0.3
+
+
+# -- error_detail tests --
+
+
+def test_build_error_detail_preserves_exception_info():
+    """Raw exception class and message must survive translation."""
+
+    class CustomError(ValueError):
+        pass
+
+    exc = CustomError("model `gpt-5.4` does not exist")
+    detail = build_error_detail(exc, stage="refine", provider="openai", model="gpt-5.4")
+
+    assert detail["exception_class"].endswith("CustomError")
+    assert detail["raw_message"] == "model `gpt-5.4` does not exist"
+    assert detail["stage"] == "refine"
+    assert detail["provider"] == "openai"
+    assert detail["model"] == "gpt-5.4"
+    assert detail["occurred_at"]  # ISO timestamp populated
+
+
+def test_build_error_detail_distinguishes_invalid_token():
+    """The InvalidToken decrypt failure (#52 scenario) must NOT be hidden as 'Model not found'."""
+    from cryptography.fernet import InvalidToken
+
+    exc = InvalidToken()
+    detail = build_error_detail(exc, stage="pipeline")
+
+    # The translated user-facing message is allowed to be the generic
+    # fallback, but the structured detail keeps the real exception class so
+    # the user can debug from the UI.
+    assert "InvalidToken" in detail["exception_class"]
+    assert "Model not found" not in str(detail)
+    assert "Model not found" not in classify_error(exc)
+
+
+def test_serialize_and_parse_error_detail_round_trip():
+    """serialize_error_detail → parse_error_detail must round-trip."""
+    exc = RuntimeError("boom")
+    raw = serialize_error_detail(exc, stage="refine", provider="openai", model="gpt-x")
+    parsed = parse_error_detail(raw)
+    assert parsed is not None
+    assert parsed["stage"] == "refine"
+    assert parsed["provider"] == "openai"
+    assert parsed["model"] == "gpt-x"
+    assert "RuntimeError" in parsed["exception_class"]
+    assert parsed["raw_message"] == "boom"
+
+    assert parse_error_detail(None) is None
+    assert parse_error_detail("") is None
+    assert parse_error_detail("not-json") is None
+    assert parse_error_detail("[1, 2, 3]") is None  # not a dict
+
+
+@pytest.mark.asyncio
+async def test_refine_failure_populates_error_detail(monkeypatch):
+    """When refinement raises, the pipeline must persist both error_message and error_detail."""
+    from src.constants import STATUS_COMPLETED
+    from src.models import Job
+    from src.services import transcribe as transcribe_mod
+
+    # Stub the heavy parts so we exercise just the refine catch path.
+    job = Job(
+        id="test-job-err",
+        filename="x.wav",
+        file_size=1,
+        provider="whisper",
+        enable_refine=True,
+    )
+
+    fake_segments = [{"start": 0.0, "end": 1.0, "text": "hi"}]
+
+    async def fake_get_credential(_session, _provider):
+        return "fake-key"
+
+    async def fake_extract(_path, out_path):
+        out_path.write_bytes(b"")
+        return 1.0
+
+    async def fake_run_transcription(*_args, **_kwargs):
+        return list(fake_segments)
+
+    async def fake_run_refinement(*_args, **_kwargs):
+        raise RuntimeError("upstream refine failure: model `gpt-x` does not exist")
+
+    async def fake_get_refine_model(_session, _provider_name):
+        return "gpt-x"
+
+    def fake_save_srt(_content, _path):
+        pass
+
+    monkeypatch.setattr(transcribe_mod, "_get_credential", fake_get_credential)
+    monkeypatch.setattr(transcribe_mod, "extract_audio", fake_extract)
+    monkeypatch.setattr(transcribe_mod, "_run_transcription", fake_run_transcription)
+    monkeypatch.setattr(transcribe_mod, "_run_refinement", fake_run_refinement)
+    monkeypatch.setattr(transcribe_mod, "_get_refine_model", fake_get_refine_model)
+    monkeypatch.setattr(transcribe_mod, "save_srt", fake_save_srt)
+
+    # Place the upload file where the pipeline looks for it.
+    upload_dir = transcribe_mod.settings.uploads_dir
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    (upload_dir / f"{job.id}.wav").write_bytes(b"")
+
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=lambda: None))
+
+    try:
+        await transcribe_mod.process_transcription(job, session)
+    finally:
+        (upload_dir / f"{job.id}.wav").unlink(missing_ok=True)
+
+    assert job.status == STATUS_COMPLETED  # refine failure is non-fatal
+    assert job.error_message and "Refinement failed" in job.error_message
+    assert job.error_detail
+    detail = json.loads(job.error_detail)
+    assert detail["stage"] == "refine"
+    assert "RuntimeError" in detail["exception_class"]
+    assert "upstream refine failure" in detail["raw_message"]
 
 
 # -- Whisper prompt tests --

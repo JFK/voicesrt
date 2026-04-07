@@ -22,7 +22,7 @@ from src.constants import (
     STATUS_VERIFYING,
     get_provider_name,
 )
-from src.errors import actionable_error
+from src.errors import actionable_error, serialize_error_detail
 from src.models import Job, Setting
 from src.services.audio import extract_audio, extract_audio_mp3, get_audio_duration, split_audio
 from src.services.cost import estimate_gemini_cost, estimate_llm_cost, estimate_whisper_cost, log_cost
@@ -118,6 +118,13 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         # For post-processing, use the job's own provider (may differ from transcription)
         pp_api_key = await _get_credential(session, job.provider) if job.provider != transcription_provider else api_key
+        pp_provider_name = get_provider_name(job.provider)
+
+        # Resolve refine/verify model up front so the catch sites can record it
+        # without re-querying the session after a failure.
+        refine_model: str | None = None
+        if job.enable_refine or job.enable_verify:
+            refine_model = await _get_refine_model(session, pp_provider_name)
 
         # Step 3: LLM post-processing (refine) if enabled
         if job.enable_refine:
@@ -130,6 +137,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                 logger.warning("Refinement failed for job %s: %s", job.id, e)
                 job.error_message = actionable_error(
                     "Refinement failed", e, "Raw transcription saved. You can edit it in the SRT Editor."
+                )
+                job.error_detail = serialize_error_detail(
+                    e, stage="refine", provider=pp_provider_name, model=refine_model
                 )
 
         # Step 3.5: Verify (full-text consistency check) if enabled
@@ -152,6 +162,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                 job.error_message = actionable_error(
                     "Verification failed", e, "Refined transcription saved. You can edit it in the SRT Editor."
                 )
+                job.error_detail = serialize_error_detail(
+                    e, stage="verify", provider=pp_provider_name, model=refine_model
+                )
 
         # Step 4: Generate and save SRT
         srt_content = generate_srt(segments)
@@ -161,6 +174,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         # Step 5: Generate metadata if enabled (non-fatal)
         if job.enable_metadata:
+            metadata_model = await _get_model(session, job.provider)
             job.status = STATUS_GENERATING_METADATA
             await session.commit()
             await status_manager.publish(job.id, STATUS_GENERATING_METADATA)
@@ -172,6 +186,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                     "Metadata generation failed",
                     e,
                     "SRT saved successfully. You can generate metadata later from History.",
+                )
+                job.error_detail = serialize_error_detail(
+                    e, stage="metadata", provider=pp_provider_name, model=metadata_model
                 )
 
         # Done

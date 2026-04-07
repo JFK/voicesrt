@@ -26,9 +26,11 @@ from src.errors import (
     no_file_provided,
     no_segments_provided,
     no_speaker_segments,
+    parse_error_detail,
     segment_overlap,
     segment_time_order,
     segment_timing_invalid,
+    serialize_error_detail,
     srt_file_missing,
     srt_not_available,
     srt_not_found,
@@ -122,6 +124,9 @@ async def _process_job(job_id: str) -> None:
             logger.exception("Job %s failed", job_id)
             job.status = STATUS_FAILED
             job.error_message = classify_error(e)[:500]
+            job.error_detail = serialize_error_detail(
+                e, stage="pipeline", provider=job.provider, model=job.model_override
+            )
             await session.commit()
             await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
@@ -248,6 +253,7 @@ async def get_job(job_id: str, session: AsyncSession = Depends(get_session)):
         "filename": job.filename,
         "status": job.status,
         "error_message": job.error_message,
+        "error_detail": parse_error_detail(job.error_detail),
         "provider": job.provider,
         "language": job.language,
         "audio_duration": job.audio_duration,
@@ -533,6 +539,12 @@ async def _generate_meta_job(
             logger.exception("Metadata generation failed for job %s", job_id)
             job.status = STATUS_FAILED
             job.error_message = f"Metadata generation failed: {str(e)[:400]}"
+            job.error_detail = serialize_error_detail(
+                e,
+                stage="metadata",
+                provider=override_provider or job.provider,
+                model=override_model,
+            )
             await session.commit()
             await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
 
