@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
@@ -18,6 +19,8 @@ from src.errors import (
 )
 from src.models import Setting
 from src.services.crypto import decrypt, encrypt
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -50,15 +53,25 @@ class GeneralSettingInput(BaseModel):
 async def list_keys(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Setting).where(Setting.encrypted == True))  # noqa: E712
     keys = result.scalars().all()
-    return [
-        {
+    out = []
+    for k in keys:
+        entry: dict = {
             "provider": k.key.replace("api_key.", ""),
             "configured": True,
-            "masked": _mask_key(decrypt(k.value)),
             "updated_at": k.updated_at.isoformat() if k.updated_at else None,
         }
-        for k in keys
-    ]
+        try:
+            entry["masked"] = _mask_key(decrypt(k.value))
+        except Exception as e:
+            # Decryption typically fails when ENCRYPTION_KEY has been rotated
+            # since this row was written. Surface the row in an error state
+            # so the UI can prompt re-entry, instead of crashing the whole
+            # endpoint and blanking the settings page.
+            logger.warning("Failed to decrypt %s: %s", k.key, e)
+            entry["masked"] = "****"
+            entry["decryption_error"] = True
+        out.append(entry)
+    return out
 
 
 @router.put("/keys/{provider}")

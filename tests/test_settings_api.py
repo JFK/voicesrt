@@ -2,6 +2,49 @@
 
 import pytest
 
+from src.database import async_session
+from src.models import Setting
+
+
+@pytest.mark.asyncio
+async def test_list_keys_tolerates_undecryptable_row(make_client):
+    """A row encrypted with a different ENCRYPTION_KEY must not crash the endpoint.
+
+    Reproduces the failure mode where rotating ENCRYPTION_KEY (or restoring a
+    DB from another environment) leaves stale rows that decrypt() rejects.
+    The endpoint should surface them with `decryption_error: True` instead of
+    returning HTTP 500.
+    """
+    # Insert a row with raw bytes that are NOT a valid Fernet token.
+    # Use delete-then-insert in case a previous test left a google row behind.
+    from sqlalchemy import delete
+
+    async with async_session() as s:
+        await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
+        s.add(Setting(key="api_key.google", value="not-a-valid-fernet-token", encrypted=True))
+        await s.commit()
+
+    try:
+        async with make_client() as c:
+            resp = await c.get("/api/settings/keys")
+        assert resp.status_code == 200
+        data = resp.json()
+        google_entry = next((e for e in data if e["provider"] == "google"), None)
+        assert google_entry is not None
+        assert google_entry.get("decryption_error") is True
+        assert google_entry["masked"] == "****"
+        # The valid openai row from the conftest fixture must still be present
+        openai_entry = next((e for e in data if e["provider"] == "openai"), None)
+        assert openai_entry is not None
+        assert openai_entry.get("decryption_error") is not True
+    finally:
+        # Cleanup so other tests aren't affected
+        async with async_session() as s:
+            from sqlalchemy import delete
+
+            await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
+            await s.commit()
+
 
 @pytest.mark.asyncio
 async def test_get_models(make_client):
