@@ -91,6 +91,25 @@ def parse_json_response(text: str, context: str = "") -> dict | list:
         raise RuntimeError(f"Invalid JSON in {context}: {e}. Response: {cleaned[:200]}")
 
 
+async def fetch_ollama_models(base_url: str, timeout: float = 5.0) -> list[str]:
+    """GET {base_url}/api/tags and return the list of installed model names.
+
+    Returns an empty list if the server is unreachable or returns non-200 — the
+    caller decides whether that's fatal.
+    """
+    import httpx
+
+    url = _resolve_ollama_url(base_url.rstrip("/"))
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(f"{url}/api/tags")
+    except httpx.HTTPError:
+        return []
+    if resp.status_code != 200:
+        return []
+    return [m.get("name", "") for m in resp.json().get("models", [])]
+
+
 def _resolve_ollama_url(url: str) -> str:
     """In Docker, rewrite localhost URLs to host.docker.internal."""
     from pathlib import Path
