@@ -92,10 +92,9 @@ async def get_audio_duration(path: Path) -> float:
         raise RuntimeError(f"Could not parse audio duration from ffprobe output: {e}")
 
 
-def _parse_silence_ranges(stderr_text: str, offset_sec: float) -> list[tuple[float, float]]:
-    """Parse ffmpeg silencedetect stderr into a list of (start, end) absolute times.
+def _parse_silence_ranges(stderr_text: str) -> list[tuple[float, float]]:
+    """Parse ffmpeg silencedetect stderr into a list of (start, end) times.
 
-    `offset_sec` is added to convert seek-relative timestamps back to absolute.
     Unmatched start lines (no following end) are dropped.
     """
     ranges: list[tuple[float, float]] = []
@@ -108,73 +107,64 @@ def _parse_silence_ranges(stderr_text: str, offset_sec: float) -> list[tuple[flo
         if kind == "start":
             current_start = value
         elif kind == "end" and current_start is not None:
-            ranges.append((current_start + offset_sec, value + offset_sec))
+            ranges.append((current_start, value))
             current_start = None
     return ranges
 
 
-async def find_silence_near(
-    audio_path: Path,
-    target_sec: float,
-    window_sec: float = _SILENCE_SEARCH_WINDOW_SEC,
-    noise_db: float = _SILENCE_NOISE_DB,
-    min_silence_dur: float = _SILENCE_MIN_DUR,
-) -> float | None:
-    """Find a silence near `target_sec` and return its midpoint (absolute time).
+async def find_all_silences(audio_path: Path) -> list[tuple[float, float]]:
+    """Run ffmpeg silencedetect once over the entire file.
 
-    Searches the [target - window, target + window] interval using ffmpeg
-    `silencedetect`. Returns the midpoint of the silence whose midpoint is
-    closest to `target_sec`, or `None` if no silence is detected (caller
-    should fall back to a fixed-length cut).
+    Returns list of (start, end) silence ranges, or empty list if detection
+    fails — callers fall back to fixed-length cuts.
     """
-    seek_start = max(0.0, target_sec - window_sec)
-    duration = window_sec * 2
-
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg",
-        "-ss",
-        str(seek_start),
         "-i",
         str(audio_path),
-        "-t",
-        str(duration),
         "-af",
-        f"silencedetect=noise={noise_db}dB:d={min_silence_dur}",
+        f"silencedetect=noise={_SILENCE_NOISE_DB}dB:d={_SILENCE_MIN_DUR}",
         "-f",
         "null",
         "-",
-        stdout=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )
     _, stderr = await proc.communicate()
     if proc.returncode != 0:
         logger.debug("silencedetect failed (returncode=%d) — falling back", proc.returncode)
+        return []
+    return _parse_silence_ranges(stderr.decode(errors="replace"))
+
+
+def _nearest_silence_midpoint(
+    silences: list[tuple[float, float]],
+    target: float,
+    window: float,
+) -> float | None:
+    """Return midpoint of the silence closest to `target`, or None if none within ±window."""
+    candidates = [(s + e) / 2 for s, e in silences if abs((s + e) / 2 - target) <= window]
+    if not candidates:
         return None
-
-    ranges = _parse_silence_ranges(stderr.decode(errors="replace"), seek_start)
-    if not ranges:
-        return None
-
-    best = min(ranges, key=lambda r: abs((r[0] + r[1]) / 2 - target_sec))
-    return (best[0] + best[1]) / 2
+    return min(candidates, key=lambda m: abs(m - target))
 
 
-async def _compute_chunk_boundaries(
-    audio_path: Path,
+def _compute_chunk_boundaries(
     total_duration: float,
     chunk_duration_sec: float,
+    silences: list[tuple[float, float]],
 ) -> list[float]:
     """Compute chunk boundary timestamps using silence anchoring.
 
     Each target boundary at N * chunk_duration_sec is snapped to the nearest
-    silence midpoint, falling back to the fixed-length boundary when no
-    suitable silence is found. Anchors that would produce a chunk shorter
-    than `_MIN_CHUNK_SEC` are rejected.
+    silence midpoint within ±_SILENCE_SEARCH_WINDOW_SEC, falling back to the
+    fixed-length boundary when no silence is in range. Anchors that would
+    produce a chunk shorter than _MIN_CHUNK_SEC on either side are rejected.
     """
     boundaries: list[float] = [0.0]
     target = chunk_duration_sec
     while target < total_duration:
-        anchor = await find_silence_near(audio_path, target)
+        anchor = _nearest_silence_midpoint(silences, target, _SILENCE_SEARCH_WINDOW_SEC)
         if anchor is None or anchor <= boundaries[-1] + _MIN_CHUNK_SEC:
             anchor = target
         if anchor >= total_duration - _MIN_CHUNK_SEC:
@@ -194,7 +184,8 @@ async def split_audio(audio_path: Path, chunk_duration_sec: int | None = None) -
     if duration <= chunk_duration_sec:
         return [audio_path]
 
-    boundaries = await _compute_chunk_boundaries(audio_path, duration, float(chunk_duration_sec))
+    silences = await find_all_silences(audio_path)
+    boundaries = _compute_chunk_boundaries(duration, float(chunk_duration_sec), silences)
 
     chunks = []
     for idx in range(len(boundaries) - 1):
@@ -202,14 +193,18 @@ async def split_audio(audio_path: Path, chunk_duration_sec: int | None = None) -
         chunk_len = boundaries[idx + 1] - chunk_start
         chunk_path = audio_path.parent / f"{audio_path.stem}_chunk{idx:03d}{audio_path.suffix}"
         try:
+            # -ss before -i enables fast seek; -c copy avoids re-encoding
+            # since chunks are extracted from already-decoded WAV/MP3 output.
             await _run_ffmpeg(
                 "ffmpeg",
-                "-i",
-                str(audio_path),
                 "-ss",
                 str(chunk_start),
+                "-i",
+                str(audio_path),
                 "-t",
                 str(chunk_len),
+                "-c",
+                "copy",
                 "-y",
                 str(chunk_path),
             )
