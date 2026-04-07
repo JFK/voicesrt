@@ -15,10 +15,27 @@ from fastapi import HTTPException
 class AppError(HTTPException):
     """Application error with a machine-readable error code."""
 
-    def __init__(self, status_code: int, code: str, message: str):
-        super().__init__(status_code=status_code, detail={"code": code, "message": message})
+    def __init__(self, status_code: int, code: str, message: str, payload: dict | None = None):
+        detail: dict = {"code": code, "message": message}
+        if payload:
+            detail.update(payload)
+        super().__init__(status_code=status_code, detail=detail)
         self.code = code
         self.message = message
+        self.payload = payload or {}
+
+
+def model_not_available(provider: str, model: str, hint: str = "") -> AppError:
+    msg = f"Model '{model}' is not available for provider '{provider}'."
+    if hint:
+        msg = f"{msg} {hint}"
+    msg += " Check Settings → LLM Models."
+    return AppError(
+        400,
+        "MODEL_NOT_AVAILABLE",
+        msg,
+        payload={"provider": provider, "model": model},
+    )
 
 
 def job_not_found() -> AppError:

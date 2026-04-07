@@ -134,33 +134,24 @@ async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
 
 async def _test_ollama(session: AsyncSession) -> dict:
     """Test Ollama connectivity by hitting the /api/tags endpoint."""
-    import httpx
-
     from src.constants import KEY_OLLAMA_BASE_URL
-    from src.services.utils import _resolve_ollama_url
+    from src.services.utils import fetch_ollama_models
 
     result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
     setting = result.scalar_one_or_none()
-    base_url = _resolve_ollama_url(setting.value if setting else app_settings.default_ollama_base_url)
+    base_url = setting.value if setting else app_settings.default_ollama_base_url
 
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{base_url}/api/tags")
-            if resp.status_code == 200:
-                models = [m["name"] for m in resp.json().get("models", [])]
-                return {"valid": True, "models": models}
-            return {"valid": False, "error": f"HTTP {resp.status_code}"}
-    except Exception as e:
-        return {"valid": False, "error": f"Cannot connect to Ollama at {base_url}: {e}"}
+    models = await fetch_ollama_models(base_url)
+    if models is None:
+        return {"valid": False, "error": f"Cannot connect to Ollama at {base_url}"}
+    return {"valid": True, "models": models}
 
 
 @router.get("/available-models")
 async def get_available_models(session: AsyncSession = Depends(get_session)):
     """Return available models per provider for selection dropdowns."""
-    import httpx
-
     from src.constants import KEY_OLLAMA_BASE_URL
-    from src.services.utils import _resolve_ollama_url
+    from src.services.utils import fetch_ollama_models
 
     available: dict[str, list[str]] = {
         "openai": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
@@ -175,14 +166,9 @@ async def get_available_models(session: AsyncSession = Depends(get_session)):
     # Fetch Ollama models dynamically
     result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
     setting = result.scalar_one_or_none()
-    base_url = _resolve_ollama_url(setting.value if setting else app_settings.default_ollama_base_url)
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{base_url}/api/tags")
-            if resp.status_code == 200:
-                available["ollama"] = [m["name"] for m in resp.json().get("models", [])]
-    except Exception:
-        pass
+    base_url = setting.value if setting else app_settings.default_ollama_base_url
+    ollama_models = await fetch_ollama_models(base_url, timeout=3.0)
+    available["ollama"] = ollama_models if ollama_models is not None else []
 
     # Current configured models
     configured = {}

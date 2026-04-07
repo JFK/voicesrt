@@ -91,6 +91,32 @@ def parse_json_response(text: str, context: str = "") -> dict | list:
         raise RuntimeError(f"Invalid JSON in {context}: {e}. Response: {cleaned[:200]}")
 
 
+async def fetch_ollama_models(base_url: str, timeout: float = 5.0) -> list[str] | None:
+    """GET {base_url}/api/tags and return the list of installed model names.
+
+    Returns:
+        - `list[str]` (possibly empty) when the server responded successfully.
+          An empty list means "reachable, no models installed".
+        - `None` when the request itself failed (network error, non-200,
+          non-JSON body). Callers must distinguish this from an empty list.
+    """
+    import httpx
+
+    url = _resolve_ollama_url(base_url.rstrip("/"))
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(f"{url}/api/tags")
+    except httpx.HTTPError:
+        return None
+    if resp.status_code != 200:
+        return None
+    try:
+        payload = resp.json()
+    except ValueError:
+        return None
+    return [name for m in payload.get("models", []) if (name := m.get("name"))]
+
+
 def _resolve_ollama_url(url: str) -> str:
     """In Docker, rewrite localhost URLs to host.docker.internal."""
     from pathlib import Path
