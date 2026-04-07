@@ -16,7 +16,6 @@ endpoint on every upload.
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,17 +133,19 @@ async def _check_gemini(model: str, credential: str) -> None:
 
 async def _check_ollama(model: str, base_url: str) -> None:
     available = await fetch_ollama_models(base_url)
-    if not available:
-        # Unreachable / empty catalog — non-blocking.
-        logger.warning("Ollama validation skipped (no catalog returned)")
+    if available is None:
+        # Request failed (unreachable / non-200 / non-JSON) — non-blocking.
+        logger.warning("Ollama validation skipped (catalog request failed)")
         return
     # Allow exact match, or "qwen3" matching "qwen3:30b" (tag-less prefix).
+    # An empty `available` list (reachable but no models installed) correctly
+    # falls through to the raise below.
     if model in available or any(name.startswith(f"{model}:") for name in available):
         return
     raise ModelNotAvailableError(
         "ollama",
         model,
-        f"Available: {', '.join(sorted(available))}",
+        f"Available: {', '.join(sorted(available)) or '(none)'}",
     )
 
 
@@ -166,35 +167,34 @@ async def _collect_targets(
     Whisper transcription uses a hardcoded `whisper-1` and needs no check.
     Ollama jobs delegate transcription to whisper, so only their post-processing
     (refine/metadata) model is checked.
+
+    DB reads are sequential — SQLAlchemy AsyncSession is not safe for
+    concurrent use, and we only have at most three short queries here.
     """
     from src.services.transcribe import _get_model, _get_refine_model
 
     api_provider = get_provider_name(provider)
+    targets: list[tuple[str, str]] = []
 
-    # Each entry: (target_api_provider, awaitable_for_model_name)
-    plan: list[tuple[str, Awaitable[str]]] = []
     if provider == "gemini":
-        plan.append(("gemini", _get_model(session, "gemini", model_override)))
+        model = await _get_model(session, "gemini", model_override)
+        if model:
+            targets.append(("gemini", model))
     if enable_metadata:
-        plan.append((api_provider, _get_model(session, provider)))
+        model = await _get_model(session, provider)
+        if model:
+            targets.append((api_provider, model))
     if enable_refine or enable_verify:
-        plan.append((api_provider, _get_refine_model(session, api_provider)))
-
-    if not plan:
-        return []
-
-    coros: list[Awaitable[str]] = [coro for _, coro in plan]
-    resolved_models = await asyncio.gather(*coros)
+        model = await _get_refine_model(session, api_provider)
+        if model:
+            targets.append((api_provider, model))
 
     seen: set[tuple[str, str]] = set()
     deduped: list[tuple[str, str]] = []
-    for (target, _), model in zip(plan, resolved_models, strict=True):
-        if not model:
-            continue
-        key = (target, model)
-        if key not in seen:
-            seen.add(key)
-            deduped.append(key)
+    for t in targets:
+        if t not in seen:
+            seen.add(t)
+            deduped.append(t)
     return deduped
 
 
@@ -218,12 +218,24 @@ async def validate_job_models(
     if not targets:
         return
 
-    async def _one(api_provider: str, model: str) -> None:
+    # Pre-fetch credentials for each unique provider sequentially — AsyncSession
+    # is not safe for concurrent use. Only the network validation calls (which
+    # don't touch the session) run in parallel below.
+    cred_by_provider: dict[str, str | None] = {}
+    for api_provider, _ in targets:
         cred_provider = "whisper" if api_provider == "openai" else api_provider
+        if cred_provider in cred_by_provider:
+            continue
         try:
-            credential = await _get_credential(session, cred_provider)
+            cred_by_provider[cred_provider] = await _get_credential(session, cred_provider)
         except Exception as e:
             logger.debug("model validation skipped (no credential for %s): %s", cred_provider, e)
+            cred_by_provider[cred_provider] = None
+
+    async def _one(api_provider: str, model: str) -> None:
+        cred_provider = "whisper" if api_provider == "openai" else api_provider
+        credential = cred_by_provider.get(cred_provider)
+        if credential is None:
             return
         try:
             await validate_model(api_provider, model, credential)

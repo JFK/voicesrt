@@ -142,7 +142,7 @@ async def _test_ollama(session: AsyncSession) -> dict:
     base_url = setting.value if setting else app_settings.default_ollama_base_url
 
     models = await fetch_ollama_models(base_url)
-    if not models:
+    if models is None:
         return {"valid": False, "error": f"Cannot connect to Ollama at {base_url}"}
     return {"valid": True, "models": models}
 
@@ -167,7 +167,8 @@ async def get_available_models(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Setting).where(Setting.key == KEY_OLLAMA_BASE_URL))
     setting = result.scalar_one_or_none()
     base_url = setting.value if setting else app_settings.default_ollama_base_url
-    available["ollama"] = await fetch_ollama_models(base_url, timeout=3.0)
+    ollama_models = await fetch_ollama_models(base_url, timeout=3.0)
+    available["ollama"] = ollama_models if ollama_models is not None else []
 
     # Current configured models
     configured = {}

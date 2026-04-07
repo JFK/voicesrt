@@ -158,12 +158,16 @@ async def create_job(
         fmts = ", ".join(sorted(supported))
         raise unsupported_format(fmts)
 
+    # Normalize once: the UI can send "openai" but downstream code expects
+    # "whisper" (and the same value will be persisted on the Job row).
+    provider = _normalize_provider(provider) or provider
+
     # Pre-flight: confirm configured models exist before we burn upload bandwidth.
     from src.services.model_validator import validate_job_models
 
     await validate_job_models(
         session,
-        _normalize_provider(provider) or provider,
+        provider,
         model,
         enable_refine,
         enable_verify,
