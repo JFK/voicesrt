@@ -125,7 +125,7 @@ async def _process_job(job_id: str) -> None:
             job.status = STATUS_FAILED
             job.error_message = classify_error(e)[:500]
             job.error_detail = serialize_error_detail(
-                e, stage="pipeline", provider=job.provider, model=job.model_override
+                e, stage="pipeline", provider=get_provider_name(job.provider), model=job.model_override
             )
             await session.commit()
             await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
@@ -515,12 +515,15 @@ async def _generate_meta_job(
         if not job or not job.srt_path:
             return
 
+        # Resolve effective provider/model up front so the error handler can
+        # record exactly what the call used (and we don't query the DB twice).
+        provider = _normalize_provider(override_provider) or job.provider
+        provider_name = get_provider_name(provider)
         try:
             job.status = STATUS_GENERATING_METADATA
             await session.commit()
             await status_manager.publish(job_id, STATUS_GENERATING_METADATA)
 
-            provider = _normalize_provider(override_provider) or job.provider
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
             api_key = await _get_credential(session, provider)
             model = override_model or await _get_model(session, provider)
@@ -539,11 +542,14 @@ async def _generate_meta_job(
             logger.exception("Metadata generation failed for job %s", job_id)
             job.status = STATUS_FAILED
             job.error_message = f"Metadata generation failed: {str(e)[:400]}"
+            # `model` is bound only after the resolution line above; if the
+            # exception fired before that, fall back to override_model.
+            effective_model = locals().get("model", override_model)
             job.error_detail = serialize_error_detail(
                 e,
                 stage="metadata",
-                provider=override_provider or job.provider,
-                model=override_model,
+                provider=provider_name,
+                model=effective_model,
             )
             await session.commit()
             await status_manager.publish(job_id, STATUS_FAILED, job.error_message)

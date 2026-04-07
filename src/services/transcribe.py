@@ -179,7 +179,7 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
             await session.commit()
             await status_manager.publish(job.id, STATUS_GENERATING_METADATA)
             try:
-                await _run_metadata_generation(job, session, srt_content, pp_api_key)
+                await _run_metadata_generation(job, session, srt_content, pp_api_key, model=metadata_model)
             except Exception as e:
                 logger.warning("Metadata generation failed for job %s: %s", job.id, e)
                 job.error_message = actionable_error(

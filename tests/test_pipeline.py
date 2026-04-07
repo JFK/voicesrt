@@ -188,7 +188,10 @@ def test_build_error_detail_preserves_exception_info():
     assert detail["stage"] == "refine"
     assert detail["provider"] == "openai"
     assert detail["model"] == "gpt-5.4"
-    assert detail["occurred_at"]  # ISO timestamp populated
+    # ISO-8601 with Z suffix and second precision (no microseconds, no offset)
+    assert detail["occurred_at"].endswith("Z")
+    assert "." not in detail["occurred_at"]
+    assert "+" not in detail["occurred_at"]
 
 
 def test_build_error_detail_distinguishes_invalid_token():

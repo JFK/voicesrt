@@ -176,13 +176,16 @@ def build_error_detail(
     user-facing message goes through keyword translation. Stored as JSON in
     `Job.error_detail` and surfaced via the History page "Show details" UI.
     """
+    # Compact ISO-8601 with `Z` suffix and second precision — predictable for
+    # UI rendering and any future client parsing.
+    occurred_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     return {
         "exception_class": f"{type(exc).__module__}.{type(exc).__qualname__}",
         "raw_message": str(exc)[:2000],
         "stage": stage,
         "provider": provider,
         "model": model,
-        "occurred_at": datetime.now(UTC).isoformat(),
+        "occurred_at": occurred_at,
     }
 
 
