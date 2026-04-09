@@ -32,16 +32,16 @@
     {% endif %}
     {% if detail %}
     <details class="mt-2">
-        <summary class="text-xs cursor-pointer {{ 'text-yellow-700 dark:text-yellow-300' if is_warning else 'text-red-700 dark:text-red-300' }} hover:underline">
+        <summary class="text-xs cursor-pointer {{ 'text-yellow-700 dark:text-yellow-300' if is_warning else 'text-red-700 dark:text-red-300' }} rounded-sm hover:underline focus:outline-none focus:ring-1 focus:ring-blue-500">
             {{ t('history.show_details') if t is defined else 'Show details' }}
         </summary>
-        <div class="mt-2 p-2 bg-white/60 dark:bg-black/30 rounded font-mono text-[11px] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all">
-            <div><span class="opacity-60">exception:</span> {{ detail.exception_class }}</div>
-            {% if detail.stage %}<div><span class="opacity-60">stage:</span> {{ detail.stage }}</div>{% endif %}
-            {% if detail.provider %}<div><span class="opacity-60">provider:</span> {{ detail.provider }}</div>{% endif %}
-            {% if detail.model %}<div><span class="opacity-60">model:</span> {{ detail.model }}</div>{% endif %}
-            {% if detail.occurred_at %}<div><span class="opacity-60">at:</span> {{ detail.occurred_at }}</div>{% endif %}
-            {% if detail.raw_message %}<div class="mt-1 pt-1 border-t border-current/20"><span class="opacity-60">raw:</span> {{ detail.raw_message }}</div>{% endif %}
+        <div class="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all">
+            <div><span class="text-gray-500 dark:text-gray-400">exception:</span> {{ detail.exception_class }}</div>
+            {% if detail.stage %}<div><span class="text-gray-500 dark:text-gray-400">stage:</span> {{ detail.stage }}</div>{% endif %}
+            {% if detail.provider %}<div><span class="text-gray-500 dark:text-gray-400">provider:</span> {{ detail.provider }}</div>{% endif %}
+            {% if detail.model %}<div><span class="text-gray-500 dark:text-gray-400">model:</span> {{ detail.model }}</div>{% endif %}
+            {% if detail.occurred_at %}<div><span class="text-gray-500 dark:text-gray-400">at:</span> {{ detail.occurred_at }}</div>{% endif %}
+            {% if detail.raw_message %}<div class="mt-1 pt-1 border-t border-current/20"><span class="text-gray-500 dark:text-gray-400">raw:</span> {{ detail.raw_message }}</div>{% endif %}
         </div>
     </details>
     {% endif %}
