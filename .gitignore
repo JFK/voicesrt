@@ -21,3 +21,5 @@ data/assets/
 .pytest_cache/
 htmlcov/
 .coverage
+
+.playwright-mcp/

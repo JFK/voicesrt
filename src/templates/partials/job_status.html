@@ -31,17 +31,54 @@
     </p>
     {% endif %}
     {% if detail %}
+    {% set short_exc = detail.exception_class.rsplit('.', 1)[-1] if detail.exception_class else '' %}
     <details class="mt-2">
         <summary class="text-xs cursor-pointer {{ 'text-yellow-700 dark:text-yellow-300' if is_warning else 'text-red-700 dark:text-red-300' }} rounded-sm hover:underline focus:outline-none focus:ring-1 focus:ring-blue-500">
-            {{ t('history.show_details') if t is defined else 'Show details' }}
+            {{ t('history.show_details') if t is defined else 'Show details' }}{% if short_exc %} <span class="font-mono text-gray-500 dark:text-gray-400">— {{ short_exc }}</span>{% endif %}
         </summary>
-        <div class="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all">
-            <div><span class="text-gray-500 dark:text-gray-400">exception:</span> {{ detail.exception_class }}</div>
-            {% if detail.stage %}<div><span class="text-gray-500 dark:text-gray-400">stage:</span> {{ detail.stage }}</div>{% endif %}
-            {% if detail.provider %}<div><span class="text-gray-500 dark:text-gray-400">provider:</span> {{ detail.provider }}</div>{% endif %}
-            {% if detail.model %}<div><span class="text-gray-500 dark:text-gray-400">model:</span> {{ detail.model }}</div>{% endif %}
-            {% if detail.occurred_at %}<div><span class="text-gray-500 dark:text-gray-400">at:</span> {{ detail.occurred_at }}</div>{% endif %}
-            {% if detail.raw_message %}<div class="mt-1 pt-1 border-t border-current/20"><span class="text-gray-500 dark:text-gray-400">raw:</span> {{ detail.raw_message }}</div>{% endif %}
+        <div class="mt-2 rounded-md border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-t-md border-b border-gray-300 dark:border-gray-700 bg-gray-200 dark:bg-gray-900">
+                <span class="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-red-100 dark:bg-red-900/40"></span>
+                <span class="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-yellow-100 dark:bg-yellow-900/40"></span>
+                <span class="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-green-100 dark:bg-green-900/40"></span>
+                <span class="ml-2 text-xs font-mono text-gray-500 dark:text-gray-400 truncate">~/jobs/{{ detail.stage or 'pipeline' }} — exception</span>
+            </div>
+            <dl class="px-3 py-2.5 space-y-1 font-mono text-xs leading-relaxed">
+                <div class="flex gap-3">
+                    <dt class="w-20 text-right text-gray-500 dark:text-gray-400 flex-shrink-0">exception</dt>
+                    <dd class="flex-1 text-gray-800 dark:text-gray-200 break-all">{{ detail.exception_class }}</dd>
+                </div>
+                {% if detail.stage %}
+                <div class="flex gap-3">
+                    <dt class="w-20 text-right text-gray-500 dark:text-gray-400 flex-shrink-0">stage</dt>
+                    <dd class="flex-1 text-gray-800 dark:text-gray-200">{{ detail.stage }}</dd>
+                </div>
+                {% endif %}
+                {% if detail.provider %}
+                <div class="flex gap-3">
+                    <dt class="w-20 text-right text-gray-500 dark:text-gray-400 flex-shrink-0">provider</dt>
+                    <dd class="flex-1 text-gray-800 dark:text-gray-200">{{ detail.provider }}</dd>
+                </div>
+                {% endif %}
+                {% if detail.model %}
+                <div class="flex gap-3">
+                    <dt class="w-20 text-right text-gray-500 dark:text-gray-400 flex-shrink-0">model</dt>
+                    <dd class="flex-1 text-gray-800 dark:text-gray-200">{{ detail.model }}</dd>
+                </div>
+                {% endif %}
+                {% if detail.occurred_at %}
+                <div class="flex gap-3">
+                    <dt class="w-20 text-right text-gray-500 dark:text-gray-400 flex-shrink-0">at</dt>
+                    <dd class="flex-1 text-gray-700 dark:text-gray-300">{{ detail.occurred_at }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+            {% if detail.raw_message %}
+            <div class="flex items-start gap-2 rounded-b-md border-t border-gray-300 dark:border-gray-700 px-3 py-2 bg-gray-200 dark:bg-gray-900 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+                <span class="text-gray-500 dark:text-gray-400 select-none flex-shrink-0">▶</span>
+                <span class="flex-1 whitespace-pre-wrap break-words">{{ detail.raw_message }}</span>
+            </div>
+            {% endif %}
         </div>
     </details>
     {% endif %}
