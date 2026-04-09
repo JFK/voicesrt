@@ -41,7 +41,7 @@
                 <span class="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-red-100 dark:bg-red-900/40"></span>
                 <span class="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-yellow-100 dark:bg-yellow-900/40"></span>
                 <span class="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-green-100 dark:bg-green-900/40"></span>
-                <span class="ml-2 text-xs font-mono text-gray-500 dark:text-gray-400 truncate">~/jobs/{{ detail.stage or 'pipeline' }} — exception</span>
+                <span class="ml-2 flex-1 min-w-0 text-xs font-mono text-gray-500 dark:text-gray-400 truncate">~/jobs/{{ detail.stage or 'pipeline' }} — exception</span>
             </div>
             <dl class="px-3 py-2.5 space-y-1 font-mono text-xs leading-relaxed">
                 <div class="flex gap-3">
@@ -76,7 +76,7 @@
             {% if detail.raw_message %}
             <div class="flex items-start gap-2 rounded-b-md border-t border-gray-300 dark:border-gray-700 px-3 py-2 bg-gray-200 dark:bg-gray-900 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
                 <span class="text-gray-500 dark:text-gray-400 select-none flex-shrink-0">▶</span>
-                <span class="flex-1 whitespace-pre-wrap break-words">{{ detail.raw_message }}</span>
+                <span class="flex-1 min-w-0 whitespace-pre-wrap break-words">{{ detail.raw_message }}</span>
             </div>
             {% endif %}
         </div>
