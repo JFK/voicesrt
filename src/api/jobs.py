@@ -108,6 +108,27 @@ def _require_srt(job: Job) -> None:
         raise srt_not_available()
 
 
+async def _resolve_segments(job: Job) -> list[dict]:
+    """Get segments from SRT file (post-completion) or segments_json (streaming).
+
+    Priority: srt_path > segments_json > error.
+    """
+    import json as json_mod
+
+    import aiofiles
+
+    from src.services.srt import parse_srt
+
+    if job.srt_path:
+        srt_file = _resolve_srt_file(job)
+        async with aiofiles.open(srt_file, encoding="utf-8") as f:
+            content = await f.read()
+        return parse_srt(content)
+    if job.segments_json:
+        return json_mod.loads(job.segments_json)
+    raise srt_not_found()
+
+
 async def _process_job(job_id: str) -> None:
     """Background task: extract audio, transcribe, generate metadata."""
     from src.services.transcribe import process_transcription
@@ -681,16 +702,15 @@ async def generate_quiz_endpoint(
 
 @router.get("/{job_id}/segments")
 async def get_segments(job_id: str, session: AsyncSession = Depends(get_session)):
-    """Get parsed SRT segments with verification highlights."""
+    """Get parsed SRT segments with verification highlights.
+
+    During streaming (srt_path not yet set), reads from segments_json.
+    After completion, reads from the SRT file on disk.
+    """
     import json as json_mod
 
-    from src.services.srt import parse_srt
-
     job = await _get_job_or_404(session, job_id)
-    srt_file = _resolve_srt_file(job)
-
-    content = srt_file.read_text(encoding="utf-8")
-    segments = parse_srt(content)
+    segments = await _resolve_segments(job)
 
     verified_indices = json_mod.loads(job.verified_indices) if job.verified_indices else []
     verify_reasons = json_mod.loads(job.verify_reasons) if job.verify_reasons else {}
@@ -778,14 +798,10 @@ async def suggest_segment_endpoint(
     """Get AI suggestion for a single segment."""
     from src.services.cost import estimate_llm_cost, log_cost
     from src.services.refine import suggest_segment
-    from src.services.srt import parse_srt
     from src.services.transcribe import _get_credential, _get_model
 
     job = await _get_job_or_404(session, job_id)
-    srt_file = _resolve_srt_file(job)
-
-    content = srt_file.read_text(encoding="utf-8")
-    segments = parse_srt(content)
+    segments = await _resolve_segments(job)
 
     if index < 0 or index >= len(segments):
         raise invalid_segment_index(index)

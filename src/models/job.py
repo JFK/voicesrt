@@ -35,5 +35,6 @@ class Job(Base):
     model_override: Mapped[str | None] = mapped_column(String, nullable=True)
     speakers: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list of speaker names
     speaker_map: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: {segment_index: speaker_name}
+    segments_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: streaming segment buffer
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)

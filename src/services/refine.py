@@ -132,10 +132,14 @@ async def refine_with_llm(
     glossary: str = "",
     refine_mode: str = "standard",
     custom_prompts: dict[str, str] | None = None,
+    context_before: list[dict] | None = None,
 ) -> tuple[list[dict], int, int]:
     """Refine SRT segments using LLM post-processing.
 
     Returns (refined_segments, input_tokens, output_tokens).
+
+    When *context_before* is provided the LLM sees the preceding segments as
+    read-only context so it can maintain terminology across chunk boundaries.
     """
     segments_json = json.dumps(segments, ensure_ascii=False, indent=2)
     glossary_section = ""
@@ -144,11 +148,19 @@ async def refine_with_llm(
 IMPORTANT - Use this glossary to correct proper nouns, names, and technical terms:
 {glossary.strip()}
 """
+    context_section = ""
+    if context_before:
+        context_json = json.dumps(context_before, ensure_ascii=False, indent=2)
+        context_section = f"""
+Prior context (do NOT modify or include in your output, for reference only):
+{context_json}
+
+"""
     if custom_prompts and refine_mode in custom_prompts:
         template = custom_prompts[refine_mode]
     else:
         template = _PROMPT_MAP.get(refine_mode, REFINE_STANDARD_PROMPT)
-    prompt = template.format(segments_json=segments_json, glossary_section=glossary_section)
+    prompt = context_section + template.format(segments_json=segments_json, glossary_section=glossary_section)
 
     if provider in ("openai", "ollama"):
         return await _refine_openai_compat(prompt, api_key, model, provider)

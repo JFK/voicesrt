@@ -17,6 +17,7 @@ import { createWaveformController } from '/static/js/srt-editor/waveform.js';
 // Use |tojson so apostrophes and other special chars survive Jinja
 // autoescape and produce valid JS string literals (e.g. "segment's").
 var jobId = {{ job.id|tojson }};
+var isStreaming = {{ is_streaming|default(false)|tojson }};
 var i18n = {
     timeError: {{ t("srt_editor.time_error")|tojson }},
     saved: {{ t("srt_editor.saved")|tojson }},
@@ -66,6 +67,8 @@ window.srtEditor = function () {
             _saveTimer: null,
             _stopTimer: null,
             _speakerTimer: null,
+            _streamingClient: null,
+            streamingMode: isStreaming,
             formatTimeFull: formatTimeFull,
             formatTime: formatTime,
             parseTime: parseTime,
@@ -79,12 +82,35 @@ window.srtEditor = function () {
         createSaveManager(jobId, i18n),
         createKeyboardShortcuts(shortcutI18n),
         createWaveformController(),
+        {
+            startStreaming() {
+                var self = this;
+                self.loading = false;
+                self._streamingClient = new JobStatusClient(jobId, {
+                    onSegments: function (segs) {
+                        self.segments.push.apply(self.segments, segs);
+                    },
+                    onStatus: function () {},
+                    onComplete: function (data) {
+                        self.stopStreaming(data.status === 'completed');
+                    },
+                });
+            },
+            stopStreaming(reload) {
+                if (this._streamingClient) { this._streamingClient.destroy(); this._streamingClient = null; }
+                this.streamingMode = false;
+                if (reload) {
+                    this.loading = true;
+                    this.loadSegments();
+                }
+            },
+        },
     );
 };
 </script>
 {% endblock %}
 {% block content %}
-<div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="loadSegments(); initKeyboard()">
+<div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="if (!streamingMode) loadSegments(); initKeyboard(); if (streamingMode) startStreaming()">
     <div class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div class="flex items-center justify-between">
             <div>
@@ -226,6 +252,14 @@ window.srtEditor = function () {
     <div x-show="loading" class="text-center py-12">
         <div class="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
         <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ t('srt_editor.loading') }}</p>
+    </div>
+
+    <!-- Streaming indicator -->
+    <div x-show="streamingMode" x-cloak
+         class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md flex items-center gap-2">
+        <div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+        <span class="text-sm text-blue-800 dark:text-blue-200">{{ t('srt_editor.streaming_in_progress') }}</span>
+        <span class="text-xs text-blue-600 dark:text-blue-300 ml-auto" x-text="segments.length + ' {{ t('srt_editor.segments_count_suffix') }}'"></span>
     </div>
 
     <!-- Segments -->
