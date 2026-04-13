@@ -163,6 +163,20 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
                         input_tokens=r_in,
                         output_tokens=r_out,
                     )
+                    # Preserve original timestamps: LLM may drift timestamps
+                    # across chunk boundaries. Use refined text but original timing.
+                    if len(refined_chunk) == len(chunk_segments):
+                        for orig, ref in zip(chunk_segments, refined_chunk):
+                            ref["start"] = orig["start"]
+                            ref["end"] = orig["end"]
+                    else:
+                        # Segment count changed (caption mode split/merge) — keep
+                        # refined timestamps but clamp to chunk's time range.
+                        chunk_start = chunk_segments[0]["start"]
+                        chunk_end = chunk_segments[-1]["end"]
+                        for ref in refined_chunk:
+                            ref["start"] = max(chunk_start, min(ref["start"], chunk_end))
+                            ref["end"] = max(ref["start"], min(ref["end"], chunk_end))
                 except Exception as e:
                     logger.warning("Per-chunk refinement failed for job %s: %s", job.id, e)
                     # Graceful degradation: use raw segments for this chunk
