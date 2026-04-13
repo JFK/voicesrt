@@ -110,9 +110,11 @@ def test_landing_persona_presets(page: Page, base_url: str):
         page.goto(f"{base_url}/upload?persona={persona}")
         page.wait_for_function("window.Alpine !== undefined")
         # Wait until applyPersona() has run and personaHint is populated
-        page.wait_for_function("() => Alpine.$data(document.querySelector('[x-data]')).personaHint !== ''")
+        page.wait_for_function(
+            "() => { const el = document.querySelector('main [x-data]'); return el && Alpine.$data(el).personaHint !== ''; }"
+        )
         state = page.evaluate(
-            "() => { const d = Alpine.$data(document.querySelector('[x-data]')); "
+            "() => { const d = Alpine.$data(document.querySelector('main [x-data]')); "
             "return { enableRefine: d.enableRefine, refineMode: d.refineMode, personaHint: d.personaHint }; }"
         )
         assert state["enableRefine"] is True, f"persona={persona} should enable refine"
@@ -136,13 +138,14 @@ def test_navigation(page: Page, base_url: str):
         expect(heading).to_be_visible()
         expect(heading).to_contain_text(expected_text)
 
-    # Nav bar links are present
+    # Nav bar links are present (use .nav-desktop to avoid matching mobile menu duplicates)
     page.goto(base_url + "/settings")
     nav = page.locator("nav")
     expect(nav.get_by_role("link", name="VoiceSRT")).to_be_visible()
-    expect(nav.locator('a[href="/history"]')).to_be_visible()
-    expect(nav.locator('a[href="/costs"]')).to_be_visible()
-    expect(nav.locator('a[href="/settings"]')).to_be_visible()
+    desktop_nav = nav.locator(".nav-desktop")
+    expect(desktop_nav.locator('a[href="/history"]')).to_be_visible()
+    expect(desktop_nav.locator('a[href="/costs"]')).to_be_visible()
+    expect(desktop_nav.locator('a[href="/settings"]')).to_be_visible()
 
 
 def test_language_switch(page: Page, base_url: str):
