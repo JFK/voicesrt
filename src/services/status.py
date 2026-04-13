@@ -28,7 +28,7 @@ class JobStatusManager:
         if detail:
             data["detail"] = detail
         if extra:
-            data.update(extra)
+            data.update({k: v for k, v in extra.items() if k not in {"status", "detail"}})
         for q in self._subscribers.get(job_id, []):
             try:
                 q.put_nowait(data)

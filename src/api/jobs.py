@@ -115,8 +115,6 @@ async def _resolve_segments(job: Job) -> list[dict]:
     """
     import json as json_mod
 
-    import aiofiles
-
     from src.services.srt import parse_srt
 
     if job.srt_path:
