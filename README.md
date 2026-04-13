@@ -6,25 +6,29 @@
 
 [日本語](README.ja.md)
 
-Generate SRT subtitles from audio/video with AI transcription, then refine, edit, and export — all in one place.
+Generate SRT subtitles from audio/video with AI transcription, then refine, edit, and export — all in one place. Mobile-friendly, real-time streaming, and production-ready.
 
 ## Features
 
 ### Transcription
 - **AI Transcription**: OpenAI Whisper API / Google Gemini API
+- **Streaming Editor**: Segments appear in real-time as transcription progresses — no waiting for completion
 - **Multi-format**: MP4, MP3, WAV, MOV, AVI, MKV, M4A, FLAC, OGG, WebM
+- **Silence-aware Chunking**: Audio splits at silence gaps for cleaner segment boundaries
 - **LLM Post-processing**: 3 refine modes (Verbatim / Standard / Caption) with glossary
 - **Verify Pass**: Full-text consistency check for proper nouns and kanji
 - **Ollama Support**: Use local LLM models (Qwen3, etc.) for post-processing
 
 ### SRT Editor
 - **Inline Editing**: Edit text, timestamps, and segment structure in-browser
+- **Waveform Visualization**: wavesurfer.js waveform with speaker-colored regions, click-to-seek
 - **Speaker Management**: Register speakers, assign per segment, auto-coloring (8 colors)
 - **Segment Operations**: Merge, delete, add segments with time overlap validation
 - **Time Controls**: Editable timestamps with ±0.1s nudge buttons
-- **Audio Playback**: Integrated player bar, click any segment to play that range
+- **Audio Playback**: Integrated player bar with speed control (0.5x–2x)
 - **AI Suggestions**: Per-segment AI corrections using glossary (supports Ollama)
 - **Speaker-filtered Export**: Download SRT/VTT for a specific speaker only
+- **Keyboard Shortcuts**: 12 power-user shortcuts for navigation, playback, and editing
 
 ### YouTube Tools
 - **Metadata**: SEO-optimized title, description with chapters, 15-25 tags
@@ -42,17 +46,7 @@ Generate SRT subtitles from audio/video with AI transcription, then refine, edit
 - **Cost Dashboard**: Track API costs by provider, model, month, and operation
 - **Settings**: Encrypted API keys, model presets, glossary, refine prompts, pricing config
 - **i18n**: English / Japanese
-
-## Screenshots
-
-### Upload
-![Upload](docs/screenshots/upload.png)
-
-### Cost Dashboard
-![Cost Dashboard](docs/screenshots/costs.png)
-
-### Settings
-![Settings](docs/screenshots/settings.png)
+- **Mobile Responsive**: Hamburger menu, responsive grids, touch-friendly controls on all pages
 
 ## Quick Start
 
