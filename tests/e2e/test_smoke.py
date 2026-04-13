@@ -111,7 +111,8 @@ def test_landing_persona_presets(page: Page, base_url: str):
         page.wait_for_function("window.Alpine !== undefined")
         # Wait until applyPersona() has run and personaHint is populated
         page.wait_for_function(
-            "() => { const el = document.querySelector('main [x-data]'); return el && Alpine.$data(el).personaHint !== ''; }"
+            "() => { const el = document.querySelector('main [x-data]');"
+            " return el && Alpine.$data(el).personaHint !== ''; }"
         )
         state = page.evaluate(
             "() => { const d = Alpine.$data(document.querySelector('main [x-data]')); "
