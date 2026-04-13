@@ -34,17 +34,23 @@
     <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
+        .nav-desktop { display: none; }
+        .nav-mobile-btn { display: inline-flex; }
+        @media (min-width: 768px) {
+            .nav-desktop { display: flex; }
+            .nav-mobile-btn { display: none; }
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100" hx-headers='{"X-Requested-With": "XMLHttpRequest"}'>
     <div class="min-h-full">
-        <nav class="bg-gray-800">
+        <nav class="bg-gray-800" x-data="{ mobileMenu: false }" @resize.window="if (window.innerWidth >= 768) mobileMenu = false">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div class="flex h-16 items-center justify-between">
                     <div class="flex items-center">
                         <a href="/" class="text-white font-bold text-xl">VoiceSRT</a>
-                        <div class="ml-10 flex items-baseline space-x-4">
+                        <div class="nav-desktop ml-10 items-baseline space-x-4">
                             <a href="/upload"
                                class="{% if active_page == 'upload' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} rounded-md px-3 py-2 text-sm font-medium">
                                 {{ t('nav.upload') }}
@@ -78,7 +84,38 @@
                         <a href="/lang/en" class="text-gray-300 hover:text-white px-2 py-1 rounded {% if lang == 'en' %}bg-gray-700 text-white{% endif %}">EN</a>
                         <span class="text-gray-400">|</span>
                         <a href="/lang/ja" class="text-gray-300 hover:text-white px-2 py-1 rounded {% if lang == 'ja' %}bg-gray-700 text-white{% endif %}">JA</a>
+                        <!-- Mobile menu button -->
+                        <button @click="mobileMenu = !mobileMenu" class="nav-mobile-btn text-gray-300 hover:text-white p-2 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
+                                aria-label="{{ t('nav.menu') }}" :aria-expanded="mobileMenu">
+                            <svg x-show="!mobileMenu" class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                            <svg x-show="mobileMenu" x-cloak class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
                     </div>
+                </div>
+            </div>
+            <!-- Mobile menu panel -->
+            <div x-show="mobileMenu" x-cloak x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-1"
+                 class="border-t border-gray-700">
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                    <a href="/upload"
+                       class="{% if active_page == 'upload' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} block rounded-md px-3 py-2 text-base font-medium">
+                        {{ t('nav.upload') }}
+                    </a>
+                    <a href="/history"
+                       class="{% if active_page == 'history' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} block rounded-md px-3 py-2 text-base font-medium">
+                        {{ t('nav.history') }}
+                    </a>
+                    <a href="/costs"
+                       class="{% if active_page == 'costs' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} block rounded-md px-3 py-2 text-base font-medium">
+                        {{ t('nav.costs') }}
+                    </a>
+                    <a href="/settings"
+                       class="{% if active_page == 'settings' %}bg-gray-900 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} block rounded-md px-3 py-2 text-base font-medium">
+                        {{ t('nav.settings') }}
+                    </a>
                 </div>
             </div>
         </nav>
@@ -90,7 +127,7 @@
 
     <!-- Global toast notifications -->
     <div x-data="toastManager()" x-ref="toastContainer"
-         class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"
+         class="fixed bottom-4 left-4 right-4 sm:left-auto z-50 flex flex-col gap-2 sm:max-w-sm"
          @show-toast.window="add($event.detail)">
         <template x-for="toast in toasts" :key="toast.id">
             <div x-show="toast.visible"
