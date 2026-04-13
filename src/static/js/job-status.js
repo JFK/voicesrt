@@ -22,6 +22,7 @@ window.JobStatusClient = function (jobId, options) {
         _onStatus: options.onStatus || function () {},
         _onComplete: options.onComplete || function () {},
         _onError: options.onError || function () {},
+        _onSegments: options.onSegments || null,
         _statusUrl: options.statusUrl || ('/api/jobs/' + jobId + '/status'),
         _streamUrl: '/api/jobs/' + jobId + '/stream',
     };
@@ -29,6 +30,11 @@ window.JobStatusClient = function (jobId, options) {
     function handleData(data) {
         if (self._destroyed) return;
         self._retryCount = 0;
+        // Route segment-appended events to the dedicated callback
+        if (data && data.event === 'segments.appended' && data.segments && self._onSegments) {
+            self._onSegments(data.segments);
+            return;
+        }
         // Normalize: the polling endpoint returns `error_message` while SSE
         // events use `detail`. Callers should always read `data.detail`.
         if (data && data.error_message && !data.detail) {

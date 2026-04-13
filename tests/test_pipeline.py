@@ -241,6 +241,7 @@ async def test_refine_failure_populates_error_detail(monkeypatch):
         file_size=1,
         provider="whisper",
         enable_refine=True,
+        enable_verify=True,  # Force batch-refine path (streaming skips _run_refinement)
     )
 
     fake_segments = [{"start": 0.0, "end": 1.0, "text": "hi"}]
@@ -261,6 +262,9 @@ async def test_refine_failure_populates_error_detail(monkeypatch):
     async def fake_get_refine_model(_session, _provider_name):
         return "gpt-x"
 
+    async def fake_run_verification(*_args, **_kwargs):
+        return list(fake_segments), [], {}
+
     def fake_save_srt(_content, _path):
         pass
 
@@ -268,6 +272,7 @@ async def test_refine_failure_populates_error_detail(monkeypatch):
     monkeypatch.setattr(transcribe_mod, "extract_audio", fake_extract)
     monkeypatch.setattr(transcribe_mod, "_run_transcription", fake_run_transcription)
     monkeypatch.setattr(transcribe_mod, "_run_refinement", fake_run_refinement)
+    monkeypatch.setattr(transcribe_mod, "_run_verification", fake_run_verification)
     monkeypatch.setattr(transcribe_mod, "_get_refine_model", fake_get_refine_model)
     monkeypatch.setattr(transcribe_mod, "save_srt", fake_save_srt)
 

@@ -22,11 +22,13 @@ class JobStatusManager:
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
         self._last_terminal: OrderedDict[str, dict] = OrderedDict()
 
-    async def publish(self, job_id: str, status: str, detail: str | None = None) -> None:
+    async def publish(self, job_id: str, status: str, detail: str | None = None, extra: dict | None = None) -> None:
         """Broadcast a status event to all subscribers of a job."""
         data: dict = {"status": status}
         if detail:
             data["detail"] = detail
+        if extra:
+            data.update({k: v for k, v in extra.items() if k not in {"status", "detail"}})
         for q in self._subscribers.get(job_id, []):
             try:
                 q.put_nowait(data)

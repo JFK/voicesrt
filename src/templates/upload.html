@@ -161,6 +161,14 @@
         </div>
         <p x-show="elapsed > 0" class="mt-2 text-xs text-gray-400 dark:text-gray-500" x-text="$root.dataset.i18nElapsed + ' ' + elapsed + 's'"></p>
 
+        <!-- Streaming editor link (shown during transcription when first segments arrive) -->
+        <div x-show="streamingEditorAvailable && !completedJobId" class="mt-4 flex items-center gap-3">
+            <a :href="'/srt/' + jobId"
+               class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600">
+                {{ t('upload.open_streaming_editor') }}
+            </a>
+        </div>
+
         <!-- Completion links -->
         <div x-show="completedJobId" class="mt-4 flex items-center gap-3">
             <a :href="'/srt/' + completedJobId"
@@ -201,6 +209,7 @@ function uploadForm() {
         uploading: false,
         jobId: null,
         completedJobId: null,
+        streamingEditorAvailable: false,
         dragover: false,
         personaHint: '',
 
@@ -343,6 +352,10 @@ function uploadForm() {
                         headers: { 'HX-Request': 'true' }
                     }).then(function (res) { return res.text(); })
                       .then(function (html) { self.statusHtml = html; });
+                },
+                onSegments: function () {
+                    // First segment chunk arrived — streaming editor is available
+                    self.streamingEditorAvailable = true;
                 },
                 onComplete() {
                     if (self.elapsedTimer) { clearInterval(self.elapsedTimer); self.elapsedTimer = null; }
