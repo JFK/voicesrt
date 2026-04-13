@@ -50,7 +50,8 @@
     "enable_verify_desc": "Re-read full transcript after refine to catch inconsistencies in names, kanji, and places",
     "persona_hint_youtuber": "Configured for YouTubers — caption-mode refine enabled. Generate metadata after upload from History.",
     "persona_hint_meeting": "Configured for meetings — verbatim refine keeps every word. Use the SRT editor for speaker labels.",
-    "persona_hint_editor": "Configured for editing — standard refine. Use the SRT editor's glossary and time-nudge after upload."
+    "persona_hint_editor": "Configured for editing — standard refine. Use the SRT editor's glossary and time-nudge after upload.",
+    "open_streaming_editor": "Open Streaming Editor"
   },
   "landing": {
     "title": "Welcome",
@@ -244,6 +245,8 @@
     "saving": "Saving...",
     "saved": "Saved successfully",
     "loading": "Loading...",
+    "streaming_in_progress": "Transcribing in progress — segments appear as each chunk completes",
+    "segments_count_suffix": "segments",
     "verified_badge": "Verified",
     "reason": "Reason",
     "suggestion": "AI Suggestion",

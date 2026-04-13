@@ -69,7 +69,8 @@ async def srt_editor_page(job_id: str, request: Request, session: AsyncSession =
     job = result.scalar_one_or_none()
     if not job:
         return RedirectResponse("/history")
-    ctx = {"active_page": "history", "job": job, **_i18n_context(request)}
+    is_streaming = job.enable_refine and not job.enable_verify and not job.srt_path
+    ctx = {"active_page": "history", "job": job, "is_streaming": is_streaming, **_i18n_context(request)}
     return templates.TemplateResponse(request, "srt_editor.html", ctx)
 
 

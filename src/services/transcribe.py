@@ -1,5 +1,6 @@
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -31,6 +32,9 @@ from src.services.srt import generate_srt, save_srt
 from src.services.status import status_manager
 
 logger = logging.getLogger(__name__)
+
+# Callback invoked after each audio chunk is transcribed (with offset applied).
+_OnChunkCallback = Callable[[list[dict]], Awaitable[None]]
 
 
 async def _get_credential(session: AsyncSession, provider: str) -> str:
@@ -112,10 +116,6 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         await session.commit()
         await status_manager.publish(job.id, STATUS_TRANSCRIBING)
 
-        segments = await _run_transcription(
-            job, session, audio_path, api_key, duration, combined_glossary, transcription_provider
-        )
-
         # For post-processing, use the job's own provider (may differ from transcription)
         pp_api_key = await _get_credential(session, job.provider) if job.provider != transcription_provider else api_key
         pp_provider_name = get_provider_name(job.provider)
@@ -126,8 +126,76 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         if job.enable_refine or job.enable_verify:
             refine_model = await _get_refine_model(session, pp_provider_name)
 
-        # Step 3: LLM post-processing (refine) if enabled
-        if job.enable_refine:
+        # Streaming mode: refine each chunk inline and publish segments via SSE
+        use_streaming = job.enable_refine and not job.enable_verify
+        streaming_on_chunk: _OnChunkCallback | None = None
+        refined_accumulator: list[dict] = []
+
+        if use_streaming:
+            custom_prompts = await _load_custom_prompts(session)
+            refine_mode = job.refine_mode or "standard"
+            context_before_n = 3
+
+            async def _streaming_on_chunk(chunk_segments: list[dict]) -> None:
+                """Refine a chunk, persist to segments_json, publish via SSE."""
+                from src.services.refine import refine_with_llm
+
+                context = refined_accumulator[-context_before_n:] if refined_accumulator else []
+                try:
+                    refined_chunk, r_in, r_out = await refine_with_llm(
+                        chunk_segments,
+                        pp_api_key,
+                        pp_provider_name,
+                        refine_model,  # type: ignore[arg-type]
+                        combined_glossary,
+                        refine_mode,
+                        custom_prompts=custom_prompts or None,
+                        context_before=context,
+                    )
+                    cost = estimate_llm_cost(r_in, r_out, refine_model, pp_provider_name)  # type: ignore[arg-type]
+                    await log_cost(
+                        session,
+                        job.id,
+                        pp_provider_name,
+                        refine_model or "",
+                        "refinement",
+                        cost,
+                        input_tokens=r_in,
+                        output_tokens=r_out,
+                    )
+                except Exception as e:
+                    logger.warning("Per-chunk refinement failed for job %s: %s", job.id, e)
+                    # Graceful degradation: use raw segments for this chunk
+                    refined_chunk = chunk_segments
+
+                refined_accumulator.extend(refined_chunk)
+                job.segments_json = json.dumps(refined_accumulator, ensure_ascii=False)
+                await session.commit()
+                await status_manager.publish(
+                    job.id,
+                    STATUS_TRANSCRIBING,
+                    extra={"event": "segments.appended", "segments": refined_chunk},
+                )
+
+            streaming_on_chunk = _streaming_on_chunk
+
+        segments = await _run_transcription(
+            job,
+            session,
+            audio_path,
+            api_key,
+            duration,
+            combined_glossary,
+            transcription_provider,
+            on_chunk=streaming_on_chunk,
+        )
+
+        # Use refined segments from streaming, or raw segments for batch refine
+        if use_streaming:
+            segments = refined_accumulator
+
+        # Step 3: LLM post-processing (refine) if enabled — skip when streaming already refined
+        if job.enable_refine and not use_streaming:
             job.status = STATUS_REFINING
             await session.commit()
             await status_manager.publish(job.id, STATUS_REFINING)
@@ -219,6 +287,7 @@ async def _run_transcription(
     duration: float,
     glossary: str = "",
     transcription_provider: str | None = None,
+    on_chunk: _OnChunkCallback | None = None,
 ) -> list[dict]:
     """Run transcription with the configured provider and log cost."""
     effective_provider = transcription_provider or job.provider
@@ -226,13 +295,13 @@ async def _run_transcription(
     whisper_prompt = _build_whisper_prompt(glossary) if glossary else None
 
     if effective_provider == "whisper":
-        segments = await _transcribe_whisper(audio_path, api_key, job.language, whisper_prompt)
+        segments = await _transcribe_whisper(audio_path, api_key, job.language, whisper_prompt, on_chunk=on_chunk)
         cost = estimate_whisper_cost(duration)
         await log_cost(session, job.id, "whisper", "whisper-1", "transcription", cost, audio_duration=duration)
     else:
         model = await _get_model(session, effective_provider, job.model_override)
         segments, input_tokens, output_tokens = await _transcribe_gemini(
-            audio_path, api_key, job.language, model, glossary
+            audio_path, api_key, job.language, model, glossary, on_chunk=on_chunk
         )
         cost = estimate_gemini_cost(duration, output_tokens, model)
         await log_cost(
@@ -269,14 +338,21 @@ def _build_whisper_prompt(glossary: str) -> str:
 
 
 async def _transcribe_whisper(
-    audio_path: Path, api_key: str, language: str | None, prompt: str | None = None
+    audio_path: Path,
+    api_key: str,
+    language: str | None,
+    prompt: str | None = None,
+    on_chunk: _OnChunkCallback | None = None,
 ) -> list[dict]:
     """Transcribe with Whisper, handling chunking for large files."""
     from src.services.whisper import transcribe_with_whisper
 
     chunks = await split_audio(audio_path)
     if len(chunks) == 1:
-        return await transcribe_with_whisper(audio_path, api_key, language, prompt)
+        segments = await transcribe_with_whisper(audio_path, api_key, language, prompt)
+        if on_chunk:
+            await on_chunk(segments)
+        return segments
 
     all_segments: list[dict] = []
     offset = 0.0
@@ -284,14 +360,12 @@ async def _transcribe_whisper(
         chunk_duration = await get_audio_duration(chunk_path)
         segments = await transcribe_with_whisper(chunk_path, api_key, language, prompt)
         # Apply offset without mutating original segments
-        for seg in segments:
-            all_segments.append(
-                {
-                    "start": seg["start"] + offset,
-                    "end": seg["end"] + offset,
-                    "text": seg["text"],
-                }
-            )
+        chunk_segments = [
+            {"start": seg["start"] + offset, "end": seg["end"] + offset, "text": seg["text"]} for seg in segments
+        ]
+        all_segments.extend(chunk_segments)
+        if on_chunk:
+            await on_chunk(chunk_segments)
         offset += chunk_duration
 
     return all_segments
@@ -303,13 +377,19 @@ async def _transcribe_gemini(
     language: str | None,
     model: str = "gemini-2.5-flash",
     glossary: str = "",
+    on_chunk: _OnChunkCallback | None = None,
 ) -> tuple[list[dict], int, int]:
     """Transcribe with Gemini, handling chunking for large files."""
     from src.services.gemini import transcribe_with_gemini
 
     chunks = await split_audio(audio_path)
     if len(chunks) == 1:
-        return await transcribe_with_gemini(audio_path, api_key, language, model, glossary)
+        segments, input_tokens, output_tokens = await transcribe_with_gemini(
+            audio_path, api_key, language, model, glossary
+        )
+        if on_chunk:
+            await on_chunk(segments)
+        return segments, input_tokens, output_tokens
 
     logger.info("Splitting audio into %d chunks for Gemini transcription", len(chunks))
     all_segments: list[dict] = []
@@ -321,14 +401,12 @@ async def _transcribe_gemini(
         segments, input_tokens, output_tokens = await transcribe_with_gemini(
             chunk_path, api_key, language, model, glossary
         )
-        for seg in segments:
-            all_segments.append(
-                {
-                    "start": seg["start"] + offset,
-                    "end": seg["end"] + offset,
-                    "text": seg["text"],
-                }
-            )
+        chunk_segments = [
+            {"start": seg["start"] + offset, "end": seg["end"] + offset, "text": seg["text"]} for seg in segments
+        ]
+        all_segments.extend(chunk_segments)
+        if on_chunk:
+            await on_chunk(chunk_segments)
         total_input_tokens += input_tokens
         total_output_tokens += output_tokens
         offset += chunk_duration
@@ -392,6 +470,18 @@ _DEFAULT_REFINE_MODELS = {
 }
 
 
+async def _load_custom_prompts(session: AsyncSession) -> dict[str, str]:
+    """Load custom refine prompts from DB settings."""
+    custom_prompts: dict[str, str] = {}
+    for mode in ("verbatim", "standard", "caption"):
+        key = f"general.refine_prompt_{mode}"
+        result = await session.execute(select(Setting).where(Setting.key == key))
+        setting = result.scalar_one_or_none()
+        if setting:
+            custom_prompts[mode] = setting.value
+    return custom_prompts
+
+
 async def _get_refine_model(session: AsyncSession, provider_name: str) -> str:
     """Get refine/verify model from settings or provider default."""
     refine_key = f"general.refine_model_{provider_name}"
@@ -415,14 +505,7 @@ async def _run_refinement(
 
     refine_mode = job.refine_mode or "standard"
 
-    # Load custom prompts from DB
-    custom_prompts = {}
-    for mode in ("verbatim", "standard", "caption"):
-        key = f"general.refine_prompt_{mode}"
-        result = await session.execute(select(Setting).where(Setting.key == key))
-        setting = result.scalar_one_or_none()
-        if setting:
-            custom_prompts[mode] = setting.value
+    custom_prompts = await _load_custom_prompts(session)
 
     refined, input_tokens, output_tokens = await refine_with_llm(
         segments,
