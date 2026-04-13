@@ -24,6 +24,7 @@ var i18n = {
     deleteConfirm: {{ t("srt_editor.delete_confirm")|tojson }},
     exceedsNext: {{ t("srt_editor.exceeds_next")|tojson }},
     mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
+    segmentsCountSuffix: {{ t("srt_editor.segments_count_suffix")|tojson }},
 };
 var shortcutI18n = {
     navUp: {{ t("srt_editor.shortcut_nav_up")|tojson }},
@@ -69,6 +70,7 @@ window.srtEditor = function () {
             _speakerTimer: null,
             _streamingClient: null,
             streamingMode: isStreaming,
+            _i18nSegmentsSuffix: i18n.segmentsCountSuffix,
             formatTimeFull: formatTimeFull,
             formatTime: formatTime,
             parseTime: parseTime,
@@ -85,18 +87,12 @@ window.srtEditor = function () {
         {
             async startStreaming() {
                 var self = this;
-                // Load any already-produced segments before subscribing to SSE
-                try {
-                    var res = await fetch('/api/jobs/' + jobId + '/segments');
-                    if (res.ok) {
-                        var data = await res.json();
-                        self.segments = data.segments || [];
-                    }
-                } catch (e) { /* no segments yet — start empty */ }
-                self.loading = false;
+                // Reuse loadSegments() to hydrate segments + glossary + speakers + regions
+                await self.loadSegments();
                 self._streamingClient = new JobStatusClient(jobId, {
                     onSegments: function (segs) {
                         self.segments.push.apply(self.segments, segs);
+                        self.renderRegions();
                     },
                     onStatus: function () {},
                     onComplete: function (data) {
@@ -267,7 +263,7 @@ window.srtEditor = function () {
          class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md flex items-center gap-2">
         <div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
         <span class="text-sm text-blue-800 dark:text-blue-200">{{ t('srt_editor.streaming_in_progress') }}</span>
-        <span class="text-xs text-blue-600 dark:text-blue-300 ml-auto" x-text="segments.length + ' ' + {{ t('srt_editor.segments_count_suffix')|tojson }}"></span>
+        <span class="text-xs text-blue-600 dark:text-blue-300 ml-auto" x-text="segments.length + ' ' + _i18nSegmentsSuffix"></span>
     </div>
 
     <!-- Segments -->
