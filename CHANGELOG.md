@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-04-14
+
+**Production Ready** — performance, robustness, observability, and mobile responsive.
+
+### Added
+- **Streaming SRT editor**: Append segments per chunk as transcription progresses — no more waiting for completion (#50)
+- **Silence-aware chunk boundaries**: Audio splitting at silence gaps instead of fixed intervals for cleaner transcription (#49)
+- **Mobile responsive layout**: Hamburger menu, responsive grids, hidden table columns, touch targets ≥44px across all pages (#24)
+
+### Changed
+- **LLM model pre-flight validation**: Validate model name before job submission to fail fast on typos or unavailable models (#53)
+- **Raw API error preservation**: `error_detail` field now stores the original provider error for debugging (#54)
+- **Error detail panel redesign**: Inline diagnostic console with design token alignment (#57)
+
+### Closed (deferred)
+- SRT Editor compact mode (#15) — deferred: revisit when users report segment overload
+- Batch processing (#23) — deferred: too large for v1.0.0 scope, revisit in v1.1+
+
 ## [0.6.0] - 2026-04-07
 
 **Visual & Discovery** — surface what the app does at a glance and make audio structure visible.
