@@ -22,4 +22,5 @@ data/assets/
 htmlcov/
 .coverage
 
+# Playwright MCP
 .playwright-mcp/
