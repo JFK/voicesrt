@@ -14,23 +14,25 @@
                         <h3 class="font-medium text-gray-900 dark:text-gray-100" x-text="p.label"></h3>
                         <span x-show="p.configured" class="text-xs bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 px-2 py-1 rounded-full">{{ t('settings.configured') }}</span>
                     </div>
-                    <div class="flex space-x-2">
+                    <div class="space-y-2">
                         <input :type="p.showKey ? 'text' : 'password'"
                                x-model="p.newKey"
                                :placeholder="p.configured ? p.masked : '{{ t('settings.enter_api_key') }}'"
-                               class="flex-1 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
-                        <button @click="saveKey(p)" :disabled="!p.newKey"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-400">
-                            {{ t('settings.save') }}
-                        </button>
-                        <button @click="testKey(p)" :disabled="!p.configured"
-                                class="px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50">
-                            {{ t('settings.test') }}
-                        </button>
-                        <button x-show="p.configured" @click="deleteKey(p)"
-                                class="px-4 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-md text-sm hover:bg-red-200">
-                            {{ t('settings.del') }}
-                        </button>
+                               class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
+                        <div class="flex gap-2">
+                            <button @click="saveKey(p)" :disabled="!p.newKey"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-400">
+                                {{ t('settings.save') }}
+                            </button>
+                            <button @click="testKey(p)" :disabled="!p.configured"
+                                    class="px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50">
+                                {{ t('settings.test') }}
+                            </button>
+                            <button x-show="p.configured" @click="deleteKey(p)"
+                                    class="px-4 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-md text-sm hover:bg-red-200">
+                                {{ t('settings.del') }}
+                            </button>
+                        </div>
                     </div>
                     <p x-show="p.testResult !== null" class="mt-2 text-sm"
                        :class="p.testResult ? 'text-green-600' : 'text-red-600'"
@@ -48,14 +50,16 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('settings.ollama_base_url') }}</label>
-                <div class="flex space-x-2">
+                <div class="space-y-2">
                     <input type="text" x-model="ollamaUrl"
-                           class="flex-1 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100"
                            placeholder="http://host.docker.internal:11434">
-                    <button @click="saveOllamaUrl()"
-                            class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
-                    <button @click="testOllama()"
-                            class="px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('settings.test') }}</button>
+                    <div class="flex gap-2">
+                        <button @click="saveOllamaUrl()"
+                                class="px-3 py-2 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700">{{ t('settings.save') }}</button>
+                        <button @click="testOllama()"
+                                class="px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-xs hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('settings.test') }}</button>
+                    </div>
                 </div>
                 <p x-show="ollamaTestResult !== null" class="mt-2 text-sm"
                    :class="ollamaTestResult ? 'text-green-600' : 'text-red-600'"
@@ -76,7 +80,7 @@
         <!-- Presets -->
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ t('settings.quick_presets') }}</label>
-            <div class="flex space-x-2">
+            <div class="flex flex-wrap gap-2">
                 <button @click="applyPreset('quality')"
                         class="px-4 py-2 bg-purple-100 text-purple-700 border border-purple-300 rounded-md text-sm hover:bg-purple-200 font-medium">
                     {{ t('settings.quality') }}
@@ -99,7 +103,7 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">OpenAI</label>
-                <div class="flex space-x-2">
+                <div class="flex flex-wrap gap-2">
                     <select x-model="models.openai"
                             class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <template x-for="m in openaiModels" :key="m">
@@ -112,7 +116,7 @@
             </div>
             <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Gemini</label>
-                <div class="flex space-x-2">
+                <div class="flex flex-wrap gap-2">
                     <select x-model="models.gemini"
                             class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <template x-for="m in geminiModels" :key="m">
@@ -125,7 +129,7 @@
             </div>
             <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Ollama</label>
-                <div class="flex space-x-2">
+                <div class="flex flex-wrap gap-2">
                     <select x-model="models.ollama"
                             class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border truncate dark:bg-gray-800 dark:text-gray-100">
                         <template x-for="m in ollamaModels" :key="m">
@@ -146,7 +150,7 @@
             <template x-for="(info, key) in generalSettings" :key="key">
                 <div x-show="key.startsWith('refine_model')">
                     <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" x-text="info.label"></label>
-                    <div class="flex space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         <select x-model="info.value"
                                 class="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border truncate dark:bg-gray-800 dark:text-gray-100">
                             <option value="">—</option>
@@ -169,7 +173,7 @@
             <template x-for="(info, key) in generalSettings" :key="key">
                 <div x-show="!key.startsWith('refine_model')">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1" x-text="info.label"></label>
-                    <div class="flex space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         <input type="text" x-model="info.value"
                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                         <button @click="saveGeneral(key, info.value)"
@@ -276,7 +280,7 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-2"
-         class="fixed bottom-6 right-6 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+         class="fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50">
         <p class="text-sm font-medium" x-text="statusMsg"></p>
     </div>
 </div>

@@ -44,7 +44,7 @@
         </div>
 
         <!-- Options -->
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('upload.provider') }}</label>
                 <select x-model="provider" class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
@@ -67,7 +67,7 @@
         <!-- Post-processing model (shown when refine is enabled) -->
         <div x-show="enableRefine" x-transition>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('upload.refine_model_label') }}</label>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <select x-model="ppProvider" @change="onPpProviderChange()" class="rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
                     <template x-for="p in ppProviders" :key="p.id">
                         <option :value="p.id" x-text="p.label" :disabled="!p.available"></option>
@@ -106,7 +106,7 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('upload.refine_mode') }}</label>
                 <div class="relative inline-block group ml-1">
                     <span class="cursor-help text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-sm">?</span>
-                    <div class="invisible group-hover:visible absolute z-10 w-72 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg -top-2 left-6">
+                    <div class="invisible group-hover:visible absolute z-10 w-64 sm:w-72 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg -top-2 left-6 max-w-[calc(100vw-4rem)]">
                         <p class="mb-2"><span class="font-semibold">Verbatim:</span> {{ t('upload.refine_verbatim_desc') }}</p>
                         <p class="mb-2"><span class="font-semibold">Standard:</span> {{ t('upload.refine_standard_desc') }}</p>
                         <p><span class="font-semibold">Caption:</span> {{ t('upload.refine_caption_desc') }}</p>
@@ -141,7 +141,7 @@
         <!-- Submit -->
         <button type="submit"
                 :disabled="!file || uploading"
-                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium">
+                class="w-full bg-blue-600 text-white py-3 sm:py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium">
             <span x-show="!uploading">{{ t('upload.submit') }}</span>
             <span x-show="uploading">{{ t('upload.uploading') }}</span>
         </button>

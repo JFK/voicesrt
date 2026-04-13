@@ -116,15 +116,15 @@ window.srtEditor = function () {
 {% block content %}
 <div class="max-w-4xl mx-auto" x-data="srtEditor()" x-init="if (!streamingMode) loadSegments(); initKeyboard(); if (streamingMode) startStreaming()">
     <div class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('srt_editor.title') }}</h1>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ job.filename }}</p>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div class="min-w-0">
+                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{{ t('srt_editor.title') }}</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{{ job.filename }}</p>
             </div>
-            <div class="flex items-center gap-2">
-                <span x-show="saving" class="text-xs text-gray-400 dark:text-gray-500">{{ t('srt_editor.saving') }}</span>
-                <span x-show="saveMsg && !saveError" x-transition class="text-xs text-green-600" x-text="saveMsg"></span>
-                <span x-show="saveMsg && saveError" x-transition class="text-xs text-red-600" x-text="saveMsg"></span>
+            <div class="flex items-center gap-2 flex-wrap">
+                <span x-show="saving" class="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">{{ t('srt_editor.saving') }}</span>
+                <span x-show="saveMsg && !saveError" x-transition class="text-xs text-green-600 hidden sm:inline" x-text="saveMsg"></span>
+                <span x-show="saveMsg && saveError" x-transition class="text-xs text-red-600 hidden sm:inline" x-text="saveMsg"></span>
                 <div class="relative" x-data="{ showGlossary: false }" @glossary-saved.window="showGlossary = false">
                     <button @click="showGlossary = !showGlossary"
                             class="inline-flex items-center gap-1 px-3 py-2 bg-amber-100 text-amber-800 rounded-md text-sm font-medium hover:bg-amber-200 border border-amber-300"
@@ -133,7 +133,7 @@ window.srtEditor = function () {
                         {{ t('srt_editor.glossary_label_short') }}
                     </button>
                     <div x-show="showGlossary" x-transition @click.away="showGlossary = false"
-                         class="absolute right-0 top-full mt-1 w-96 bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">
+                         class="absolute right-0 top-full mt-1 w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('srt_editor.glossary_label') }}</label>
                         <textarea x-model="glossary" rows="6"
                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 text-xs p-2 border font-mono dark:bg-gray-800 dark:text-gray-100"
@@ -229,14 +229,14 @@ window.srtEditor = function () {
         </div>
 
         <!-- Audio player bar -->
-        <div x-show="!loading" class="mt-3 flex flex-nowrap items-center gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
+        <div x-show="!loading" class="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
             <button @click="togglePlay()"
                     class="text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors flex-shrink-0">
                 <svg x-show="!isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg x-show="isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
             <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
-            <div x-ref="waveform" class="flex-1 min-w-0"></div>
+            <div x-ref="waveform" class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none"></div>
             <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
                     class="text-xs font-mono rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-1 py-0.5 flex-shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     title="{{ t('srt_editor.playback_speed') }}">
@@ -269,12 +269,12 @@ window.srtEditor = function () {
     <!-- Segments -->
     <div x-show="!loading" class="space-y-3">
         <template x-for="(seg, idx) in segments" :key="idx">
-            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 transition-colors cursor-pointer"
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors cursor-pointer"
                  :id="'seg-' + idx"
                  @click="if (!$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
                  :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent'">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <input type="checkbox" :value="idx" x-model.number="selected"
                                class="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
                         <span class="text-xs font-mono text-gray-400 dark:text-gray-500" x-text="'#' + (idx + 1)"></span>
@@ -285,19 +285,19 @@ window.srtEditor = function () {
                         </button>
                         <!-- Editable timestamps with ±0.1s controls -->
                         <div class="inline-flex items-center gap-0.5">
-                            <button @click="nudgeTime(idx, 'start', -0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
+                            <button @click="nudgeTime(idx, 'start', -0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.start)"
                                    @change="const v = parseTime($event.target.value); if (v !== null) { seg.start = v; debounceSave() } else { $event.target.value = formatTimeFull(seg.start) }"
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
-                            <button @click="nudgeTime(idx, 'start', 0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
+                            <button @click="nudgeTime(idx, 'start', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
                         <span class="text-xs text-gray-400 dark:text-gray-500">→</span>
                         <div class="inline-flex items-center gap-0.5">
-                            <button @click="nudgeTime(idx, 'end', -0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
+                            <button @click="nudgeTime(idx, 'end', -0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.end)"
                                    @change="updateEnd(idx, $event.target.value)"
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
-                            <button @click="nudgeTime(idx, 'end', 0.1)" class="text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
+                            <button @click="nudgeTime(idx, 'end', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
                         <span x-show="verifiedIndices.includes(idx)"
                               class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 cursor-help"
@@ -417,7 +417,7 @@ window.srtEditor = function () {
     <!-- Keyboard shortcut hint -->
     <div class="fixed bottom-6 right-6 z-40" x-show="!_helpVisible">
         <button @click="_helpVisible = true"
-                class="w-8 h-8 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-600 dark:text-gray-300 rounded-full shadow text-sm font-bold"
+                class="w-10 h-10 sm:w-8 sm:h-8 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-600 dark:text-gray-300 rounded-full shadow text-sm font-bold"
                 aria-label="{{ t('srt_editor.shortcuts_title') }}"
                 title="{{ t('srt_editor.shortcuts_title') }}">?</button>
     </div>
