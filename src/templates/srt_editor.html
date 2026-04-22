@@ -234,7 +234,8 @@ window.srtEditor = function () {
         </div>
 
         <!-- Audio player bar -->
-        <div x-show="!loading" class="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
+        <div x-show="!loading" :class="audioReady ? '' : 'animate-pulse'"
+             class="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
             <button @click="togglePlay()" :disabled="!audioReady"
                     :class="audioReady ? 'text-gray-600 dark:text-gray-300 hover:text-blue-600' : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'"
                     class="transition-colors flex-shrink-0"
@@ -244,7 +245,12 @@ window.srtEditor = function () {
             </button>
             <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
             <span x-show="!audioReady" x-cloak class="text-xs text-gray-400 dark:text-gray-500 italic flex-shrink-0">{{ t('srt_editor.audio_loading') }}</span>
-            <div x-ref="waveform" class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none"></div>
+            <div class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none relative">
+                <div x-ref="waveform" class="w-full" :class="audioReady ? '' : 'invisible'"></div>
+                <div x-show="!audioReady" x-cloak class="absolute inset-0 flex items-center pointer-events-none">
+                    <div class="w-full h-[60px] rounded bg-gray-200 dark:bg-gray-700"></div>
+                </div>
+            </div>
             <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
                     class="text-xs font-mono rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-1 py-0.5 flex-shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     title="{{ t('srt_editor.playback_speed') }}">
@@ -275,7 +281,8 @@ window.srtEditor = function () {
     </div>
 
     <!-- Segments -->
-    <div x-show="!loading" class="space-y-3">
+    <div x-show="!loading" :class="audioReady ? '' : 'opacity-60'"
+         class="space-y-3 transition-opacity">
         <template x-for="(seg, idx) in segments" :key="seg._uid">
             <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors"
                  :id="'seg-' + idx"
