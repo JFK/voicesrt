@@ -64,7 +64,13 @@ window.srtEditor = function () {
             isPlaying: false,
             currentTime: 0,
             audioDuration: 0,
-            audioReady: false,
+            // audioReady gates all segment operations. It requires BOTH
+            // audio canplay (safe playback) AND wavesurfer ready (peaks
+            // loaded + first paint). Until both fire, region mutations
+            // from segment edits race the wavesurfer initial load.
+            _audioCanPlay: false,
+            _waveformReady: false,
+            get audioReady() { return this._audioCanPlay && this._waveformReady; },
             activeSegmentIdx: null,
             selected: [],
             _saveTimer: null,
@@ -260,10 +266,10 @@ window.srtEditor = function () {
             </select>
             <span x-show="activeSegmentIdx !== null" class="text-xs text-blue-600 font-medium flex-shrink-0" x-text="'#' + (activeSegmentIdx + 1)"></span>
         </div>
-        <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="auto"
+        <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"
                @timeupdate="onTimeUpdate()"
                @loadedmetadata="audioDuration = $refs.audio.duration; applyPlaybackRate(); initWaveform()"
-               @canplaythrough="audioReady = true"
+               @canplay="_audioCanPlay = true"
                @ended="isPlaying = false; activeSegmentIdx = null" @pause="isPlaying = false" @play="isPlaying = true"></audio>
     </div>
 

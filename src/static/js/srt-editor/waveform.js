@@ -59,6 +59,7 @@ export function createWaveformController() {
             var self = this;
             _ws.on('ready', function () {
                 _wsReady = true;
+                self._waveformReady = true;
                 self.renderRegions();
             });
             observeTheme();
