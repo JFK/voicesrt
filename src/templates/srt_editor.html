@@ -10,7 +10,7 @@ import { createAudioController } from '/static/js/srt-editor/audio-controller.js
 import { createSegmentEditor } from '/static/js/srt-editor/segment-editor.js';
 import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
 import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
-import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
+import { createSaveManager, nextSegmentUid } from '/static/js/srt-editor/save-manager.js';
 import { createKeyboardShortcuts } from '/static/js/srt-editor/keyboard-shortcuts.js';
 import { createWaveformController } from '/static/js/srt-editor/waveform.js';
 
@@ -23,8 +23,14 @@ var i18n = {
     saved: {{ t("srt_editor.saved")|tojson }},
     deleteConfirm: {{ t("srt_editor.delete_confirm")|tojson }},
     exceedsNext: {{ t("srt_editor.exceeds_next")|tojson }},
+    precedesPrev: {{ t("srt_editor.precedes_prev")|tojson }},
+    startAfterEnd: {{ t("srt_editor.start_after_end")|tojson }},
     mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
     segmentsCountSuffix: {{ t("srt_editor.segments_count_suffix")|tojson }},
+    audioLoading: {{ t("srt_editor.audio_loading")|tojson }},
+    speakersComplete: {{ t("srt_editor.speakers_complete")|tojson }},
+    speakersIncomplete: {{ t("srt_editor.speakers_incomplete")|tojson }},
+    playPrefix: {{ t("srt_editor.play_prefix")|tojson }},
 };
 var shortcutI18n = {
     navUp: {{ t("srt_editor.shortcut_nav_up")|tojson }},
@@ -63,14 +69,27 @@ window.srtEditor = function () {
             isPlaying: false,
             currentTime: 0,
             audioDuration: 0,
+            _audioCanPlay: false,
+            _waveformReady: false,
+            get audioReady() { return this._audioCanPlay && this._waveformReady; },
+            get taggedCount() { return Object.values(this.speakerMap).filter(Boolean).length; },
+            // Rebuilt in loadSegments when verifiedIndices is assigned — a getter
+            // would realloc on every x-for reactive read (≈O(n²) per playback tick).
+            _verifiedSet: new Set(),
             activeSegmentIdx: null,
             selected: [],
             _saveTimer: null,
+            _saveDirty: false,
             _stopTimer: null,
+            _previewEnd: null,
             _speakerTimer: null,
             _streamingClient: null,
             streamingMode: isStreaming,
             _i18nSegmentsSuffix: i18n.segmentsCountSuffix,
+            _i18nAudioLoading: i18n.audioLoading,
+            _i18nSpeakersComplete: i18n.speakersComplete,
+            _i18nSpeakersIncomplete: i18n.speakersIncomplete,
+            _i18nPlayPrefix: i18n.playPrefix,
             formatTimeFull: formatTimeFull,
             formatTime: formatTime,
             parseTime: parseTime,
@@ -91,6 +110,7 @@ window.srtEditor = function () {
                 await self.loadSegments();
                 self._streamingClient = new JobStatusClient(jobId, {
                     onSegments: function (segs) {
+                        segs.forEach(function (s) { s._uid = nextSegmentUid(); });
                         self.segments.push.apply(self.segments, segs);
                         self.renderRegions();
                     },
@@ -154,6 +174,12 @@ window.srtEditor = function () {
                             style="height: 2.25rem;">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         {{ t('srt_editor.speakers') }}
+                        <span x-show="speakers.length > 0 && segments.length > 0"
+                              x-cloak
+                              class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
+                              :class="taggedCount === segments.length ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'"
+                              x-text="taggedCount + '/' + segments.length"
+                              :title="taggedCount === segments.length ? _i18nSpeakersComplete : _i18nSpeakersIncomplete"></span>
                     </button>
                     <div x-show="showSpeakers" x-transition @click.away="showSpeakers = false"
                          class="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">
@@ -229,19 +255,28 @@ window.srtEditor = function () {
         </div>
 
         <!-- Audio player bar -->
-        <div x-show="!loading" class="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
-            <button @click="togglePlay()"
-                    class="text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors flex-shrink-0">
+        <div x-show="!loading" :class="audioReady ? '' : 'animate-pulse'"
+             class="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
+            <button @click="togglePlay()" :disabled="!audioReady"
+                    :class="audioReady ? 'text-gray-600 dark:text-gray-300 hover:text-blue-600' : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'"
+                    class="transition-colors flex-shrink-0"
+                    :title="audioReady ? '' : _i18nAudioLoading">
                 <svg x-show="!isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg x-show="isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
             <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
-            <div x-ref="waveform" class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none"></div>
-            <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
+            <span x-show="!audioReady" x-cloak class="text-xs text-gray-400 dark:text-gray-500 italic flex-shrink-0">{{ t('srt_editor.audio_loading') }}</span>
+            <div class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none relative h-[60px]">
+                <div x-ref="waveform" class="w-full h-full" :class="audioReady ? '' : 'invisible'"></div>
+                <div x-show="!audioReady" x-cloak class="absolute inset-0 pointer-events-none">
+                    <div class="w-full h-full rounded bg-gray-200 dark:bg-gray-700"></div>
+                </div>
+            </div>
+            <select x-model.number="playbackRate" @change="applyPlaybackRate()"
                     class="text-xs font-mono rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-1 py-0.5 flex-shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     title="{{ t('srt_editor.playback_speed') }}">
                 <template x-for="r in playbackRates" :key="r">
-                    <option :value="r" x-text="r + 'x'"></option>
+                    <option :value="r" :selected="r === playbackRate" x-text="r + 'x'"></option>
                 </template>
             </select>
             <span x-show="activeSegmentIdx !== null" class="text-xs text-blue-600 font-medium flex-shrink-0" x-text="'#' + (activeSegmentIdx + 1)"></span>
@@ -249,6 +284,7 @@ window.srtEditor = function () {
         <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"
                @timeupdate="onTimeUpdate()"
                @loadedmetadata="audioDuration = $refs.audio.duration; applyPlaybackRate(); initWaveform()"
+               @canplay="_audioCanPlay = true"
                @ended="isPlaying = false; activeSegmentIdx = null" @pause="isPlaying = false" @play="isPlaying = true"></audio>
     </div>
 
@@ -267,27 +303,29 @@ window.srtEditor = function () {
     </div>
 
     <!-- Segments -->
-    <div x-show="!loading" class="space-y-3">
-        <template x-for="(seg, idx) in segments" :key="idx">
-            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors cursor-pointer"
+    <div x-show="!loading" :class="audioReady ? '' : 'opacity-60'"
+         class="space-y-3 transition-opacity">
+        <template x-for="(seg, idx) in segments" :key="seg._uid">
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors"
                  :id="'seg-' + idx"
-                 @click="if (!$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
-                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent'">
+                 @click="if (audioReady && !$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
+                 :class="(audioReady ? 'cursor-pointer' : 'cursor-wait') + ' ' + (activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : _verifiedSet.has(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent')">
                 <div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
                     <div class="flex flex-wrap items-center gap-2">
                         <input type="checkbox" :value="idx" x-model.number="selected"
                                class="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
                         <span class="text-xs font-mono text-gray-400 dark:text-gray-500" x-text="'#' + (idx + 1)"></span>
-                        <button @click="playSegment(seg.start, seg.end)"
-                                class="text-gray-400 dark:text-gray-500 hover:text-blue-600 transition-colors p-0.5"
-                                :title="'Play ' + formatTime(seg.start)">
+                        <button @click="playSegment(seg.start, seg.end)" :disabled="!audioReady"
+                                class="transition-colors p-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+                                :class="audioReady ? 'text-gray-400 dark:text-gray-500 hover:text-blue-600' : 'text-gray-300 dark:text-gray-600'"
+                                :title="audioReady ? (_i18nPlayPrefix + formatTime(seg.start)) : _i18nAudioLoading">
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </button>
                         <!-- Editable timestamps with ±0.1s controls -->
                         <div class="inline-flex items-center gap-0.5">
                             <button @click="nudgeTime(idx, 'start', -0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.start)"
-                                   @change="const v = parseTime($event.target.value); if (v !== null) { seg.start = v; debounceSave() } else { $event.target.value = formatTimeFull(seg.start) }"
+                                   @change="updateStart(idx, $event.target.value); $event.target.value = formatTimeFull(seg.start)"
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'start', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
@@ -299,7 +337,7 @@ window.srtEditor = function () {
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'end', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
-                        <span x-show="verifiedIndices.includes(idx)"
+                        <span x-show="_verifiedSet.has(idx)"
                               class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 cursor-help"
                               :title="verifyReasons[idx] || ''">
                             {{ t('srt_editor.verified_badge') }}
@@ -347,7 +385,7 @@ window.srtEditor = function () {
                 <p x-show="seg._error" x-transition class="mt-1 text-xs text-red-600 font-medium" x-text="seg._error"></p>
 
                 <!-- Verify reason -->
-                <p x-show="verifiedIndices.includes(idx) && verifyReasons[idx]"
+                <p x-show="_verifiedSet.has(idx) && verifyReasons[idx]"
                    class="mt-1 text-xs text-yellow-700 dark:text-yellow-300">
                     <span class="font-medium">{{ t('srt_editor.reason') }}:</span>
                     <span x-text="verifyReasons[idx]"></span>

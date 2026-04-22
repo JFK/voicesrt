@@ -1,35 +1,58 @@
 /** Segment CRUD and time manipulation — uses Alpine `this`. */
 
 import { formatTimeFull, parseTime } from './time-utils.js';
+import { nextSegmentUid } from './save-manager.js';
 
 export function createSegmentEditor(i18n) {
     return {
         nudgeTime(idx, field, delta) {
             var newVal = Math.max(0, Math.round((this.segments[idx][field] + delta) * 10) / 10);
-            if (field === 'end') {
-                this.updateEnd(idx, formatTimeFull(newVal));
-            } else {
-                this.segments[idx].start = newVal;
-                this.renderRegions();
-                this.debounceSave();
-            }
+            if (field === 'end') this.updateEnd(idx, formatTimeFull(newVal));
+            else this.updateStart(idx, formatTimeFull(newVal));
+        },
+
+        _flashError(idx, msg) {
+            var seg = this.segments[idx];
+            seg._error = msg;
+            if (seg._errorTimer) clearTimeout(seg._errorTimer);
+            seg._errorTimer = setTimeout(function () {
+                seg._error = null;
+                seg._errorTimer = null;
+            }, 3000);
         },
 
         updateEnd(idx, value) {
             var newEnd = parseTime(value);
             if (newEnd === null) return;
             if (idx + 1 < this.segments.length && newEnd > this.segments[idx + 1].end) {
-                this.segments[idx]._error = i18n.exceedsNext;
-                var seg = this.segments[idx];
-                setTimeout(function () { seg._error = null; }, 3000);
+                this._flashError(idx, i18n.exceedsNext);
                 return;
             }
-            var oldEnd = this.segments[idx].end;
-            this.segments[idx].end = newEnd;
-            this.segments[idx]._error = null;
+            var seg = this.segments[idx];
+            var oldEnd = seg.end;
+            seg.end = newEnd;
+            if (seg._error) seg._error = null;
             if (idx + 1 < this.segments.length && newEnd > oldEnd) {
                 this.segments[idx + 1].start = newEnd;
             }
+            this.renderRegions();
+            this.debounceSave();
+        },
+
+        updateStart(idx, value) {
+            var newStart = parseTime(value);
+            if (newStart === null) return;
+            var seg = this.segments[idx];
+            if (idx > 0 && newStart < this.segments[idx - 1].end) {
+                this._flashError(idx, i18n.precedesPrev);
+                return;
+            }
+            if (newStart >= seg.end) {
+                this._flashError(idx, i18n.startAfterEnd);
+                return;
+            }
+            seg.start = newStart;
+            if (seg._error) seg._error = null;
             this.renderRegions();
             this.debounceSave();
         },
@@ -57,7 +80,7 @@ export function createSegmentEditor(i18n) {
             var next = this.segments[idx + 1];
             var start = prev.end;
             var end = next ? next.start : prev.end + 2.0;
-            this.segments.splice(idx + 1, 0, { start: start, end: end, text: '' });
+            this.segments.splice(idx + 1, 0, { start: start, end: end, text: '', _uid: nextSegmentUid() });
             this._remapSpeakers(function (i) {
                 return i > idx ? i + 1 : i;
             });
@@ -82,6 +105,7 @@ export function createSegmentEditor(i18n) {
                 start: segs[first].start,
                 end: segs[last].end,
                 text: sorted.map(function (i) { return segs[i].text; }).join(' '),
+                _uid: nextSegmentUid(),
             };
             this.segments.splice(first, sorted.length, merged);
             // The merged segment keeps the first segment's speaker; the

@@ -2,6 +2,11 @@
 
 import { validateTimes } from './time-utils.js';
 
+// Monotonic uid for x-for keying — keeps DOM state anchored to the original
+// segment across add/delete/merge shifts.
+var _uidSeq = 0;
+export function nextSegmentUid() { return ++_uidSeq; }
+
 export function createSaveManager(jobId, i18n) {
     return {
         debounceSave() {
@@ -11,7 +16,12 @@ export function createSaveManager(jobId, i18n) {
         },
 
         async saveSegments() {
-            if (this.saving) return;
+            // Re-entrancy guard: mark dirty instead of dropping the call so
+            // edits made during a slow save still reach the server.
+            if (this.saving) {
+                this._saveDirty = true;
+                return;
+            }
             var errors = validateTimes(this.segments);
             if (errors.length > 0) {
                 this.saveMsg = i18n.timeError + ': ' + errors[0];
@@ -19,6 +29,7 @@ export function createSaveManager(jobId, i18n) {
                 return;
             }
             this.saving = true;
+            this._saveDirty = false;
             this.saveMsg = '';
             try {
                 var res = await fetch('/api/jobs/' + jobId + '/segments', {
@@ -41,6 +52,10 @@ export function createSaveManager(jobId, i18n) {
                 showToast(e.message);
             } finally {
                 this.saving = false;
+                if (this._saveDirty) {
+                    this._saveDirty = false;
+                    this.debounceSave();
+                }
             }
         },
 
@@ -49,8 +64,11 @@ export function createSaveManager(jobId, i18n) {
                 var res = await fetch('/api/jobs/' + jobId + '/segments');
                 if (!res.ok) throw new Error('Failed to load segments');
                 var data = await res.json();
-                this.segments = data.segments;
+                var segs = data.segments || [];
+                segs.forEach(function (s) { s._uid = nextSegmentUid(); });
+                this.segments = segs;
                 this.verifiedIndices = data.verified_indices || [];
+                this._verifiedSet = new Set(this.verifiedIndices);
                 var rawReasons = data.verify_reasons || {};
                 this.verifyReasons = {};
                 for (var k in rawReasons) {

@@ -13,6 +13,13 @@ var _ws = null;
 var _regions = null;
 var _wsReady = false;
 var _themeObserver = null;
+var _renderRaf = 0;
+// uid → wavesurfer Region handle. Update-in-place is the hot path:
+// clearRegions() followed by bulk re-add leaks region DOM nodes during
+// playback (reproduced: 515 regions → 1441 nodes after 20 edits while
+// playing). Orphan cleanup via region.remove() is fine because it runs
+// only when a segment is genuinely deleted, not on every edit.
+var _regionByUid = Object.create(null);
 
 function themeColors() {
     var dark = document.documentElement.classList.contains('dark');
@@ -58,26 +65,45 @@ export function createWaveformController() {
             var self = this;
             _ws.on('ready', function () {
                 _wsReady = true;
+                self._waveformReady = true;
                 self.renderRegions();
             });
             observeTheme();
         },
 
         renderRegions() {
-            // Skip until wavesurfer has decoded; addRegion before 'ready'
-            // produces queued regions with null DOM elements that crash
-            // subsequent clearRegions().
+            // addRegion before 'ready' leaves queued regions with null DOM
+            // elements that crash a subsequent clearRegions().
             if (!_regions || !_wsReady) return;
-            _regions.clearRegions();
+            if (_renderRaf) return;
             var self = this;
-            this.segments.forEach(function (seg, i) {
-                _regions.addRegion({
-                    start: seg.start,
-                    end: seg.end,
-                    color: self._regionColor(self.speakerMap[i]),
-                    drag: false,
-                    resize: false,
+            _renderRaf = requestAnimationFrame(function () {
+                _renderRaf = 0;
+                if (!_regions || !_wsReady) return;
+                var present = Object.create(null);
+                self.segments.forEach(function (seg, i) {
+                    var uid = seg._uid;
+                    present[uid] = true;
+                    var color = self._regionColor(self.speakerMap[i]);
+                    var region = _regionByUid[uid];
+                    if (region) {
+                        region.setOptions({ start: seg.start, end: seg.end, color: color });
+                    } else {
+                        _regionByUid[uid] = _regions.addRegion({
+                            start: seg.start,
+                            end: seg.end,
+                            color: color,
+                            drag: false,
+                            resize: false,
+                        });
+                    }
                 });
+                for (var uid in _regionByUid) {
+                    if (!present[uid]) {
+                        _regionByUid[uid].remove();
+                        delete _regionByUid[uid];
+                    }
+                }
             });
         },
 
@@ -87,6 +113,11 @@ export function createWaveformController() {
         },
 
         destroyWaveform() {
+            if (_renderRaf) {
+                cancelAnimationFrame(_renderRaf);
+                _renderRaf = 0;
+            }
+            _regionByUid = Object.create(null);
             if (_ws) {
                 _ws.destroy();
                 _ws = null;
