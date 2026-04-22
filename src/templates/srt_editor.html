@@ -71,6 +71,16 @@ window.srtEditor = function () {
             _audioCanPlay: false,
             _waveformReady: false,
             get audioReady() { return this._audioCanPlay && this._waveformReady; },
+            // Count segments that have a speaker assigned. Uses Object.keys
+            // length rather than a separate counter so it stays in sync
+            // automatically when setSpeaker / removeSpeaker mutate the map.
+            get taggedCount() {
+                var n = 0;
+                for (var k in this.speakerMap) {
+                    if (this.speakerMap[k]) n++;
+                }
+                return n;
+            },
             activeSegmentIdx: null,
             selected: [],
             _saveTimer: null,
@@ -165,6 +175,12 @@ window.srtEditor = function () {
                             style="height: 2.25rem;">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         {{ t('srt_editor.speakers') }}
+                        <span x-show="speakers.length > 0 && segments.length > 0"
+                              x-cloak
+                              class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
+                              :class="taggedCount === segments.length ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'"
+                              x-text="taggedCount + '/' + segments.length"
+                              :title="taggedCount === segments.length ? '{{ t('srt_editor.speakers_complete') }}' : '{{ t('srt_editor.speakers_incomplete') }}'"></span>
                     </button>
                     <div x-show="showSpeakers" x-transition @click.away="showSpeakers = false"
                          class="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">

@@ -247,6 +247,8 @@
     "saved": "\u4fdd\u5b58\u3057\u307e\u3057\u305f",
     "loading": "\u8aad\u307f\u8fbc\u307f\u4e2d...",
     "audio_loading": "\u97f3\u58f0\u8aad\u307f\u8fbc\u307f\u4e2d\u2026",
+    "speakers_complete": "\u5168\u30bb\u30b0\u30e1\u30f3\u30c8\u306b\u8a71\u8005\u30bf\u30b0\u4ed8\u3051\u6e08\u307f",
+    "speakers_incomplete": "\u8a71\u8005\u30bf\u30b0\u304c\u672a\u4ed8\u4e0e\u306e\u30bb\u30b0\u30e1\u30f3\u30c8\u304c\u3042\u308a\u307e\u3059",
     "streaming_in_progress": "文字起こし中 — チャンク完了ごとにセグメントが追加されます",
     "segments_count_suffix": "セグメント",
     "verified_badge": "\u691c\u8a3c\u6e08",
