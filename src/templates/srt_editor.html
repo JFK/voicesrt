@@ -245,10 +245,10 @@ window.srtEditor = function () {
             </button>
             <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
             <span x-show="!audioReady" x-cloak class="text-xs text-gray-400 dark:text-gray-500 italic flex-shrink-0">{{ t('srt_editor.audio_loading') }}</span>
-            <div class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none relative">
-                <div x-ref="waveform" class="w-full" :class="audioReady ? '' : 'invisible'"></div>
-                <div x-show="!audioReady" x-cloak class="absolute inset-0 flex items-center pointer-events-none">
-                    <div class="w-full h-[60px] rounded bg-gray-200 dark:bg-gray-700"></div>
+            <div class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none relative h-[60px]">
+                <div x-ref="waveform" class="w-full h-full" :class="audioReady ? '' : 'invisible'"></div>
+                <div x-show="!audioReady" x-cloak class="absolute inset-0 pointer-events-none">
+                    <div class="w-full h-full rounded bg-gray-200 dark:bg-gray-700"></div>
                 </div>
             </div>
             <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
@@ -262,7 +262,7 @@ window.srtEditor = function () {
         </div>
         <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"
                @timeupdate="onTimeUpdate()"
-               @loadedmetadata="audioDuration = $refs.audio.duration; applyPlaybackRate(); initWaveform(); audioReady = true"
+               @loadedmetadata="audioDuration = $refs.audio.duration; applyPlaybackRate(); initWaveform()"
                @ended="isPlaying = false; activeSegmentIdx = null" @pause="isPlaying = false" @play="isPlaying = true"></audio>
     </div>
 

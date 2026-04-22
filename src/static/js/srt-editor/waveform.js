@@ -59,6 +59,12 @@ export function createWaveformController() {
             var self = this;
             _ws.on('ready', function () {
                 _wsReady = true;
+                // Flip audioReady here (not on the audio element's
+                // loadedmetadata) so the skeleton stays visible until the
+                // waveform is actually drawn — otherwise the skeleton
+                // disappears and the area is blank while wavesurfer finishes
+                // decoding.
+                self.audioReady = true;
                 self.renderRegions();
             });
             observeTheme();
