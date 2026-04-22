@@ -14,6 +14,10 @@ var _regions = null;
 var _wsReady = false;
 var _themeObserver = null;
 var _renderRaf = 0;
+// uid → wavesurfer Region handle. Persistent across renders so in-place
+// updates can replace destroy/re-create, which leaked DOM nodes during
+// playback and stacked translucent overlays on the waveform.
+var _regionByUid = Object.create(null);
 
 function themeColors() {
     var dark = document.documentElement.classList.contains('dark');
@@ -71,24 +75,46 @@ export function createWaveformController() {
             // subsequent clearRegions().
             if (!_regions || !_wsReady) return;
             // Coalesce bursts of mutations (e.g. rapid +/- nudges, streaming
-            // chunk appends) into one render per animation frame. Without
-            // this, clearRegions+N× addRegion runs per click and blocks the
-            // main thread on transcripts with many segments.
+            // chunk appends) into one render per animation frame.
             if (_renderRaf) return;
             var self = this;
             _renderRaf = requestAnimationFrame(function () {
                 _renderRaf = 0;
                 if (!_regions || !_wsReady) return;
-                _regions.clearRegions();
+
+                // Diff-based update keyed on segment._uid. Neither
+                // clearRegions() nor region.remove() reliably detaches
+                // region DOM during audio playback — the stale nodes stack
+                // and darken the waveform. Update handles in place instead,
+                // only removing orphans whose segments were deleted.
+                var present = Object.create(null);
                 self.segments.forEach(function (seg, i) {
-                    _regions.addRegion({
-                        start: seg.start,
-                        end: seg.end,
-                        color: self._regionColor(self.speakerMap[i]),
-                        drag: false,
-                        resize: false,
-                    });
+                    var uid = seg._uid;
+                    present[uid] = true;
+                    var color = self._regionColor(self.speakerMap[i]);
+                    var region = _regionByUid[uid];
+                    if (region) {
+                        region.setOptions({
+                            start: seg.start,
+                            end: seg.end,
+                            color: color,
+                        });
+                    } else {
+                        _regionByUid[uid] = _regions.addRegion({
+                            start: seg.start,
+                            end: seg.end,
+                            color: color,
+                            drag: false,
+                            resize: false,
+                        });
+                    }
                 });
+                for (var uid in _regionByUid) {
+                    if (!present[uid]) {
+                        _regionByUid[uid].remove();
+                        delete _regionByUid[uid];
+                    }
+                }
             });
         },
 
@@ -102,6 +128,7 @@ export function createWaveformController() {
                 cancelAnimationFrame(_renderRaf);
                 _renderRaf = 0;
             }
+            _regionByUid = Object.create(null);
             if (_ws) {
                 _ws.destroy();
                 _ws = null;
