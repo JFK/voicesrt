@@ -14,8 +14,11 @@ var _regions = null;
 var _wsReady = false;
 var _themeObserver = null;
 var _renderRaf = 0;
-// uid → wavesurfer Region handle. In-place updates only; clearRegions() and
-// region.remove() leak DOM nodes during playback.
+// uid → wavesurfer Region handle. Update-in-place is the hot path:
+// clearRegions() followed by bulk re-add leaks region DOM nodes during
+// playback (reproduced: 515 regions → 1441 nodes after 20 edits while
+// playing). Orphan cleanup via region.remove() is fine because it runs
+// only when a segment is genuinely deleted, not on every edit.
 var _regionByUid = Object.create(null);
 
 function themeColors() {

@@ -64,9 +64,11 @@ export function createSaveManager(jobId, i18n) {
                 var res = await fetch('/api/jobs/' + jobId + '/segments');
                 if (!res.ok) throw new Error('Failed to load segments');
                 var data = await res.json();
-                (data.segments || []).forEach(function (s) { s._uid = nextSegmentUid(); });
-                this.segments = data.segments;
+                var segs = data.segments || [];
+                segs.forEach(function (s) { s._uid = nextSegmentUid(); });
+                this.segments = segs;
                 this.verifiedIndices = data.verified_indices || [];
+                this._verifiedSet = new Set(this.verifiedIndices);
                 var rawReasons = data.verify_reasons || {};
                 this.verifyReasons = {};
                 for (var k in rawReasons) {

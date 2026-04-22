@@ -24,8 +24,13 @@ var i18n = {
     deleteConfirm: {{ t("srt_editor.delete_confirm")|tojson }},
     exceedsNext: {{ t("srt_editor.exceeds_next")|tojson }},
     precedesPrev: {{ t("srt_editor.precedes_prev")|tojson }},
+    startAfterEnd: {{ t("srt_editor.start_after_end")|tojson }},
     mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
     segmentsCountSuffix: {{ t("srt_editor.segments_count_suffix")|tojson }},
+    audioLoading: {{ t("srt_editor.audio_loading")|tojson }},
+    speakersComplete: {{ t("srt_editor.speakers_complete")|tojson }},
+    speakersIncomplete: {{ t("srt_editor.speakers_incomplete")|tojson }},
+    playPrefix: {{ t("srt_editor.play_prefix")|tojson }},
 };
 var shortcutI18n = {
     navUp: {{ t("srt_editor.shortcut_nav_up")|tojson }},
@@ -68,7 +73,9 @@ window.srtEditor = function () {
             _waveformReady: false,
             get audioReady() { return this._audioCanPlay && this._waveformReady; },
             get taggedCount() { return Object.values(this.speakerMap).filter(Boolean).length; },
-            get verifiedSet() { return new Set(this.verifiedIndices); },
+            // Rebuilt in loadSegments when verifiedIndices is assigned — a getter
+            // would realloc on every x-for reactive read (≈O(n²) per playback tick).
+            _verifiedSet: new Set(),
             activeSegmentIdx: null,
             selected: [],
             _saveTimer: null,
@@ -79,6 +86,10 @@ window.srtEditor = function () {
             _streamingClient: null,
             streamingMode: isStreaming,
             _i18nSegmentsSuffix: i18n.segmentsCountSuffix,
+            _i18nAudioLoading: i18n.audioLoading,
+            _i18nSpeakersComplete: i18n.speakersComplete,
+            _i18nSpeakersIncomplete: i18n.speakersIncomplete,
+            _i18nPlayPrefix: i18n.playPrefix,
             formatTimeFull: formatTimeFull,
             formatTime: formatTime,
             parseTime: parseTime,
@@ -168,7 +179,7 @@ window.srtEditor = function () {
                               class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
                               :class="taggedCount === segments.length ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'"
                               x-text="taggedCount + '/' + segments.length"
-                              :title="taggedCount === segments.length ? '{{ t('srt_editor.speakers_complete') }}' : '{{ t('srt_editor.speakers_incomplete') }}'"></span>
+                              :title="taggedCount === segments.length ? _i18nSpeakersComplete : _i18nSpeakersIncomplete"></span>
                     </button>
                     <div x-show="showSpeakers" x-transition @click.away="showSpeakers = false"
                          class="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 shadow-lg rounded-lg border p-3 z-50">
@@ -249,7 +260,7 @@ window.srtEditor = function () {
             <button @click="togglePlay()" :disabled="!audioReady"
                     :class="audioReady ? 'text-gray-600 dark:text-gray-300 hover:text-blue-600' : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'"
                     class="transition-colors flex-shrink-0"
-                    :title="audioReady ? '' : '{{ t('srt_editor.audio_loading') }}'">
+                    :title="audioReady ? '' : _i18nAudioLoading">
                 <svg x-show="!isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg x-show="isPlaying" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
@@ -298,7 +309,7 @@ window.srtEditor = function () {
             <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors"
                  :id="'seg-' + idx"
                  @click="if (audioReady && !$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
-                 :class="(audioReady ? 'cursor-pointer' : 'cursor-wait') + ' ' + (activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedSet.has(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent')">
+                 :class="(audioReady ? 'cursor-pointer' : 'cursor-wait') + ' ' + (activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : _verifiedSet.has(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent')">
                 <div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
                     <div class="flex flex-wrap items-center gap-2">
                         <input type="checkbox" :value="idx" x-model.number="selected"
@@ -307,7 +318,7 @@ window.srtEditor = function () {
                         <button @click="playSegment(seg.start, seg.end)" :disabled="!audioReady"
                                 class="transition-colors p-0.5 disabled:cursor-not-allowed disabled:opacity-40"
                                 :class="audioReady ? 'text-gray-400 dark:text-gray-500 hover:text-blue-600' : 'text-gray-300 dark:text-gray-600'"
-                                :title="audioReady ? ('Play ' + formatTime(seg.start)) : '{{ t('srt_editor.audio_loading') }}'">
+                                :title="audioReady ? (_i18nPlayPrefix + formatTime(seg.start)) : _i18nAudioLoading">
                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </button>
                         <!-- Editable timestamps with ±0.1s controls -->
@@ -326,7 +337,7 @@ window.srtEditor = function () {
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'end', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
-                        <span x-show="verifiedSet.has(idx)"
+                        <span x-show="_verifiedSet.has(idx)"
                               class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 cursor-help"
                               :title="verifyReasons[idx] || ''">
                             {{ t('srt_editor.verified_badge') }}
@@ -374,7 +385,7 @@ window.srtEditor = function () {
                 <p x-show="seg._error" x-transition class="mt-1 text-xs text-red-600 font-medium" x-text="seg._error"></p>
 
                 <!-- Verify reason -->
-                <p x-show="verifiedSet.has(idx) && verifyReasons[idx]"
+                <p x-show="_verifiedSet.has(idx) && verifyReasons[idx]"
                    class="mt-1 text-xs text-yellow-700 dark:text-yellow-300">
                     <span class="font-medium">{{ t('srt_editor.reason') }}:</span>
                     <span x-text="verifyReasons[idx]"></span>

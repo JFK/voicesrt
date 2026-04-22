@@ -14,7 +14,11 @@ export function createSegmentEditor(i18n) {
         _flashError(idx, msg) {
             var seg = this.segments[idx];
             seg._error = msg;
-            setTimeout(function () { seg._error = null; }, 3000);
+            if (seg._errorTimer) clearTimeout(seg._errorTimer);
+            seg._errorTimer = setTimeout(function () {
+                seg._error = null;
+                seg._errorTimer = null;
+            }, 3000);
         },
 
         updateEnd(idx, value) {
@@ -38,14 +42,13 @@ export function createSegmentEditor(i18n) {
         updateStart(idx, value) {
             var newStart = parseTime(value);
             if (newStart === null) return;
-            // Reject overlap with the previous segment or with own end so a
-            // rapid − nudge cannot silently poison subsequent saves with a
-            // server-side validation failure.
             var seg = this.segments[idx];
-            var overlapsPrev = idx > 0 && newStart < this.segments[idx - 1].end;
-            var breaksOwnRange = newStart >= seg.end;
-            if (overlapsPrev || breaksOwnRange) {
+            if (idx > 0 && newStart < this.segments[idx - 1].end) {
                 this._flashError(idx, i18n.precedesPrev);
+                return;
+            }
+            if (newStart >= seg.end) {
+                this._flashError(idx, i18n.startAfterEnd);
                 return;
             }
             seg.start = newStart;
