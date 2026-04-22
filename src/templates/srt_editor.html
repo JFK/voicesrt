@@ -261,11 +261,11 @@ window.srtEditor = function () {
                     <div class="w-full h-full rounded bg-gray-200 dark:bg-gray-700"></div>
                 </div>
             </div>
-            <select :value="playbackRate" @change="setPlaybackRate(parseFloat($event.target.value))"
+            <select x-model.number="playbackRate" @change="applyPlaybackRate()"
                     class="text-xs font-mono rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-1 py-0.5 flex-shrink-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     title="{{ t('srt_editor.playback_speed') }}">
                 <template x-for="r in playbackRates" :key="r">
-                    <option :value="r" x-text="r + 'x'"></option>
+                    <option :value="r" :selected="r === playbackRate" x-text="r + 'x'"></option>
                 </template>
             </select>
             <span x-show="activeSegmentIdx !== null" class="text-xs text-blue-600 font-medium flex-shrink-0" x-text="'#' + (activeSegmentIdx + 1)"></span>
