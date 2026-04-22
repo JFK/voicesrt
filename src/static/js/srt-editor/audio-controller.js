@@ -28,9 +28,15 @@ export function createAudioController() {
             var audio = this.$refs.audio;
             if (!audio) return;
             if (audio.paused) {
+                // Explicit global-play mode: clear any stale preview window
+                // so onTimeUpdate does not pause mid-playback, and so the
+                // auto-scroll branch re-activates.
+                this._previewEnd = null;
+                if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
                 audio.play();
             } else {
                 audio.pause();
+                this._previewEnd = null;
                 if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
             }
         },
@@ -38,6 +44,16 @@ export function createAudioController() {
         onTimeUpdate() {
             var audio = this.$refs.audio;
             if (!audio) return;
+            // Segment-preview pause: the setTimeout in playSegment is scheduled
+            // off wall-clock at play-start, so it misfires when playbackRate
+            // changes mid-playback or the audio is seeked elsewhere. Polling
+            // currentTime here is the authoritative signal — it pauses at the
+            // real boundary regardless of timing drift.
+            if (this._previewEnd !== null && audio.currentTime >= this._previewEnd) {
+                audio.pause();
+                this._previewEnd = null;
+                if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
+            }
             // Round to 0.1s — timeupdate fires up to 60Hz; integer-second
             // displays would otherwise re-render every frame.
             var t = Math.round(audio.currentTime * 10) / 10;
@@ -53,9 +69,9 @@ export function createAudioController() {
             if (found !== this.activeSegmentIdx) {
                 this.activeSegmentIdx = found;
                 // Auto-scroll only during global playback. During single-segment
-                // preview (playSegment sets _stopTimer) keep the viewport still
-                // so the user's editing context isn't yanked away.
-                if (found !== null && !this._stopTimer) {
+                // preview (_previewEnd is set) keep the viewport still so the
+                // user's editing context isn't yanked away.
+                if (found !== null && this._previewEnd === null) {
                     var el = document.getElementById('seg-' + found);
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
@@ -66,17 +82,22 @@ export function createAudioController() {
             var audio = this.$refs.audio;
             if (!audio) return;
             if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
+            // Record the preview boundary before play() so onTimeUpdate (which
+            // may fire synchronously on seek) can enforce it.
+            this._previewEnd = end;
             audio.currentTime = start;
             audio.play();
-            // Wall-clock duration scales inversely with playbackRate so 2x
-            // finishes the segment in half the time. We snapshot the rate at
-            // play start; if the user changes rate mid-segment the timer will
-            // be slightly off, which is acceptable for a quick preview.
+            // setTimeout as primary: wall-clock scheduling is precise at 60Hz
+            // while timeupdate can lag up to 250ms. onTimeUpdate is the
+            // safety net for rate changes, seeks, and startup jitter.
             var rate = audio.playbackRate || 1;
             var duration = ((end - start) * 1000) / rate;
             var self = this;
             this._stopTimer = setTimeout(function () {
-                audio.pause();
+                if (self._previewEnd !== null) {
+                    audio.pause();
+                    self._previewEnd = null;
+                }
                 self._stopTimer = null;
             }, duration);
         },
