@@ -246,6 +246,7 @@
     "saving": "Saving...",
     "saved": "Saved successfully",
     "loading": "Loading...",
+    "audio_loading": "Loading audio…",
     "streaming_in_progress": "Transcribing in progress — segments appear as each chunk completes",
     "segments_count_suffix": "segments",
     "verified_badge": "Verified",

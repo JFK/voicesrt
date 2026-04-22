@@ -26,7 +26,7 @@ export function createAudioController() {
 
         togglePlay() {
             var audio = this.$refs.audio;
-            if (!audio) return;
+            if (!audio || !this.audioReady) return;
             if (audio.paused) {
                 // Explicit global-play mode: clear any stale preview window
                 // so onTimeUpdate does not pause mid-playback, and so the
@@ -80,7 +80,7 @@ export function createAudioController() {
 
         playSegment(start, end) {
             var audio = this.$refs.audio;
-            if (!audio) return;
+            if (!audio || !this.audioReady) return;
             if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
             // Record the preview boundary before play() so onTimeUpdate (which
             // may fire synchronously on seek) can enforce it.

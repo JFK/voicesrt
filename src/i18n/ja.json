@@ -246,6 +246,7 @@
     "saving": "\u4fdd\u5b58\u4e2d...",
     "saved": "\u4fdd\u5b58\u3057\u307e\u3057\u305f",
     "loading": "\u8aad\u307f\u8fbc\u307f\u4e2d...",
+    "audio_loading": "\u97f3\u58f0\u8aad\u307f\u8fbc\u307f\u4e2d\u2026",
     "streaming_in_progress": "文字起こし中 — チャンク完了ごとにセグメントが追加されます",
     "segments_count_suffix": "セグメント",
     "verified_badge": "\u691c\u8a3c\u6e08",
