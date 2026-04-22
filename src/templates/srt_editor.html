@@ -23,6 +23,7 @@ var i18n = {
     saved: {{ t("srt_editor.saved")|tojson }},
     deleteConfirm: {{ t("srt_editor.delete_confirm")|tojson }},
     exceedsNext: {{ t("srt_editor.exceeds_next")|tojson }},
+    precedesPrev: {{ t("srt_editor.precedes_prev")|tojson }},
     mergeConsecutiveOnly: {{ t("srt_editor.merge_consecutive_only")|tojson }},
     segmentsCountSuffix: {{ t("srt_editor.segments_count_suffix")|tojson }},
 };
@@ -290,7 +291,7 @@ window.srtEditor = function () {
                         <div class="inline-flex items-center gap-0.5">
                             <button @click="nudgeTime(idx, 'start', -0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">−</button>
                             <input type="text" :value="formatTimeFull(seg.start)"
-                                   @change="const v = parseTime($event.target.value); if (v !== null) { seg.start = v; debounceSave() } else { $event.target.value = formatTimeFull(seg.start) }"
+                                   @change="updateStart(idx, $event.target.value); $event.target.value = formatTimeFull(seg.start)"
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'start', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>

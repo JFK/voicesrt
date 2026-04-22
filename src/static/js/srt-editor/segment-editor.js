@@ -10,9 +10,7 @@ export function createSegmentEditor(i18n) {
             if (field === 'end') {
                 this.updateEnd(idx, formatTimeFull(newVal));
             } else {
-                this.segments[idx].start = newVal;
-                this.renderRegions();
-                this.debounceSave();
+                this.updateStart(idx, formatTimeFull(newVal));
             }
         },
 
@@ -31,6 +29,27 @@ export function createSegmentEditor(i18n) {
             if (idx + 1 < this.segments.length && newEnd > oldEnd) {
                 this.segments[idx + 1].start = newEnd;
             }
+            this.renderRegions();
+            this.debounceSave();
+        },
+
+        updateStart(idx, value) {
+            var newStart = parseTime(value);
+            if (newStart === null) return;
+            // Reject overlap with previous segment or with own end — without
+            // this, a rapid − nudge silently creates an invalid state that
+            // makes every subsequent save fail server-side validation, which
+            // reads to the user as "save stopped working."
+            var overlapsPrev = idx > 0 && newStart < this.segments[idx - 1].end;
+            var breaksOwnRange = newStart >= this.segments[idx].end;
+            if (overlapsPrev || breaksOwnRange) {
+                this.segments[idx]._error = i18n.precedesPrev;
+                var seg = this.segments[idx];
+                setTimeout(function () { seg._error = null; }, 3000);
+                return;
+            }
+            this.segments[idx].start = newStart;
+            this.segments[idx]._error = null;
             this.renderRegions();
             this.debounceSave();
         },

@@ -267,6 +267,7 @@
     "merge_consecutive_only": "連続したセグメントのみ統合できます。",
     "time_error": "時間エラー",
     "exceeds_next": "終了時間が次のセグメントの終了を超えています",
+    "precedes_prev": "開始時間が前のセグメントと重なっています",
     "speakers": "話者",
     "speakers_label": "話者リスト",
     "speaker_add_placeholder": "名前を入力してEnter",
