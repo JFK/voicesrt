@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-04-22
+
+**SRT editor stability** — data-loss race, state bleed, playback boundaries, and loading UX.
+
+### Fixed
+- **Save no longer silently drops edits during slow saves** — re-queue via `_saveDirty` + debounceSave (#63)
+- **Segment DOM state stays anchored** — stable `_uid` keying on `x-for` so textarea focus, error badges, and suggestion dropdowns no longer bleed across neighbours after add/delete/merge (#63)
+- **Waveform region DOM no longer stacks during playback** — diff-based rendering keyed on `_uid` with `setOptions` in-place updates (#63)
+- **Segment preview pauses at the true audio boundary** — `_previewEnd` polled in `onTimeUpdate` handles rate changes, seeks, and startup jitter that setTimeout alone could not (#63)
+- **Single-segment preview no longer yanks the viewport** — auto-scroll suppressed while previewing (#63)
+- **Start-time `−` nudge no longer silently creates overlap** — `updateStart` rejects overlap with the previous segment and `start >= end`, mirrors `updateEnd`'s pattern (#63)
+- **Rapid `+/−` feels responsive** — `renderRegions` coalesced via `requestAnimationFrame` (#63)
+- **`[` / `]` keyboard shortcuts `preventDefault`** for consistency (#63)
+
+### Changed
+- **Default playback rate locked to 1x** — removed `localStorage` persistence so the select always starts at 1x (#63)
+- **Loading UX** — `audioReady` now requires both audio `canplay` and wavesurfer `ready`; skeleton + `animate-pulse` + disabled buttons until both fire (#63)
+
+### Added
+- **Speaker-tag progress counter** on the speakers button — `X/Y` badge, amber while incomplete, emerald when every segment is tagged (#63)
+
 ## [1.0.0] - 2026-04-14
 
 **Production Ready** — performance, robustness, observability, and mobile responsive.
