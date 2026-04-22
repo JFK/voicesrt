@@ -278,10 +278,9 @@ window.srtEditor = function () {
     <div x-show="!loading" class="space-y-3">
         <template x-for="(seg, idx) in segments" :key="seg._uid">
             <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors"
-                 :class="audioReady ? 'cursor-pointer' : 'cursor-wait'"
                  :id="'seg-' + idx"
                  @click="if (audioReady && !$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
-                 :class="activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent'">
+                 :class="(audioReady ? 'cursor-pointer' : 'cursor-wait') + ' ' + (activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent')">
                 <div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
                     <div class="flex flex-wrap items-center gap-2">
                         <input type="checkbox" :value="idx" x-model.number="selected"
