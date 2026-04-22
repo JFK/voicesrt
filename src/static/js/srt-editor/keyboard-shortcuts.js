@@ -140,11 +140,13 @@ export function createKeyboardShortcuts(i18n) {
                     }
                     return;
                 case '[':
+                    e.preventDefault();
                     if (this.activeSegmentIdx !== null) {
                         this.nudgeTime(this.activeSegmentIdx, 'start', -0.1);
                     }
                     return;
                 case ']':
+                    e.preventDefault();
                     if (this.activeSegmentIdx !== null) {
                         this.nudgeTime(this.activeSegmentIdx, 'end', 0.1);
                     }

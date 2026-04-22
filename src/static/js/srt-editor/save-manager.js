@@ -2,6 +2,12 @@
 
 import { validateTimes } from './time-utils.js';
 
+// Monotonic uid generator for segments. Keyed on _uid instead of array index
+// so Alpine's x-for keeps DOM state (textarea focus, _error badges, suggestion
+// dropdowns) anchored to the original segment across add/delete/merge shifts.
+var _uidSeq = 0;
+export function nextSegmentUid() { return ++_uidSeq; }
+
 export function createSaveManager(jobId, i18n) {
     return {
         debounceSave() {
@@ -11,7 +17,15 @@ export function createSaveManager(jobId, i18n) {
         },
 
         async saveSegments() {
-            if (this.saving) return;
+            // Re-entrancy guard: if a save is in flight, mark dirty so the
+            // current save's finally block re-runs. Without this, edits made
+            // during a slow save (>1s) are silently dropped — the debounce
+            // timer fires, saveSegments bails on `this.saving`, and those
+            // edits never hit the server.
+            if (this.saving) {
+                this._saveDirty = true;
+                return;
+            }
             var errors = validateTimes(this.segments);
             if (errors.length > 0) {
                 this.saveMsg = i18n.timeError + ': ' + errors[0];
@@ -19,6 +33,7 @@ export function createSaveManager(jobId, i18n) {
                 return;
             }
             this.saving = true;
+            this._saveDirty = false;
             this.saveMsg = '';
             try {
                 var res = await fetch('/api/jobs/' + jobId + '/segments', {
@@ -41,6 +56,13 @@ export function createSaveManager(jobId, i18n) {
                 showToast(e.message);
             } finally {
                 this.saving = false;
+                if (this._saveDirty) {
+                    this._saveDirty = false;
+                    var self = this;
+                    // Use debounce so multiple dirty-flips during the in-flight
+                    // save coalesce into one follow-up save.
+                    setTimeout(function () { self.saveSegments(); }, 0);
+                }
             }
         },
 
@@ -49,6 +71,7 @@ export function createSaveManager(jobId, i18n) {
                 var res = await fetch('/api/jobs/' + jobId + '/segments');
                 if (!res.ok) throw new Error('Failed to load segments');
                 var data = await res.json();
+                (data.segments || []).forEach(function (s) { s._uid = nextSegmentUid(); });
                 this.segments = data.segments;
                 this.verifiedIndices = data.verified_indices || [];
                 var rawReasons = data.verify_reasons || {};

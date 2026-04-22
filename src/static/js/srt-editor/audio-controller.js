@@ -52,7 +52,10 @@ export function createAudioController() {
             }
             if (found !== this.activeSegmentIdx) {
                 this.activeSegmentIdx = found;
-                if (found !== null) {
+                // Auto-scroll only during global playback. During single-segment
+                // preview (playSegment sets _stopTimer) keep the viewport still
+                // so the user's editing context isn't yanked away.
+                if (found !== null && !this._stopTimer) {
                     var el = document.getElementById('seg-' + found);
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }

@@ -1,6 +1,7 @@
 /** Segment CRUD and time manipulation — uses Alpine `this`. */
 
 import { formatTimeFull, parseTime } from './time-utils.js';
+import { nextSegmentUid } from './save-manager.js';
 
 export function createSegmentEditor(i18n) {
     return {
@@ -57,7 +58,7 @@ export function createSegmentEditor(i18n) {
             var next = this.segments[idx + 1];
             var start = prev.end;
             var end = next ? next.start : prev.end + 2.0;
-            this.segments.splice(idx + 1, 0, { start: start, end: end, text: '' });
+            this.segments.splice(idx + 1, 0, { start: start, end: end, text: '', _uid: nextSegmentUid() });
             this._remapSpeakers(function (i) {
                 return i > idx ? i + 1 : i;
             });
@@ -82,6 +83,7 @@ export function createSegmentEditor(i18n) {
                 start: segs[first].start,
                 end: segs[last].end,
                 text: sorted.map(function (i) { return segs[i].text; }).join(' '),
+                _uid: nextSegmentUid(),
             };
             this.segments.splice(first, sorted.length, merged);
             // The merged segment keeps the first segment's speaker; the

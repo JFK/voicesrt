@@ -13,6 +13,7 @@ var _ws = null;
 var _regions = null;
 var _wsReady = false;
 var _themeObserver = null;
+var _renderRaf = 0;
 
 function themeColors() {
     var dark = document.documentElement.classList.contains('dark');
@@ -68,15 +69,24 @@ export function createWaveformController() {
             // produces queued regions with null DOM elements that crash
             // subsequent clearRegions().
             if (!_regions || !_wsReady) return;
-            _regions.clearRegions();
+            // Coalesce bursts of mutations (e.g. rapid +/- nudges, streaming
+            // chunk appends) into one render per animation frame. Without
+            // this, clearRegions+N× addRegion runs per click and blocks the
+            // main thread on transcripts with many segments.
+            if (_renderRaf) return;
             var self = this;
-            this.segments.forEach(function (seg, i) {
-                _regions.addRegion({
-                    start: seg.start,
-                    end: seg.end,
-                    color: self._regionColor(self.speakerMap[i]),
-                    drag: false,
-                    resize: false,
+            _renderRaf = requestAnimationFrame(function () {
+                _renderRaf = 0;
+                if (!_regions || !_wsReady) return;
+                _regions.clearRegions();
+                self.segments.forEach(function (seg, i) {
+                    _regions.addRegion({
+                        start: seg.start,
+                        end: seg.end,
+                        color: self._regionColor(self.speakerMap[i]),
+                        drag: false,
+                        resize: false,
+                    });
                 });
             });
         },
@@ -87,6 +97,10 @@ export function createWaveformController() {
         },
 
         destroyWaveform() {
+            if (_renderRaf) {
+                cancelAnimationFrame(_renderRaf);
+                _renderRaf = 0;
+            }
             if (_ws) {
                 _ws.destroy();
                 _ws = null;

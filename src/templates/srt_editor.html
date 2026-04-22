@@ -10,7 +10,7 @@ import { createAudioController } from '/static/js/srt-editor/audio-controller.js
 import { createSegmentEditor } from '/static/js/srt-editor/segment-editor.js';
 import { createSpeakerManager } from '/static/js/srt-editor/speaker-manager.js';
 import { createSuggestionManager } from '/static/js/srt-editor/suggestion-manager.js';
-import { createSaveManager } from '/static/js/srt-editor/save-manager.js';
+import { createSaveManager, nextSegmentUid } from '/static/js/srt-editor/save-manager.js';
 import { createKeyboardShortcuts } from '/static/js/srt-editor/keyboard-shortcuts.js';
 import { createWaveformController } from '/static/js/srt-editor/waveform.js';
 
@@ -66,6 +66,7 @@ window.srtEditor = function () {
             activeSegmentIdx: null,
             selected: [],
             _saveTimer: null,
+            _saveDirty: false,
             _stopTimer: null,
             _speakerTimer: null,
             _streamingClient: null,
@@ -91,6 +92,7 @@ window.srtEditor = function () {
                 await self.loadSegments();
                 self._streamingClient = new JobStatusClient(jobId, {
                     onSegments: function (segs) {
+                        segs.forEach(function (s) { s._uid = nextSegmentUid(); });
                         self.segments.push.apply(self.segments, segs);
                         self.renderRegions();
                     },
@@ -268,7 +270,7 @@ window.srtEditor = function () {
 
     <!-- Segments -->
     <div x-show="!loading" class="space-y-3">
-        <template x-for="(seg, idx) in segments" :key="idx">
+        <template x-for="(seg, idx) in segments" :key="seg._uid">
             <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors cursor-pointer"
                  :id="'seg-' + idx"
                  @click="if (!$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
