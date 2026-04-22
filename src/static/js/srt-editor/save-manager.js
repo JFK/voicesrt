@@ -2,9 +2,8 @@
 
 import { validateTimes } from './time-utils.js';
 
-// Monotonic uid generator for segments. Keyed on _uid instead of array index
-// so Alpine's x-for keeps DOM state (textarea focus, _error badges, suggestion
-// dropdowns) anchored to the original segment across add/delete/merge shifts.
+// Monotonic uid for x-for keying — keeps DOM state anchored to the original
+// segment across add/delete/merge shifts.
 var _uidSeq = 0;
 export function nextSegmentUid() { return ++_uidSeq; }
 
@@ -17,11 +16,8 @@ export function createSaveManager(jobId, i18n) {
         },
 
         async saveSegments() {
-            // Re-entrancy guard: if a save is in flight, mark dirty so the
-            // current save's finally block re-runs. Without this, edits made
-            // during a slow save (>1s) are silently dropped — the debounce
-            // timer fires, saveSegments bails on `this.saving`, and those
-            // edits never hit the server.
+            // Re-entrancy guard: mark dirty instead of dropping the call so
+            // edits made during a slow save still reach the server.
             if (this.saving) {
                 this._saveDirty = true;
                 return;
@@ -58,10 +54,7 @@ export function createSaveManager(jobId, i18n) {
                 this.saving = false;
                 if (this._saveDirty) {
                     this._saveDirty = false;
-                    var self = this;
-                    // Use debounce so multiple dirty-flips during the in-flight
-                    // save coalesce into one follow-up save.
-                    setTimeout(function () { self.saveSegments(); }, 0);
+                    this.debounceSave();
                 }
             }
         },

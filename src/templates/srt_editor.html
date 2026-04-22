@@ -64,23 +64,11 @@ window.srtEditor = function () {
             isPlaying: false,
             currentTime: 0,
             audioDuration: 0,
-            // audioReady gates all segment operations. It requires BOTH
-            // audio canplay (safe playback) AND wavesurfer ready (peaks
-            // loaded + first paint). Until both fire, region mutations
-            // from segment edits race the wavesurfer initial load.
             _audioCanPlay: false,
             _waveformReady: false,
             get audioReady() { return this._audioCanPlay && this._waveformReady; },
-            // Count segments that have a speaker assigned. Uses Object.keys
-            // length rather than a separate counter so it stays in sync
-            // automatically when setSpeaker / removeSpeaker mutate the map.
-            get taggedCount() {
-                var n = 0;
-                for (var k in this.speakerMap) {
-                    if (this.speakerMap[k]) n++;
-                }
-                return n;
-            },
+            get taggedCount() { return Object.values(this.speakerMap).filter(Boolean).length; },
+            get verifiedSet() { return new Set(this.verifiedIndices); },
             activeSegmentIdx: null,
             selected: [],
             _saveTimer: null,
@@ -310,7 +298,7 @@ window.srtEditor = function () {
             <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-3 sm:p-4 border-l-4 transition-colors"
                  :id="'seg-' + idx"
                  @click="if (audioReady && !$event.target.closest('textarea, input, button, a, label')) playSegment(seg.start, seg.end)"
-                 :class="(audioReady ? 'cursor-pointer' : 'cursor-wait') + ' ' + (activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedIndices.includes(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent')">
+                 :class="(audioReady ? 'cursor-pointer' : 'cursor-wait') + ' ' + (activeSegmentIdx === idx ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : verifiedSet.has(idx) ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30' : speakerMap[idx] ? getSpeakerColor(speakerMap[idx]).border : 'border-transparent')">
                 <div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
                     <div class="flex flex-wrap items-center gap-2">
                         <input type="checkbox" :value="idx" x-model.number="selected"
@@ -338,7 +326,7 @@ window.srtEditor = function () {
                                    class="w-20 text-xs font-mono text-gray-500 dark:text-gray-400 bg-transparent border-0 border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-0 p-0 text-center">
                             <button @click="nudgeTime(idx, 'end', 0.1)" class="hidden sm:inline text-gray-300 hover:text-gray-600 text-xs px-0.5">+</button>
                         </div>
-                        <span x-show="verifiedIndices.includes(idx)"
+                        <span x-show="verifiedSet.has(idx)"
                               class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 cursor-help"
                               :title="verifyReasons[idx] || ''">
                             {{ t('srt_editor.verified_badge') }}
@@ -386,7 +374,7 @@ window.srtEditor = function () {
                 <p x-show="seg._error" x-transition class="mt-1 text-xs text-red-600 font-medium" x-text="seg._error"></p>
 
                 <!-- Verify reason -->
-                <p x-show="verifiedIndices.includes(idx) && verifyReasons[idx]"
+                <p x-show="verifiedSet.has(idx) && verifyReasons[idx]"
                    class="mt-1 text-xs text-yellow-700 dark:text-yellow-300">
                     <span class="font-medium">{{ t('srt_editor.reason') }}:</span>
                     <span x-text="verifyReasons[idx]"></span>

@@ -7,25 +7,27 @@ export function createSegmentEditor(i18n) {
     return {
         nudgeTime(idx, field, delta) {
             var newVal = Math.max(0, Math.round((this.segments[idx][field] + delta) * 10) / 10);
-            if (field === 'end') {
-                this.updateEnd(idx, formatTimeFull(newVal));
-            } else {
-                this.updateStart(idx, formatTimeFull(newVal));
-            }
+            if (field === 'end') this.updateEnd(idx, formatTimeFull(newVal));
+            else this.updateStart(idx, formatTimeFull(newVal));
+        },
+
+        _flashError(idx, msg) {
+            var seg = this.segments[idx];
+            seg._error = msg;
+            setTimeout(function () { seg._error = null; }, 3000);
         },
 
         updateEnd(idx, value) {
             var newEnd = parseTime(value);
             if (newEnd === null) return;
             if (idx + 1 < this.segments.length && newEnd > this.segments[idx + 1].end) {
-                this.segments[idx]._error = i18n.exceedsNext;
-                var seg = this.segments[idx];
-                setTimeout(function () { seg._error = null; }, 3000);
+                this._flashError(idx, i18n.exceedsNext);
                 return;
             }
-            var oldEnd = this.segments[idx].end;
-            this.segments[idx].end = newEnd;
-            this.segments[idx]._error = null;
+            var seg = this.segments[idx];
+            var oldEnd = seg.end;
+            seg.end = newEnd;
+            if (seg._error) seg._error = null;
             if (idx + 1 < this.segments.length && newEnd > oldEnd) {
                 this.segments[idx + 1].start = newEnd;
             }
@@ -36,20 +38,18 @@ export function createSegmentEditor(i18n) {
         updateStart(idx, value) {
             var newStart = parseTime(value);
             if (newStart === null) return;
-            // Reject overlap with previous segment or with own end — without
-            // this, a rapid − nudge silently creates an invalid state that
-            // makes every subsequent save fail server-side validation, which
-            // reads to the user as "save stopped working."
+            // Reject overlap with the previous segment or with own end so a
+            // rapid − nudge cannot silently poison subsequent saves with a
+            // server-side validation failure.
+            var seg = this.segments[idx];
             var overlapsPrev = idx > 0 && newStart < this.segments[idx - 1].end;
-            var breaksOwnRange = newStart >= this.segments[idx].end;
+            var breaksOwnRange = newStart >= seg.end;
             if (overlapsPrev || breaksOwnRange) {
-                this.segments[idx]._error = i18n.precedesPrev;
-                var seg = this.segments[idx];
-                setTimeout(function () { seg._error = null; }, 3000);
+                this._flashError(idx, i18n.precedesPrev);
                 return;
             }
-            this.segments[idx].start = newStart;
-            this.segments[idx]._error = null;
+            seg.start = newStart;
+            if (seg._error) seg._error = null;
             this.renderRegions();
             this.debounceSave();
         },

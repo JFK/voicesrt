@@ -14,9 +14,8 @@ var _regions = null;
 var _wsReady = false;
 var _themeObserver = null;
 var _renderRaf = 0;
-// uid → wavesurfer Region handle. Persistent across renders so in-place
-// updates can replace destroy/re-create, which leaked DOM nodes during
-// playback and stacked translucent overlays on the waveform.
+// uid → wavesurfer Region handle. In-place updates only; clearRegions() and
+// region.remove() leak DOM nodes during playback.
 var _regionByUid = Object.create(null);
 
 function themeColors() {
@@ -70,23 +69,14 @@ export function createWaveformController() {
         },
 
         renderRegions() {
-            // Skip until wavesurfer has decoded; addRegion before 'ready'
-            // produces queued regions with null DOM elements that crash
-            // subsequent clearRegions().
+            // addRegion before 'ready' leaves queued regions with null DOM
+            // elements that crash a subsequent clearRegions().
             if (!_regions || !_wsReady) return;
-            // Coalesce bursts of mutations (e.g. rapid +/- nudges, streaming
-            // chunk appends) into one render per animation frame.
             if (_renderRaf) return;
             var self = this;
             _renderRaf = requestAnimationFrame(function () {
                 _renderRaf = 0;
                 if (!_regions || !_wsReady) return;
-
-                // Diff-based update keyed on segment._uid. Neither
-                // clearRegions() nor region.remove() reliably detaches
-                // region DOM during audio playback — the stale nodes stack
-                // and darken the waveform. Update handles in place instead,
-                // only removing orphans whose segments were deleted.
                 var present = Object.create(null);
                 self.segments.forEach(function (seg, i) {
                     var uid = seg._uid;
@@ -94,11 +84,7 @@ export function createWaveformController() {
                     var color = self._regionColor(self.speakerMap[i]);
                     var region = _regionByUid[uid];
                     if (region) {
-                        region.setOptions({
-                            start: seg.start,
-                            end: seg.end,
-                            color: color,
-                        });
+                        region.setOptions({ start: seg.start, end: seg.end, color: color });
                     } else {
                         _regionByUid[uid] = _regions.addRegion({
                             start: seg.start,
