@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-04-26
+
+**Metadata generation reliability** — keep YouTube metadata aligned with the actual SRT and the JSON contract OpenAI requires.
+
+### Fixed
+- **OpenAI 400 `'messages' must contain the word 'json'`** — `METADATA_SYSTEM_PROMPT` (and preventively `REFINE_SYSTEM_PROMPT` / `VERIFY_SYSTEM_PROMPT`) now always include the keyword so a user-supplied custom prompt that omits it no longer breaks the request (#65)
+- **Empty generation result with custom prompts** — append a JSON schema reminder after `custom_prompt` so responses always use the canonical English keys (`titles` / `description` / `tags` / `chapters`) regardless of the user's output-format spec (#65)
+- **Generated metadata not reflecting the SRT** — `OPTIMIZE_PROMPT` now forbids the LLM from baking video-specific values (chapter timestamps, episode-only guests, dialogue excerpts) from `meta_context.notes` into the optimized template, treating it as a reusable channel-level template (#65)
+- **Stale error message persisted after a successful retry** — clear `job.error_message` / `job.error_detail` at the start of metadata regeneration so the UI no longer surfaces past failures after a successful run (#65)
+
 ## [1.0.1] - 2026-04-22
 
 **SRT editor stability** — data-loss race, state bleed, playback boundaries, and loading UX.
