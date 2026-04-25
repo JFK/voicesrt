@@ -540,6 +540,10 @@ async def _generate_meta_job(
         provider_name = get_provider_name(provider)
         try:
             job.status = STATUS_GENERATING_METADATA
+            # Clear any stale error state from a previous failed run so the UI
+            # does not surface old errors after a successful retry.
+            job.error_message = None
+            job.error_detail = None
             await session.commit()
             await status_manager.publish(job_id, STATUS_GENERATING_METADATA)
 
