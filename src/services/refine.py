@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 REFINE_SYSTEM_PROMPT = (
     "You are a professional subtitle editor. "
-    "Your job is to correct transcription errors while preserving timestamps exactly as given."
+    "Your job is to correct transcription errors while preserving timestamps exactly as given. "
+    "Always respond with a valid JSON object."
 )
 
 # --- Verbatim mode: minimal corrections only ---
@@ -224,7 +225,8 @@ async def _refine_gemini(prompt: str, api_key: str, model: str) -> tuple[list[di
 VERIFY_SYSTEM_PROMPT = (
     "You are a professional proofreader specialising in transcription quality. "
     "You read an entire transcript and find inconsistencies in proper nouns, "
-    "place names, kanji, and terminology."
+    "place names, kanji, and terminology. "
+    "Always respond with a valid JSON object."
 )
 
 VERIFY_PROMPT = """\

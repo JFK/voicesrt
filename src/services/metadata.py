@@ -3,8 +3,30 @@ from src.services.utils import create_openai_compatible_client, extract_gemini_t
 
 METADATA_SYSTEM_PROMPT = (
     "You are an expert at generating YouTube video metadata. "
-    "Generate optimal metadata for YouTube from the given video transcription."
+    "Generate optimal metadata for YouTube from the given video transcription. "
+    "Always respond with a valid JSON object."
 )
+
+# Appended after any custom_prompt to guarantee the response is parseable.
+# Custom prompts may specify their own (non-JSON) output format; this overrides it
+# at the boundary so downstream code always finds the expected English keys.
+METADATA_JSON_SCHEMA_REMINDER = """
+
+---
+
+CRITICAL OUTPUT FORMAT — this overrides any other output format mentioned above.
+Return ONLY a single JSON object with these exact English keys (no markdown, no commentary):
+{
+  "titles": ["title candidate 1", "title candidate 2", ...],
+  "description": "full description text (include chapter index inside if applicable)",
+  "tags": ["tag1", "tag2", ...],
+  "chapters": [{"time": "MM:SS", "title": "chapter title"}, ...]
+}
+
+Rules:
+- "titles" is always an array of strings (use a one-element array if there is only one title).
+- Keys MUST be exactly: titles, description, tags, chapters (English, lowercase).
+- Do not wrap the JSON in markdown fences. Do not add any text outside the JSON object."""
 
 METADATA_USER_PROMPT = """Generate YouTube metadata from the following video transcription (SRT format).
 
@@ -67,7 +89,9 @@ async def generate_youtube_metadata(
         )
 
     if custom_prompt:
-        prompt = custom_prompt + tone_section + f"\n\n---\n\nTranscription:\n{srt_content}"
+        prompt = (
+            custom_prompt + tone_section + f"\n\n---\n\nTranscription:\n{srt_content}" + METADATA_JSON_SCHEMA_REMINDER
+        )
     else:
         if tone_section:
             # Insert tone section before the transcription divider
@@ -92,12 +116,30 @@ Make the prompt more specific and effective for generating:
 - Engaging descriptions (with chapter index format)
 - Relevant tags
 
-Channel context:
+CRITICAL — the prompt you produce is a REUSABLE TEMPLATE applied to MANY future
+videos that you have not seen. Therefore:
+- DO NOT embed specific chapter timestamps, episode titles, dialogue excerpts,
+  topic summaries, or one-off guest names taken from the channel notes or tone
+  reference. Those are samples for style only, not facts about every video.
+- The optimized prompt MUST instruct the model to derive video-specific content
+  (theme, chapters, summary, per-episode guests) from the actual transcription
+  given at runtime — never from hardcoded values inside the prompt itself.
+- Only channel-level facts that are true for EVERY video on the channel
+  (channel name, genre, regular host(s), target audience, overall mission) may
+  appear as fixed context.
+
+The improved prompt MUST preserve a JSON output format specification with these
+exact English keys so the response remains parseable downstream:
+"titles" (array of strings), "description" (string), "tags" (array of strings),
+"chapters" (array of {{"time": "MM:SS", "title": string}}).
+
+Channel context (channel-level only; do not bake video-specific data into the prompt):
 - Channel: {channel_name}
 - Genre: {genre}
-- Speakers: {speakers}
+- Regular speakers: {speakers}
 - Target audience: {audience}
-- Notes: {notes}
+- Notes (channel description / sample tone — DO NOT copy specific chapters or \
+episode details from here into the optimized prompt): {notes}
 {tone_ref_section}
 Current prompt:
 {current_prompt}

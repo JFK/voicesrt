@@ -69,6 +69,31 @@ async def test_generate_metadata_with_tone_ref():
 
 
 @pytest.mark.asyncio
+async def test_generate_metadata_custom_prompt_without_json_keyword():
+    """OpenAI requires 'json' in messages when response_format is json_object.
+    A custom prompt that omits the word must still succeed because the system
+    prompt carries the keyword.
+    """
+    from src.services.metadata import generate_youtube_metadata
+
+    response = mock_openai_response('{"title": "T", "description": "d", "tags": [], "chapters": []}')
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=response)
+    mock_openai = MagicMock()
+    mock_openai.AsyncOpenAI.return_value = mock_client
+
+    custom = "Generate YouTube metadata. Title under 60 chars, description, 15-25 tags, chapters."
+    assert "json" not in custom.lower()
+
+    with patch.dict("sys.modules", {"openai": mock_openai}):
+        await generate_youtube_metadata("hi", "fake-key", "openai", "gpt-5.4", custom_prompt=custom)
+
+    messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+    combined = " ".join(m["content"] for m in messages).lower()
+    assert "json" in combined, "OpenAI rejects json_object response_format unless 'json' appears in messages"
+
+
+@pytest.mark.asyncio
 async def test_generate_catchphrases_openai():
     from src.services.catchphrase import generate_catchphrases
 
