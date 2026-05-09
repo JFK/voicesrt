@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-05-09
+
+**SRT editor stability + metadata provider routing** — fixes a browser freeze on large media and a misrouted LLM call when picking a different provider for metadata than for transcription.
+
+### Fixed
+- **Browser tab freeze on large media** — opening the SRT editor on a multi-GB MP4 froze the tab because WaveSurfer's default `media: audio` path re-fetches the source URL and runs `decodeAudioData()` on the full audio track to compute the waveform. The editor now precomputes a small amplitude envelope server-side via ffmpeg (`/api/jobs/{id}/peaks`, ~50 KB JSON, ~1.4 s cold for a 1.65 GB / 28-min sample, cached under `data/peaks/`) and passes `peaks` + `duration` to WaveSurfer so the in-browser fetch+decode is skipped entirely.
+- **Editor blocked while waveform loads** — `audioReady` previously required both `<audio>.canplay` and `wavesurfer.ready`, so a slow waveform held playback and editing hostage. Playback and editing now unlock as soon as `<audio>` fires `canplay`; only the waveform region stays gated on its own readiness.
+- **Metadata generation routed to the wrong LLM when a provider override was set** — picking OpenAI for metadata on a Gemini-transcribed job (or vice versa) sent the override-provider's API key to the original-provider's SDK, surfacing as Google's `API_KEY_INVALID` even though the key was valid. `_run_metadata_generation` now threads the resolved provider through to both the LLM call and the cost log; the in-pipeline transcription path defaults to `job.provider` and is unchanged.
+
+### Added
+- **`src/services/peaks.py`** — memory-bounded ffmpeg-based peak extraction with per-job `asyncio.Lock` and on-disk cache.
+
 ## [1.0.2] - 2026-04-26
 
 **Metadata generation reliability** — keep YouTube metadata aligned with the actual SRT and the JSON contract OpenAI requires.
