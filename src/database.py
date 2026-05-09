@@ -27,6 +27,7 @@ def ensure_dirs() -> None:
         settings.srt_dir,
         settings.output_dir,
         settings.assets_dir,
+        settings.peaks_dir,
     ]:
         d.mkdir(parents=True, exist_ok=True)
 

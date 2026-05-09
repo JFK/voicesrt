@@ -71,7 +71,11 @@ window.srtEditor = function () {
             audioDuration: 0,
             _audioCanPlay: false,
             _waveformReady: false,
-            get audioReady() { return this._audioCanPlay && this._waveformReady; },
+            _waveformFailed: false,
+            // Playback only depends on the <audio> element being ready —
+            // gating it on the waveform meant a slow-loading waveform blocked
+            // editing entirely (the freeze symptom users reported).
+            get audioReady() { return this._audioCanPlay; },
             get taggedCount() { return Object.values(this.speakerMap).filter(Boolean).length; },
             // Rebuilt in loadSegments when verifiedIndices is assigned — a getter
             // would realloc on every x-for reactive read (≈O(n²) per playback tick).
@@ -102,7 +106,7 @@ window.srtEditor = function () {
         createSuggestionManager(jobId),
         createSaveManager(jobId, i18n),
         createKeyboardShortcuts(shortcutI18n),
-        createWaveformController(),
+        createWaveformController(jobId),
         {
             async startStreaming() {
                 var self = this;
@@ -255,7 +259,7 @@ window.srtEditor = function () {
         </div>
 
         <!-- Audio player bar -->
-        <div x-show="!loading" :class="audioReady ? '' : 'animate-pulse'"
+        <div x-show="!loading"
              class="mt-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border px-3 py-2">
             <button @click="togglePlay()" :disabled="!audioReady"
                     :class="audioReady ? 'text-gray-600 dark:text-gray-300 hover:text-blue-600' : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'"
@@ -266,10 +270,11 @@ window.srtEditor = function () {
             </button>
             <span class="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0" x-text="formatTime(currentTime) + ' / ' + formatTime(audioDuration)"></span>
             <span x-show="!audioReady" x-cloak class="text-xs text-gray-400 dark:text-gray-500 italic flex-shrink-0">{{ t('srt_editor.audio_loading') }}</span>
-            <div class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none relative h-[60px]">
-                <div x-ref="waveform" class="w-full h-full" :class="audioReady ? '' : 'invisible'"></div>
-                <div x-show="!audioReady" x-cloak class="absolute inset-0 pointer-events-none">
-                    <div class="w-full h-full rounded bg-gray-200 dark:bg-gray-700"></div>
+            <div class="flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none relative h-[60px]"
+                 x-show="!_waveformFailed">
+                <div x-ref="waveform" class="w-full h-full" :class="_waveformReady ? '' : 'invisible'"></div>
+                <div x-show="!_waveformReady" x-cloak class="absolute inset-0 pointer-events-none">
+                    <div class="w-full h-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
                 </div>
             </div>
             <select x-model.number="playbackRate" @change="applyPlaybackRate()"

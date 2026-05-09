@@ -38,13 +38,30 @@ function observeTheme() {
     _themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 }
 
-export function createWaveformController() {
+export function createWaveformController(jobId) {
     return {
-        initWaveform() {
+        async initWaveform() {
             if (_ws) return;
             var container = this.$refs.waveform;
             var audio = this.$refs.audio;
             if (!container || !audio) return;
+
+            // Server-side peaks let WaveSurfer skip its own fetch+decodeAudioData,
+            // which otherwise pulls the entire media file (multi-GB MP4s freeze
+            // the tab). On failure we abandon the waveform rather than fall
+            // back to in-browser decode and re-introduce the freeze.
+            var peaksData;
+            try {
+                var resp = await fetch('/api/jobs/' + jobId + '/peaks');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                peaksData = await resp.json();
+            } catch (e) {
+                console.warn('Waveform peaks unavailable, skipping waveform:', e);
+                this._waveformFailed = true;
+                this._waveformReady = true;
+                return;
+            }
+
             var colors = themeColors();
             _regions = RegionsPlugin.create();
             _ws = WaveSurfer.create({
@@ -60,14 +77,21 @@ export function createWaveformController() {
                 barRadius: 2,
                 normalize: true,
                 interact: true,
+                peaks: [peaksData.peaks],
+                duration: peaksData.duration,
                 plugins: [_regions],
             });
             var self = this;
-            _ws.on('ready', function () {
+            var markReady = function () {
+                if (_wsReady) return;
                 _wsReady = true;
                 self._waveformReady = true;
                 self.renderRegions();
-            });
+            };
+            _ws.on('ready', markReady);
+            // With pre-supplied peaks WaveSurfer may finish rendering via the
+            // 'decode' path before 'ready' fires for the audio element.
+            _ws.on('decode', markReady);
             observeTheme();
         },
 

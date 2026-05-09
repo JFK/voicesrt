@@ -436,6 +436,27 @@ async def get_media(job_id: str, session: AsyncSession = Depends(get_session)):
     return FileResponse(media_path, media_type=media_types.get(ext, "application/octet-stream"))
 
 
+@router.get("/{job_id}/peaks")
+async def get_peaks(job_id: str, session: AsyncSession = Depends(get_session)):
+    """Return downsampled waveform peaks so the editor can skip in-browser decode."""
+    from src.services.peaks import get_or_generate_peaks
+
+    job = await _get_job_or_404(session, job_id)
+
+    media_path = None
+    for f in settings.uploads_dir.glob(f"{job.id}.*"):
+        media_path = f
+        break
+    if not media_path or not media_path.exists():
+        raise media_not_found()
+
+    try:
+        return await get_or_generate_peaks(job.id, media_path, settings.peaks_dir)
+    except Exception as e:
+        logger.warning("Peak generation failed for job %s: %s", job.id, e)
+        raise AppError(500, "PEAKS_FAILED", "Could not generate waveform peaks") from e
+
+
 @router.post("/{job_id}/generate-meta")
 async def generate_meta(
     job_id: str,

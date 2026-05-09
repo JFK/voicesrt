@@ -12,6 +12,7 @@ data/audio/
 data/srt/
 data/output/
 data/assets/
+data/peaks/
 
 .env
 *.db

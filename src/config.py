@@ -46,5 +46,9 @@ class Settings(BaseSettings):
     def assets_dir(self) -> Path:
         return self.data_dir / "assets"
 
+    @property
+    def peaks_dir(self) -> Path:
+        return self.data_dir / "peaks"
+
 
 settings = Settings()
