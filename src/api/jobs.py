@@ -571,7 +571,9 @@ async def _generate_meta_job(
             srt_content = Path(job.srt_path).read_text(encoding="utf-8")
             api_key = await _get_credential(session, provider)
             model = override_model or await _get_model(session, provider)
-            await _run_metadata_generation(job, session, srt_content, api_key, custom_prompt, tone_references, model)
+            await _run_metadata_generation(
+                job, session, srt_content, api_key, custom_prompt, tone_references, model, provider
+            )
 
             # Append fixed footer to description (not processed by AI)
             if fixed_footer and fixed_footer.strip() and job.youtube_description:

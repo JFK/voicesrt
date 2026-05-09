@@ -422,14 +422,24 @@ async def _run_metadata_generation(
     custom_prompt: str | None = None,
     tone_references: str | None = None,
     model: str | None = None,
+    provider: str | None = None,
 ) -> None:
-    """Generate YouTube metadata using LLM and log cost."""
+    """Generate YouTube metadata using LLM and log cost.
+
+    ``provider`` selects the LLM that generates metadata. When omitted it falls
+    back to the job's transcription provider — the override matters when the
+    UI lets the user pick a different LLM for metadata than for transcription
+    (e.g. transcribe with Gemini, generate metadata with OpenAI). The caller
+    must pass the matching ``api_key``; routing on ``job.provider`` here would
+    send an OpenAI key to the Gemini SDK and trigger ``API_KEY_INVALID``.
+    """
     from src.services.metadata import generate_youtube_metadata
 
+    effective_provider = provider or job.provider
     if not model:
-        model = await _get_model(session, job.provider)
+        model = await _get_model(session, effective_provider)
     result, input_tokens, output_tokens = await generate_youtube_metadata(
-        srt_content, api_key, job.provider, model, custom_prompt, tone_references
+        srt_content, api_key, effective_provider, model, custom_prompt, tone_references
     )
 
     raw_titles = result.get("titles", [])
@@ -449,7 +459,7 @@ async def _run_metadata_generation(
     tags = result.get("tags", [])
     job.youtube_tags = json.dumps(tags, ensure_ascii=False)
 
-    provider_name = get_provider_name(job.provider)
+    provider_name = get_provider_name(effective_provider)
     cost = estimate_llm_cost(input_tokens, output_tokens, model, provider_name)
     await log_cost(
         session,
