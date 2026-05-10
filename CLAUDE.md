@@ -33,8 +33,12 @@ When asked to set up this project, follow these steps:
    ```
 
 2. **Generate encryption key and create .env**
+   If `.env` already exists with `ENCRYPTION_KEY` set, **skip this step** —
+   regenerating the key will corrupt all stored API keys.
    ```bash
-   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   if [ ! -f .env ] || ! grep -q "^ENCRYPTION_KEY=.+" .env; then
+     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   fi
    ```
    Create `.env` file with:
    ```

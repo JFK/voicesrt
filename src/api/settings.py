@@ -1,7 +1,6 @@
 import logging
 from datetime import UTC, datetime
 
-from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -19,7 +18,7 @@ from src.errors import (
     unknown_setting,
 )
 from src.models import Setting
-from src.services.crypto import decrypt, encrypt
+from src.services.crypto import DecryptionError, decrypt_credential, encrypt
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +61,8 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
             "updated_at": k.updated_at.isoformat() if k.updated_at else None,
         }
         try:
-            entry["masked"] = _mask_key(decrypt(k.value))
-        except InvalidToken as e:
-            # Row was encrypted with a different ENCRYPTION_KEY (rotation, DB
-            # restore from another env). Surface in an error state so the UI
-            # can prompt re-entry instead of crashing the whole endpoint.
-            # NOTE: only InvalidToken is swallowed — config errors like a
-            # missing ENCRYPTION_KEY raise RuntimeError from crypto.py and
-            # must propagate so they aren't silently masked.
-            logger.warning("Failed to decrypt %s: %s", k.key, e)
+            entry["masked"] = _mask_key(decrypt_credential(k.value))
+        except DecryptionError:
             entry["masked"] = "****"
             entry["decryption_error"] = True
         out.append(entry)
@@ -114,7 +106,10 @@ async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
     if not setting:
         raise key_not_configured()
 
-    api_key = decrypt(setting.value)
+    try:
+        api_key = decrypt_credential(setting.value)
+    except DecryptionError:
+        return {"valid": False, "error": "暗号化キーが変更されました。APIキーを再設定してください。"}
 
     try:
         if provider == "openai":
