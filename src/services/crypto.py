@@ -35,4 +35,6 @@ def decrypt_credential(ciphertext: str) -> str:
     try:
         return decrypt(ciphertext)
     except InvalidToken:
-        raise DecryptionError("暗号化キーが変更されました。Settings → API Keys でAPIキーを再設定してください。")
+        raise DecryptionError(
+            "Encryption key has changed. Please re-enter your API key in Settings → API Keys."
+        ) from None

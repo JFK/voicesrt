@@ -144,6 +144,10 @@ def unknown_setting(key: str) -> AppError:
 def classify_error(exc: Exception) -> str:
     """Classify an exception into a user-friendly message with actionable hint."""
     msg = str(exc)
+    from src.services.crypto import DecryptionError
+
+    if isinstance(exc, DecryptionError):
+        return str(exc)
     if isinstance(exc, TimeoutError) or "timeout" in msg.lower():
         return "Processing timed out. Try a smaller file or a faster model."
     if "401" in msg or "unauthorized" in msg.lower() or "invalid api key" in msg.lower():

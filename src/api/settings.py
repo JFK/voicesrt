@@ -63,6 +63,7 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
         try:
             entry["masked"] = _mask_key(decrypt_credential(k.value))
         except DecryptionError:
+            logger.warning("Failed to decrypt %s: encryption key mismatch", k.key)
             entry["masked"] = "****"
             entry["decryption_error"] = True
         out.append(entry)
@@ -109,7 +110,10 @@ async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
     try:
         api_key = decrypt_credential(setting.value)
     except DecryptionError:
-        return {"valid": False, "error": "暗号化キーが変更されました。APIキーを再設定してください。"}
+        return {
+            "valid": False,
+            "error": "Encryption key has changed. Please re-enter your API key in Settings → API Keys.",
+        }
 
     try:
         if provider == "openai":
