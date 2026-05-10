@@ -1,6 +1,7 @@
 """Tests for waveform peak extraction (services.peaks)."""
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,16 @@ from src.services.peaks import (
 
 FIXTURE = Path(__file__).parent / "fixtures" / "test.mp3"
 
+# Skip the ffmpeg-driven cases when the binary is absent (e.g. fresh dev
+# environment without the system dependency installed). CI installs ffmpeg
+# explicitly; the cache-only test below still exercises the pure-Python path.
+_needs_ffmpeg = pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="ffmpeg/ffprobe not installed",
+)
 
+
+@_needs_ffmpeg
 @pytest.mark.asyncio
 async def test_generate_peaks_returns_normalized_envelope():
     result = await generate_peaks(FIXTURE, target_buckets=300)
@@ -28,12 +38,14 @@ async def test_generate_peaks_returns_normalized_envelope():
     assert max(result["peaks"]) > 0.0
 
 
+@_needs_ffmpeg
 @pytest.mark.asyncio
 async def test_generate_peaks_default_bucket_count():
     result = await generate_peaks(FIXTURE)
     assert abs(len(result["peaks"]) - PEAKS_TARGET_BUCKETS) <= 1
 
 
+@_needs_ffmpeg
 @pytest.mark.asyncio
 async def test_get_or_generate_peaks_caches_to_disk(tmp_path):
     cache_dir = tmp_path / "peaks"
