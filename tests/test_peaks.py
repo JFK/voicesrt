@@ -1,8 +1,11 @@
 """Tests for waveform peak extraction (services.peaks)."""
 
+import asyncio
 import json
 import shutil
+import struct
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -71,3 +74,108 @@ async def test_get_or_generate_peaks_returns_cached_value(tmp_path):
 
     result = await get_or_generate_peaks(job_id, Path("/nonexistent.mp3"), cache_dir)
     assert result == expected
+
+
+# ---- ffmpeg-mocked tests: exercise the bucketing/cache/locking logic on CI
+# runners that don't have the binary installed. These complement the real
+# ffmpeg integration tests above.
+
+
+def _fake_proc(pcm_bytes: bytes, *, returncode: int = 0, stderr: bytes = b""):
+    """Build a mock asyncio subprocess that streams ``pcm_bytes`` from stdout."""
+    proc = MagicMock()
+    proc.returncode = returncode
+
+    chunks = [pcm_bytes[i : i + 1024] for i in range(0, len(pcm_bytes), 1024)] + [b""]
+    proc.stdout = MagicMock()
+    proc.stdout.read = AsyncMock(side_effect=chunks)
+    proc.stderr = MagicMock()
+    proc.stderr.read = AsyncMock(return_value=stderr)
+    proc.wait = AsyncMock()
+    proc.kill = MagicMock()
+    return proc
+
+
+@pytest.mark.asyncio
+async def test_generate_peaks_buckets_pcm_amplitude_correctly():
+    """Each bucket's emitted peak == max |sample| / 32768 over its samples."""
+    target = 10
+    samples_per_bucket = 400  # matches duration=1s × PEAKS_SAMPLE_RATE=4000 / 10
+    samples: list[int] = []
+    for b in range(target):
+        bucket = [(b + 1) * 100] * (samples_per_bucket - 1) + [-(b + 1) * 100]
+        samples.extend(bucket)
+    pcm = struct.pack(f"<{len(samples)}h", *samples)
+
+    proc = _fake_proc(pcm)
+    with (
+        patch("src.services.peaks.get_audio_duration", new=AsyncMock(return_value=1.0)),
+        patch("src.services.peaks.asyncio.create_subprocess_exec", new=AsyncMock(return_value=proc)),
+    ):
+        result = await generate_peaks(Path("/fake.mp3"), target_buckets=target)
+
+    assert result["duration"] == 1.0
+    assert len(result["peaks"]) == target
+    for b, peak in enumerate(result["peaks"]):
+        assert peak == pytest.approx((b + 1) * 100 / 32768.0)
+
+
+@pytest.mark.asyncio
+async def test_generate_peaks_zero_duration_raises():
+    with patch("src.services.peaks.get_audio_duration", new=AsyncMock(return_value=0)):
+        with pytest.raises(RuntimeError, match="zero duration"):
+            await generate_peaks(Path("/fake.mp3"))
+
+
+@pytest.mark.asyncio
+async def test_generate_peaks_propagates_ffmpeg_failure():
+    proc = _fake_proc(b"", returncode=1, stderr=b"ffmpeg: invalid input")
+    with (
+        patch("src.services.peaks.get_audio_duration", new=AsyncMock(return_value=10.0)),
+        patch("src.services.peaks.asyncio.create_subprocess_exec", new=AsyncMock(return_value=proc)),
+    ):
+        with pytest.raises(RuntimeError, match="ffmpeg peak extraction failed"):
+            await generate_peaks(Path("/fake.mp3"))
+
+
+@pytest.mark.asyncio
+async def test_get_or_generate_peaks_writes_compact_cache(tmp_path):
+    cache_dir = tmp_path / "peaks"
+    fake_result = {"peaks": [0.1, 0.2], "duration": 5.0}
+
+    with patch("src.services.peaks.generate_peaks", new=AsyncMock(return_value=fake_result)) as mock_gen:
+        result = await get_or_generate_peaks("job-compact", Path("/fake.mp3"), cache_dir)
+
+    assert result == fake_result
+    mock_gen.assert_awaited_once()
+
+    cache_file = cache_dir / "job-compact.json"
+    text = cache_file.read_text()
+    # Compact separators keep the JSON small for transfer.
+    assert ", " not in text
+    assert ": " not in text
+    assert json.loads(text) == fake_result
+
+
+@pytest.mark.asyncio
+async def test_get_or_generate_peaks_concurrent_calls_share_one_generation(tmp_path):
+    """Per-job lock must collapse concurrent requests into a single ffmpeg run."""
+    cache_dir = tmp_path / "peaks"
+    fake_result = {"peaks": [0.5], "duration": 1.0}
+    call_count = 0
+
+    async def slow_generate(media_path):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(0.05)
+        return fake_result
+
+    with patch("src.services.peaks.generate_peaks", new=slow_generate):
+        results = await asyncio.gather(
+            get_or_generate_peaks("shared-job", Path("/fake.mp3"), cache_dir),
+            get_or_generate_peaks("shared-job", Path("/fake.mp3"), cache_dir),
+            get_or_generate_peaks("shared-job", Path("/fake.mp3"), cache_dir),
+        )
+
+    assert all(r == fake_result for r in results)
+    assert call_count == 1, f"expected 1 generate_peaks call, got {call_count}"
