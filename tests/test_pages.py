@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.database import async_session
 from src.models import Setting
+from tests.helpers import foreign_fernet_token, isolated_api_keys
 
 
 @pytest.mark.asyncio
@@ -85,31 +85,15 @@ async def test_landing_redirects_when_only_undecryptable_keys(make_client):
     the landing page must redirect to /setup so the user can recover. Without this,
     _get_credential() would later crash deep in the transcription pipeline.
     """
-    from cryptography.fernet import Fernet
-    from sqlalchemy import delete
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.openai", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
 
-    # Replace the autouse fixture row with a token written under a foreign key
-    # so it is structurally valid but fails signature verification.
-    foreign_token = Fernet(Fernet.generate_key()).encrypt(b"sk-foreign").decode()
-
-    async with async_session() as s:
-        await s.execute(delete(Setting).where(Setting.key.like("api_key.%")))
-        s.add(Setting(key="api_key.openai", value=foreign_token, encrypted=True))
-        await s.commit()
-
-    try:
         async with make_client() as c:
             resp = await c.get("/", follow_redirects=False)
         assert resp.status_code == 307
         assert resp.headers["location"] == "/setup"
-    finally:
-        # Restore the autouse fixture row so other tests aren't affected.
-        from src.services.crypto import encrypt
-
-        async with async_session() as s:
-            await s.execute(delete(Setting).where(Setting.key.like("api_key.%")))
-            s.add(Setting(key="api_key.openai", value=encrypt("sk-test"), encrypted=True))
-            await s.commit()
 
 
 @pytest.mark.asyncio
@@ -130,33 +114,19 @@ async def test_setup_page_flags_key_mismatch_when_rows_undecryptable(make_client
     but cannot be decrypted under the active ENCRYPTION_KEY, so the template
     can render a warning explaining why the user landed here.
     """
-    from cryptography.fernet import Fernet
-    from sqlalchemy import delete
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.openai", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
 
-    foreign_token = Fernet(Fernet.generate_key()).encrypt(b"sk-foreign").decode()
-
-    async with async_session() as s:
-        await s.execute(delete(Setting).where(Setting.key.like("api_key.%")))
-        s.add(Setting(key="api_key.openai", value=foreign_token, encrypted=True))
-        await s.commit()
-
-    try:
         async with make_client() as c:
             resp = await c.get("/setup")
         assert resp.status_code == 200
-        # English banner copy must render so the user understands why the
-        # /setup redirect happened — the localized text key is intentionally
-        # asserted by substring to stay tolerant of i18n wording tweaks.
+        # Substring match keeps the assertion tolerant of i18n wording tweaks
+        # while still proving the banner branch fired.
         assert "Encryption key has changed" in resp.text
 
         async with make_client() as c:
             resp_ja = await c.get("/setup", cookies={"lang": "ja"})
         assert resp_ja.status_code == 200
         assert "暗号化キーが変更されました" in resp_ja.text
-    finally:
-        from src.services.crypto import encrypt
-
-        async with async_session() as s:
-            await s.execute(delete(Setting).where(Setting.key.like("api_key.%")))
-            s.add(Setting(key="api_key.openai", value=encrypt("sk-test"), encrypted=True))
-            await s.commit()

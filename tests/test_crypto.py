@@ -1,7 +1,5 @@
 """Tests for src.services.crypto."""
 
-import hashlib
-
 import pytest
 from cryptography.fernet import Fernet
 
@@ -13,6 +11,7 @@ from src.services.crypto import (
     encrypt,
     get_fingerprint,
 )
+from tests.helpers import foreign_fernet_token
 
 
 def test_encrypt_decrypt_roundtrip():
@@ -26,17 +25,31 @@ def test_decrypt_credential_raises_decryption_error_under_rotated_key():
     contract is what callers depend on to render a friendly recovery message
     instead of crashing.
     """
-    foreign_token = Fernet(Fernet.generate_key()).encrypt(b"sk-foreign").decode()
     with pytest.raises(DecryptionError):
-        decrypt_credential(foreign_token)
+        decrypt_credential(foreign_fernet_token())
 
 
-def test_get_fingerprint_matches_sha256_of_active_key():
-    expected = hashlib.sha256(app_settings.encryption_key.encode()).hexdigest()
-    assert get_fingerprint() == expected
-    # SHA-256 hex digest is always 64 chars; pin the contract so downstream
-    # storage / comparison code doesn't accidentally truncate.
-    assert len(get_fingerprint()) == 64
+def test_get_fingerprint_known_value(monkeypatch):
+    """Pin a known input/output pair instead of re-implementing the SHA-256
+    formula inside the assertion. Pre-computed externally with:
+
+        printf 'test-pinned-key-fingerprint-fixture' | sha256sum
+
+    Re-computing in the test would silently pass even if both production
+    and test code were miswired to a different hash algorithm.
+    """
+    monkeypatch.setattr(app_settings, "encryption_key", "test-pinned-key-fingerprint-fixture")
+    assert get_fingerprint() == "290c5ee60c25ab3b86d5b13a6bc174b751fa0046df6d0da84fcbb4e20347a121"
+
+
+def test_get_fingerprint_returns_64_char_lowercase_hex():
+    """SHA-256 hex digest is always 64 lowercase hex chars; pin the shape so
+    downstream storage / comparison code doesn't accidentally truncate or
+    case-normalize.
+    """
+    fp = get_fingerprint()
+    assert len(fp) == 64
+    assert all(c in "0123456789abcdef" for c in fp)
 
 
 def test_get_fingerprint_changes_when_key_changes(monkeypatch):

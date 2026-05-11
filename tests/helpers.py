@@ -1,6 +1,52 @@
 """Shared test helpers. Import from here, not from conftest.py."""
 
+import contextlib
 from unittest.mock import MagicMock
+
+
+def foreign_fernet_token(plaintext: bytes = b"sk-foreign") -> str:
+    """Return a Fernet token encrypted under a *freshly generated* key.
+
+    The token is structurally valid but fails signature verification under
+    the test session's active ENCRYPTION_KEY — i.e. the exact post-rotation
+    scenario that production code must surface as DecryptionError instead
+    of crashing with a raw InvalidToken.
+    """
+    from cryptography.fernet import Fernet
+
+    return Fernet(Fernet.generate_key()).encrypt(plaintext).decode()
+
+
+@contextlib.asynccontextmanager
+async def isolated_api_keys():
+    """Wipe api_key/fingerprint rows for the duration of the block.
+
+    Yields the async_session factory so the test can seed whatever rotation
+    or fingerprint state it needs. On exit the api_key.% rows and the
+    `_meta.encryption_key_fingerprint` row are removed, then the conftest
+    autouse fixture's baseline `api_key.openai = encrypt("sk-test")` row is
+    re-inserted so subsequent tests in the session see clean state.
+    """
+    from sqlalchemy import delete
+
+    from src.database import async_session
+    from src.models import Setting
+    from src.services.crypto import ENCRYPTION_KEY_FINGERPRINT_SETTING, encrypt
+
+    async def _wipe():
+        async with async_session() as s:
+            await s.execute(delete(Setting).where(Setting.key.like("api_key.%")))
+            await s.execute(delete(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            await s.commit()
+
+    await _wipe()
+    try:
+        yield async_session
+    finally:
+        await _wipe()
+        async with async_session() as s:
+            s.add(Setting(key="api_key.openai", value=encrypt("sk-test"), encrypted=True))
+            await s.commit()
 
 
 def mock_openai_response(content: str, prompt_tokens: int = 100, completion_tokens: int = 50):

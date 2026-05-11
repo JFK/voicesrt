@@ -32,6 +32,11 @@ async def _api_key_status(session: AsyncSession) -> tuple[bool, bool]:
     has_decryptable = False
     has_undecryptable = False
     for row in result.scalars():
+        # Fernet decrypt does signature verification — stop as soon as both
+        # flags are set so request-path callers (landing, upload) don't burn
+        # cycles on every additional row when the answer is already decided.
+        if has_decryptable and has_undecryptable:
+            break
         try:
             decrypt_credential(row.value)
             has_decryptable = True
