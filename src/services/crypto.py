@@ -106,11 +106,13 @@ class EncryptionService:
         setting = result.scalar_one_or_none()
         return setting.value if setting else None
 
-    async def all_api_keys_decrypt(self) -> bool:
-        """True iff every encrypted api_key.% row decrypts under the active key.
+    async def _iter_encrypted_api_key_rows(self):
+        """Yield every encrypted api_key.% Setting row for the active session.
 
-        Gates the fingerprint stamp in save_key: stamping unconditionally
-        would silently lose the rotation signal during partial recovery.
+        Single source of truth for the SQL filter used by every
+        decrypt-scanning method below — change the predicate here and all
+        scanners adjust, instead of relying on four `Setting.key.like(...)`
+        literals staying in sync.
         """
         from src.models import Setting
 
@@ -118,6 +120,15 @@ class EncryptionService:
             select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True))
         )
         for row in result.scalars():
+            yield row
+
+    async def all_api_keys_decrypt(self) -> bool:
+        """True iff every encrypted api_key.% row decrypts under the active key.
+
+        Gates the fingerprint stamp in save_key: stamping unconditionally
+        would silently lose the rotation signal during partial recovery.
+        """
+        async for row in self._iter_encrypted_api_key_rows():
             try:
                 EncryptionService.decrypt_credential(row.value)
             except DecryptionError:
@@ -140,14 +151,9 @@ class EncryptionService:
         propagate fails fast and signals "fix the env var" rather than
         misdirecting the user to a recovery banner they cannot act on.
         """
-        from src.models import Setting
-
-        result = await self.session.execute(
-            select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True))
-        )
         has_decryptable = False
         has_undecryptable = False
-        for row in result.scalars():
+        async for row in self._iter_encrypted_api_key_rows():
             # Fernet decrypt does signature verification — stop as soon as
             # both flags are set so request-path callers (landing, upload)
             # don't burn cycles on every additional row when the answer is
@@ -169,13 +175,8 @@ class EncryptionService:
         per-provider status instead of the binary all-or-nothing signal
         that all_api_keys_decrypt returns.
         """
-        from src.models import Setting
-
-        result = await self.session.execute(
-            select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True))
-        )
         status: dict[str, bool] = {}
-        for row in result.scalars():
+        async for row in self._iter_encrypted_api_key_rows():
             try:
                 EncryptionService.decrypt_credential(row.value)
                 status[row.key] = True
@@ -188,26 +189,33 @@ class EncryptionService:
 
         Mutates the rows in the current session but does NOT commit — the
         caller owns the transaction so it can roll back on partial
-        failure if it chooses to. The fingerprint row is also updated to
-        the new key's fingerprint on the same flush.
+        failure if it chooses to. The fingerprint row is updated to the
+        new key's fingerprint inline so the active fingerprint moves
+        atomically with the row mutations on the caller's commit.
 
         Returns {"success": N, "failed": N, "errors": [Setting.key, ...]}.
         Rows that fail to decrypt under old_key are skipped (their value
         is left as-is); the caller decides whether to abort or proceed
         based on the report.
+
+        Transaction contract — DO NOT MIX with _upsert_setting in the
+        same transaction. This method handles the fingerprint row with a
+        direct ORM mutation / session.add() so it aligns with the row
+        mutation pattern above. Calling _upsert_setting in the same
+        transaction would issue a second concurrent UPSERT for the same
+        key and confuse SQLAlchemy's identity map. Endpoints that wrap
+        reencrypt_all should commit on the same session immediately and
+        not stack other Setting writes before that commit.
         """
         from src.models import Setting
 
         old_fernet = Fernet(old_key.encode())
         new_fernet = Fernet(new_key.encode())
 
-        result = await self.session.execute(
-            select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True))
-        )
         success = 0
         failed = 0
         errors: list[str] = []
-        for row in result.scalars():
+        async for row in self._iter_encrypted_api_key_rows():
             try:
                 plaintext = old_fernet.decrypt(row.value.encode())
             except InvalidToken:

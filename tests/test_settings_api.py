@@ -344,27 +344,18 @@ async def test_upsert_setting_auto_encrypts_api_key_namespace():
     forgetting to pass encrypted=True would previously have written
     plaintext credentials to the DB.
     """
-    from sqlalchemy import delete, select
+    from sqlalchemy import select
 
     from src.api.settings import _upsert_setting
-    from src.database import async_session
 
-    async with async_session() as s:
-        await s.execute(delete(Setting).where(Setting.key == "api_key.openai"))
-        await _upsert_setting(s, "api_key.openai", "stub-ciphertext")
-        await s.commit()
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            await _upsert_setting(s, "api_key.openai", "stub-ciphertext")
+            await s.commit()
 
-    try:
-        async with async_session() as s:
+        async with session_factory() as s:
             row = (await s.execute(select(Setting).where(Setting.key == "api_key.openai"))).scalar_one()
         assert row.encrypted is True
-    finally:
-        from src.services.crypto import encrypt
-
-        async with async_session() as s:
-            await s.execute(delete(Setting).where(Setting.key == "api_key.openai"))
-            s.add(Setting(key="api_key.openai", value=encrypt("sk-test"), encrypted=True))
-            await s.commit()
 
 
 @pytest.mark.asyncio
