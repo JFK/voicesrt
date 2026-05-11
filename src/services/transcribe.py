@@ -27,7 +27,7 @@ from src.errors import actionable_error, serialize_error_detail
 from src.models import Job, Setting
 from src.services.audio import extract_audio, extract_audio_mp3, get_audio_duration, split_audio
 from src.services.cost import estimate_gemini_cost, estimate_llm_cost, estimate_whisper_cost, log_cost
-from src.services.crypto import decrypt
+from src.services.crypto import decrypt_credential
 from src.services.srt import generate_srt, save_srt
 from src.services.status import status_manager
 
@@ -53,7 +53,7 @@ async def _get_credential(session: AsyncSession, provider: str) -> str:
     setting = result.scalar_one_or_none()
     if not setting:
         raise RuntimeError(f"{provider_label} API key is not configured. Go to Settings → API Keys to add it.")
-    return decrypt(setting.value)
+    return decrypt_credential(setting.value)
 
 
 async def _get_model(session: AsyncSession, provider: str, override: str | None = None) -> str:

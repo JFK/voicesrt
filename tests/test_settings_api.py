@@ -179,6 +179,32 @@ async def test_set_meta_context(make_client):
 
 
 @pytest.mark.asyncio
+async def test_test_key_decryption_error(make_client):
+    """test_key returns valid=False when ENCRYPTION_KEY has been rotated."""
+    from cryptography.fernet import Fernet
+    from sqlalchemy import delete
+
+    foreign_token = Fernet(Fernet.generate_key()).encrypt(b"sk-foreign").decode()
+
+    async with async_session() as s:
+        await s.execute(delete(Setting).where(Setting.key == "api_key.openai"))
+        s.add(Setting(key="api_key.openai", value=foreign_token, encrypted=True))
+        await s.commit()
+
+    try:
+        async with make_client() as c:
+            resp = await c.post("/api/settings/keys/openai/test")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["valid"] is False
+        assert "Encryption key" in data["error"]
+    finally:
+        async with async_session() as s:
+            await s.execute(delete(Setting).where(Setting.key == "api_key.openai"))
+            await s.commit()
+
+
+@pytest.mark.asyncio
 async def test_save_key_invalid_provider(make_client):
     async with make_client() as c:
         resp = await c.put("/api/settings/keys/invalid", json={"key": "test-key"})
