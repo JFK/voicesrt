@@ -365,26 +365,20 @@ async def test_upsert_setting_defaults_plain_for_non_prefixed_keys():
     regression here would write the SHA-256 hash through Fernet and break
     the rotation detector.
     """
-    from sqlalchemy import delete, select
+    from sqlalchemy import select
 
     from src.api.settings import _upsert_setting
-    from src.database import async_session
 
     test_key = "_meta.test_upsert_classification_marker"
-    async with async_session() as s:
-        await s.execute(delete(Setting).where(Setting.key == test_key))
-        await _upsert_setting(s, test_key, "plaintext-marker")
-        await s.commit()
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            await _upsert_setting(s, test_key, "plaintext-marker")
+            await s.commit()
 
-    try:
-        async with async_session() as s:
+        async with session_factory() as s:
             row = (await s.execute(select(Setting).where(Setting.key == test_key))).scalar_one()
         assert row.encrypted is False
         assert row.value == "plaintext-marker"
-    finally:
-        async with async_session() as s:
-            await s.execute(delete(Setting).where(Setting.key == test_key))
-            await s.commit()
 
 
 @pytest.mark.asyncio

@@ -31,12 +31,17 @@ async def isolated_api_keys():
 
     from src.database import async_session
     from src.models import Setting
-    from src.services.crypto import ENCRYPTION_KEY_FINGERPRINT_SETTING, encrypt
+    from src.services.crypto import encrypt
 
     async def _wipe():
+        # Wipe the api_key namespace (sensitive credentials) and the _meta
+        # namespace (internal metadata + test markers). Broad _meta.% coverage
+        # is intentional so tests can write their own _meta.* probes and rely
+        # on the helper to clean up — without it, a test-specific marker row
+        # would leak into subsequent tests' DB state.
         async with async_session() as s:
             await s.execute(delete(Setting).where(Setting.key.like("api_key.%")))
-            await s.execute(delete(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            await s.execute(delete(Setting).where(Setting.key.like("_meta.%")))
             await s.commit()
 
     await _wipe()
