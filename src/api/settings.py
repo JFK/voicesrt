@@ -90,7 +90,12 @@ async def _all_api_keys_decrypt(session: AsyncSession) -> bool:
 
 @router.get("/keys")
 async def list_keys(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Setting).where(Setting.encrypted == True))  # noqa: E712
+    # Scope the query to the api_key.% namespace so the endpoint's contract
+    # matches its name. Filtering on `encrypted=True` alone would also pull
+    # in any other encrypted-flagged setting (now or in future), and the
+    # downstream `k.key.replace("api_key.", "")` provider derivation would
+    # silently produce malformed entries.
+    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
     keys = result.scalars().all()
 
     # Compare the stamped fingerprint against the active one *before* the

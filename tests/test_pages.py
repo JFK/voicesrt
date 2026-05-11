@@ -109,7 +109,7 @@ async def test_setup_page_omits_banner_in_clean_state(make_client):
 
 
 @pytest.mark.asyncio
-async def test_setup_page_flags_key_mismatch_when_rows_undecryptable(make_client):
+async def test_setup_page_flags_undecryptable_keys_when_rows_fail_to_decrypt(make_client):
     """The /setup page must set has_undecryptable_keys=True in the template
     context when api_key.% rows exist but cannot be decrypted under the
     active ENCRYPTION_KEY, so the template renders a warning banner
