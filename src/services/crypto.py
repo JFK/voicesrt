@@ -124,6 +124,43 @@ class EncryptionService:
                 return False
         return True
 
+    async def api_key_status(self) -> tuple[bool, bool]:
+        """Return (has_decryptable, has_undecryptable) for stored api_key.% rows.
+
+        A row is "undecryptable" when DecryptionError is raised — typically
+        because ENCRYPTION_KEY was changed after the row was written. Both
+        flags surface so callers can distinguish "no keys at all" from
+        "keys exist but the active ENCRYPTION_KEY can't decrypt them" — the
+        latter needs a user-visible warning, not a silent /setup redirect
+        followed by a later crash in transcribe._get_credential().
+
+        Deliberately does not catch RuntimeError. _get_fernet() raises
+        RuntimeError when ENCRYPTION_KEY is unset, which is a server
+        misconfiguration — not a data-state recovery scenario. Letting it
+        propagate fails fast and signals "fix the env var" rather than
+        misdirecting the user to a recovery banner they cannot act on.
+        """
+        from src.models import Setting
+
+        result = await self.session.execute(
+            select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True))
+        )
+        has_decryptable = False
+        has_undecryptable = False
+        for row in result.scalars():
+            # Fernet decrypt does signature verification — stop as soon as
+            # both flags are set so request-path callers (landing, upload)
+            # don't burn cycles on every additional row when the answer is
+            # already decided.
+            if has_decryptable and has_undecryptable:
+                break
+            try:
+                EncryptionService.decrypt_credential(row.value)
+                has_decryptable = True
+            except DecryptionError:
+                has_undecryptable = True
+        return has_decryptable, has_undecryptable
+
     async def validate_stored_keys(self) -> dict[str, bool]:
         """Per-row decrypt status for every encrypted api_key.% row.
 
