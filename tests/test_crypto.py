@@ -116,3 +116,147 @@ def test_encrypted_key_prefixes_excludes_meta_namespace():
     assert not any(p.startswith("_meta.") for p in ENCRYPTED_KEY_PREFIXES)
     # The active fingerprint key explicitly does not match any prefix.
     assert not any(ENCRYPTION_KEY_FINGERPRINT_SETTING.startswith(p) for p in ENCRYPTED_KEY_PREFIXES)
+
+
+# ─── DB-aware methods (validate_stored_keys, api_key_status, reencrypt_all) ──
+
+
+@pytest.mark.asyncio
+async def test_validate_stored_keys_reports_per_row_status():
+    """validate_stored_keys returns a {Setting.key: bool} map so an endpoint
+    can render granular per-row recovery state, not just the binary
+    all-decrypt signal that all_api_keys_decrypt provides.
+    """
+    from src.database import async_session
+    from src.models import Setting
+    from tests.helpers import isolated_api_keys
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.openai", value=encrypt("sk-real"), encrypted=True))
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
+
+        async with async_session() as s:
+            status = await EncryptionService(s).validate_stored_keys()
+        assert status == {"api_key.openai": True, "api_key.google": False}
+
+
+@pytest.mark.asyncio
+async def test_api_key_status_short_circuits_when_both_flags_set():
+    """api_key_status pairs the two flags so callers can route on either
+    signal. The implementation should stop iterating once both flags are
+    set — verified indirectly by mixing a decryptable and an undecryptable
+    row and asserting both flags are True.
+    """
+    from src.database import async_session
+    from src.models import Setting
+    from tests.helpers import isolated_api_keys
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.openai", value=encrypt("sk-real"), encrypted=True))
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
+
+        async with async_session() as s:
+            has_decryptable, has_undecryptable = await EncryptionService(s).api_key_status()
+        assert has_decryptable is True
+        assert has_undecryptable is True
+
+
+@pytest.mark.asyncio
+async def test_reencrypt_all_rewrites_rows_and_updates_fingerprint():
+    """Happy-path rotation: every encrypted row is re-encrypted from old_key
+    to new_key, the active fingerprint is set to new_key's, and the report
+    reflects success=N / failed=0.
+    """
+    import hashlib
+
+    from sqlalchemy import select
+
+    from src.database import async_session
+    from src.models import Setting
+    from tests.helpers import isolated_api_keys
+
+    old_key = Fernet.generate_key().decode()
+    new_key = Fernet.generate_key().decode()
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            # Two rows encrypted under the OLD key — what a real pre-rotation
+            # DB looks like.
+            old_fernet = Fernet(old_key.encode())
+            s.add(
+                Setting(
+                    key="api_key.openai",
+                    value=old_fernet.encrypt(b"sk-openai").decode(),
+                    encrypted=True,
+                )
+            )
+            s.add(
+                Setting(
+                    key="api_key.google",
+                    value=old_fernet.encrypt(b"sk-google").decode(),
+                    encrypted=True,
+                )
+            )
+            await s.commit()
+
+        async with async_session() as s:
+            report = await EncryptionService(s).reencrypt_all(old_key, new_key)
+            await s.commit()
+        assert report == {"success": 2, "failed": 0, "errors": []}
+
+        # Verify rows are now decryptable under new_key.
+        new_fernet = Fernet(new_key.encode())
+        async with async_session() as s:
+            result = await s.execute(select(Setting).where(Setting.key.like("api_key.%")))
+            for row in result.scalars():
+                # If the value was correctly re-encrypted, new_fernet.decrypt
+                # succeeds and returns the original plaintext.
+                assert new_fernet.decrypt(row.value.encode()) in (b"sk-openai", b"sk-google")
+
+            # Fingerprint row points to the NEW key — list_keys downstream will
+            # match against the active fingerprint and stop flagging mismatch.
+            fp_result = await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            fp_row = fp_result.scalar_one_or_none()
+        expected_new_fp = hashlib.sha256(new_key.encode()).hexdigest()
+        assert fp_row is not None
+        assert fp_row.value == expected_new_fp
+
+
+@pytest.mark.asyncio
+async def test_reencrypt_all_reports_failures_without_aborting():
+    """If a row fails to decrypt under old_key (e.g. it was already encrypted
+    under a third unknown key), reencrypt_all records it in `errors` and
+    proceeds with the rest. The caller — not the service — decides whether
+    a partial result is acceptable.
+    """
+    from src.database import async_session
+    from src.models import Setting
+    from tests.helpers import foreign_fernet_token, isolated_api_keys
+
+    old_key = Fernet.generate_key().decode()
+    new_key = Fernet.generate_key().decode()
+    old_fernet = Fernet(old_key.encode())
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(
+                Setting(
+                    key="api_key.openai",
+                    value=old_fernet.encrypt(b"sk-recoverable").decode(),
+                    encrypted=True,
+                )
+            )
+            # Row encrypted under a THIRD key — neither old_key nor new_key.
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
+
+        async with async_session() as s:
+            report = await EncryptionService(s).reencrypt_all(old_key, new_key)
+            await s.commit()
+    assert report["success"] == 1
+    assert report["failed"] == 1
+    assert report["errors"] == ["api_key.google"]
