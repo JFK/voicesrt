@@ -5,7 +5,10 @@ from cryptography.fernet import Fernet
 
 from src.config import settings as app_settings
 from src.services.crypto import (
+    ENCRYPTED_KEY_PREFIXES,
+    ENCRYPTION_KEY_FINGERPRINT_SETTING,
     DecryptionError,
+    EncryptionService,
     decrypt,
     decrypt_credential,
     encrypt,
@@ -71,3 +74,45 @@ def test_get_fingerprint_raises_when_key_unset(monkeypatch):
     monkeypatch.setattr(app_settings, "encryption_key", "")
     with pytest.raises(RuntimeError):
         get_fingerprint()
+
+
+# ─── EncryptionService class — same contracts via the class API ────────────
+
+
+def test_encryption_service_static_methods_match_module_wrappers():
+    """The class-level API and the module-level shims must return identical
+    results — the shims are intentionally thin and must not diverge.
+    """
+    token = EncryptionService.encrypt("sk-class-vs-module")
+    assert EncryptionService.decrypt(token) == "sk-class-vs-module"
+    assert EncryptionService.decrypt(token) == decrypt(token)
+    assert EncryptionService.get_fingerprint() == get_fingerprint()
+
+
+def test_encryption_service_decrypt_credential_raises_decryption_error():
+    """The class method honors the same DecryptionError contract as the shim,
+    so callers can migrate from `decrypt_credential(...)` to
+    `EncryptionService.decrypt_credential(...)` without changing their
+    `except` clause.
+    """
+    with pytest.raises(DecryptionError):
+        EncryptionService.decrypt_credential(foreign_fernet_token())
+
+
+def test_encrypted_key_prefixes_contains_api_key():
+    """The api_key.<provider> namespace is the canonical encrypted slot.
+    Removing it from this set would silently downgrade live API keys to
+    plaintext on the next save — pin the membership.
+    """
+    assert "api_key." in ENCRYPTED_KEY_PREFIXES
+
+
+def test_encrypted_key_prefixes_excludes_meta_namespace():
+    """The _meta.* namespace must NOT be in the encrypted-by-default set —
+    fingerprint rows and similar metadata are intentionally plaintext.
+    A regression here would write hashes to the DB encrypted under a
+    rotating key, defeating their purpose as rotation detectors.
+    """
+    assert not any(p.startswith("_meta.") for p in ENCRYPTED_KEY_PREFIXES)
+    # The active fingerprint key explicitly does not match any prefix.
+    assert not any(ENCRYPTION_KEY_FINGERPRINT_SETTING.startswith(p) for p in ENCRYPTED_KEY_PREFIXES)
