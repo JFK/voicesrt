@@ -206,6 +206,83 @@ async def test_save_key_stamps_encryption_key_fingerprint(make_client):
 
 
 @pytest.mark.asyncio
+async def test_save_key_during_partial_recovery_preserves_stale_fingerprint(make_client):
+    """Partial recovery scenario: stale fingerprint must NOT be overwritten while
+    other api_key.% rows still fail to decrypt. Otherwise the rotation banner
+    in list_keys would clear after the first re-save, hiding the fact that the
+    remaining stale rows are still broken.
+    """
+    from sqlalchemy import select
+
+    from src.services.crypto import ENCRYPTION_KEY_FINGERPRINT_SETTING
+
+    stale_fp = "0" * 64
+
+    async with isolated_api_keys() as session_factory:
+        # Pre-state: an old undecryptable Google row + a stale fingerprint
+        # mimicking "the prior ENCRYPTION_KEY". The user is mid-recovery
+        # about to re-save OpenAI under the new key.
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            s.add(Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value=stale_fp, encrypted=False))
+            await s.commit()
+
+        async with make_client() as c:
+            resp = await c.put("/api/settings/keys/openai", json={"key": "sk-partial-recovery"})
+        assert resp.status_code == 200
+
+        # Stored fingerprint must STILL be the stale value, because google is
+        # still encrypted under the prior key. list_keys() must continue to
+        # mark google with key_mismatch until the user re-saves it too.
+        async with session_factory() as s:
+            result = await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            row = result.scalar_one_or_none()
+        assert row is not None
+        assert row.value == stale_fp, "fingerprint must not advance until ALL rows decrypt under the active key"
+
+        async with make_client() as c:
+            resp = await c.get("/api/settings/keys")
+        data = resp.json()
+        google_entry = next((e for e in data if e["provider"] == "google"), None)
+        assert google_entry is not None
+        assert google_entry.get("decryption_error") is True
+        assert google_entry.get("key_mismatch") is True
+
+
+@pytest.mark.asyncio
+async def test_save_key_after_full_recovery_refreshes_fingerprint(make_client):
+    """Complementary scenario: once all api_key.% rows decrypt under the
+    active key, the next save_key MUST advance the stored fingerprint so
+    future rotations have a fresh baseline to compare against.
+    """
+    from sqlalchemy import select
+
+    from src.services.crypto import (
+        ENCRYPTION_KEY_FINGERPRINT_SETTING,
+        get_fingerprint,
+    )
+
+    stale_fp = "0" * 64
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value=stale_fp, encrypted=False))
+            await s.commit()
+
+        # No stale undecryptable rows exist; save_key should advance the
+        # fingerprint because every encrypted row (just this one) decrypts.
+        async with make_client() as c:
+            resp = await c.put("/api/settings/keys/openai", json={"key": "sk-clean-recovery"})
+        assert resp.status_code == 200
+
+        async with session_factory() as s:
+            result = await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            row = result.scalar_one_or_none()
+        assert row is not None
+        assert row.value == get_fingerprint()
+
+
+@pytest.mark.asyncio
 async def test_list_keys_marks_key_mismatch_when_fingerprint_differs(make_client):
     """When the stamped fingerprint disagrees with the active ENCRYPTION_KEY,
     list_keys must attach key_mismatch=True to entries that fail to decrypt —

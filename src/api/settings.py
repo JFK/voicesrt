@@ -67,6 +67,27 @@ async def _get_stored_fingerprint(session: AsyncSession) -> str | None:
     return setting.value if setting else None
 
 
+async def _all_api_keys_decrypt(session: AsyncSession) -> bool:
+    """True iff every encrypted api_key.% row decrypts under the active key.
+
+    Gates the fingerprint stamp in save_key: stamping unconditionally would
+    silently lose the rotation signal during partial recovery. Concretely,
+    if a user has 2 stale rows from a previous ENCRYPTION_KEY and re-saves
+    only one provider, the fingerprint would update to the new key value
+    and list_keys would no longer flag the remaining stale row as
+    key_mismatch — it would still surface decryption_error, but the
+    Settings banner (which keys off key_mismatch) would hide, suggesting
+    "recovery complete" before the second row is fixed.
+    """
+    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
+    for row in result.scalars():
+        try:
+            decrypt_credential(row.value)
+        except DecryptionError:
+            return False
+    return True
+
+
 @router.get("/keys")
 async def list_keys(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Setting).where(Setting.encrypted == True))  # noqa: E712
@@ -111,10 +132,16 @@ async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depend
     db_key = f"api_key.{provider}"
     encrypted_value = encrypt(body.key)
     await _upsert_setting(session, db_key, encrypted_value, encrypted=True)
-    # Stamp the active ENCRYPTION_KEY fingerprint at every successful save so
-    # future list_keys calls can attribute decryption failures to a true
-    # whole-key rotation versus a one-off corrupted row.
-    await _upsert_setting(session, ENCRYPTION_KEY_FINGERPRINT_SETTING, get_fingerprint())
+    # Flush the new row so the subsequent decrypt scan can see it.
+    await session.flush()
+    # Stamp the active ENCRYPTION_KEY fingerprint only when every encrypted
+    # api_key.% row decrypts cleanly. If we stamped on every save, a partial
+    # recovery (re-save one of N stale keys) would update the fingerprint to
+    # the active key while N-1 rows remain encrypted under the prior key —
+    # list_keys would then drop the key_mismatch flag on those rows and the
+    # rotation banner would vanish before the recovery is actually complete.
+    if await _all_api_keys_decrypt(session):
+        await _upsert_setting(session, ENCRYPTION_KEY_FINGERPRINT_SETTING, get_fingerprint())
     await session.commit()
     return {"provider": provider, "configured": True}
 
