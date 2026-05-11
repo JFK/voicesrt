@@ -40,7 +40,11 @@ async def _api_key_status(session: AsyncSession) -> tuple[bool, bool]:
         try:
             decrypt_credential(row.value)
             has_decryptable = True
-        except DecryptionError:
+        except (DecryptionError, RuntimeError):
+            # RuntimeError covers the "ENCRYPTION_KEY env var is unset"
+            # path that decrypt() raises from _get_fernet(). Without it,
+            # /setup and friends would 500 instead of redirecting to the
+            # recovery page when the env var is mis-deployed.
             has_undecryptable = True
     return has_decryptable, has_undecryptable
 
@@ -69,8 +73,18 @@ async def upload_page(request: Request, session: AsyncSession = Depends(get_sess
 
 @router.get("/setup")
 async def setup_page(request: Request, session: AsyncSession = Depends(get_session)):
-    _, key_mismatch = await _api_key_status(session)
-    ctx = {"active_page": "settings", "key_mismatch": key_mismatch, **_i18n_context(request)}
+    # `has_undecryptable_keys` names what we actually measure (≥1 api_key.%
+    # row fails to decrypt) rather than calling it "key_mismatch" — that
+    # name belongs to the fingerprint-based signal in /api/settings/keys,
+    # which is strictly stronger. The /setup banner uses the looser signal
+    # so that single-row corruption still surfaces the recovery flow, not
+    # just full-key rotation.
+    _, has_undecryptable_keys = await _api_key_status(session)
+    ctx = {
+        "active_page": "settings",
+        "has_undecryptable_keys": has_undecryptable_keys,
+        **_i18n_context(request),
+    }
     return templates.TemplateResponse(request, "setup.html", ctx)
 
 

@@ -89,7 +89,12 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
         try:
             entry["masked"] = _mask_key(decrypt_credential(k.value))
         except DecryptionError:
-            logger.warning("Failed to decrypt %s: encryption key mismatch", k.key)
+            # Distinguish whole-key rotation (fingerprint mismatch) from an
+            # isolated corrupted row so the log signal matches the recovery
+            # action: rotation needs all keys re-entered; a single bad row
+            # only needs that one re-entered (or the column repaired).
+            cause = "encryption key rotated" if key_mismatch else "row decryption failed"
+            logger.warning("Failed to decrypt %s: %s", k.key, cause)
             entry["masked"] = "****"
             entry["decryption_error"] = True
             if key_mismatch:

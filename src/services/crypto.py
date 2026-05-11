@@ -50,10 +50,13 @@ def decrypt_credential(ciphertext: str) -> str:
 def get_fingerprint() -> str:
     """Return a stable, non-reversible fingerprint of the active ENCRYPTION_KEY.
 
-    SHA-256 hex of the raw key bytes. The full 64-char digest is returned so
-    the value remains usable for exact equality checks even if we ever want
-    to grow to longer keys; callers that only need a display form should
-    slice locally.
+    SHA-256 hex of the ENCRYPTION_KEY string's UTF-8 bytes. Fernet keys are
+    base64-encoded text, and we hash that text directly without
+    base64-decoding it — the fingerprint is only an identity check, not a
+    cryptographic transform of the underlying key material, so hashing the
+    canonical string form is sufficient and avoids dragging in a decode
+    step. The full 64-char digest is returned for exact equality checks;
+    callers that only need a display form should slice locally.
 
     Raises RuntimeError if ENCRYPTION_KEY is not set — callers should not
     silently store an empty fingerprint, that would mask the misconfiguration.
