@@ -320,7 +320,7 @@ async def _run_transcription(
 
 
 def _build_whisper_prompt(glossary: str) -> str:
-    """Extract terms from glossary lines (term:reading) as comma-separated hints for Whisper."""
+    """Extract terms from glossary lines (reading:term) as comma-separated hints for Whisper."""
     terms = []
     for line in glossary.strip().splitlines():
         line = line.strip()
