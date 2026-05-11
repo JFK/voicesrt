@@ -123,6 +123,7 @@
     "api_keys": "API Keys",
     "key_mismatch_title": "Encryption key has changed.",
     "key_mismatch_body": "Your previously saved API keys cannot be decrypted with the current ENCRYPTION_KEY. Please re-enter them below.",
+    "api_keys_undecryptable_title": "Stored API keys cannot be decrypted.",
     "configured": "Configured",
     "enter_api_key": "Enter API key",
     "save": "Save",

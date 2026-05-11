@@ -105,14 +105,17 @@ async def test_setup_page_omits_banner_in_clean_state(make_client):
     async with make_client() as c:
         resp = await c.get("/setup")
     assert resp.status_code == 200
-    assert "Encryption key has changed" not in resp.text
+    assert "Stored API keys cannot be decrypted" not in resp.text
 
 
 @pytest.mark.asyncio
 async def test_setup_page_flags_key_mismatch_when_rows_undecryptable(make_client):
-    """The /setup page must expose key_mismatch=True when api_key.% rows exist
-    but cannot be decrypted under the active ENCRYPTION_KEY, so the template
-    can render a warning explaining why the user landed here.
+    """The /setup page must set has_undecryptable_keys=True in the template
+    context when api_key.% rows exist but cannot be decrypted under the
+    active ENCRYPTION_KEY, so the template renders a warning banner
+    explaining why the user landed here. (The page uses a decrypt-attempt
+    signal — distinct from /settings list_keys, which uses a stronger
+    fingerprint comparison.)
     """
     async with isolated_api_keys() as session_factory:
         async with session_factory() as s:
@@ -123,10 +126,13 @@ async def test_setup_page_flags_key_mismatch_when_rows_undecryptable(make_client
             resp = await c.get("/setup")
         assert resp.status_code == 200
         # Substring match keeps the assertion tolerant of i18n wording tweaks
-        # while still proving the banner branch fired.
-        assert "Encryption key has changed" in resp.text
+        # while still proving the banner branch fired. The /setup banner uses
+        # the neutral "Stored API keys cannot be decrypted" title — distinct
+        # from the /settings rotation banner — because /setup's signal is the
+        # weaker decrypt-attempt one, not the fingerprint comparison.
+        assert "Stored API keys cannot be decrypted" in resp.text
 
         async with make_client() as c:
             resp_ja = await c.get("/setup", cookies={"lang": "ja"})
         assert resp_ja.status_code == 200
-        assert "暗号化キーが変更されました" in resp_ja.text
+        assert "保存済みAPIキーを復号できません" in resp_ja.text

@@ -40,12 +40,15 @@ async def _api_key_status(session: AsyncSession) -> tuple[bool, bool]:
         try:
             decrypt_credential(row.value)
             has_decryptable = True
-        except (DecryptionError, RuntimeError):
-            # RuntimeError covers the "ENCRYPTION_KEY env var is unset"
-            # path that decrypt() raises from _get_fernet(). Without it,
-            # /setup and friends would 500 instead of redirecting to the
-            # recovery page when the env var is mis-deployed.
+        except DecryptionError:
             has_undecryptable = True
+        # Deliberately *don't* catch RuntimeError here. _get_fernet() raises
+        # RuntimeError when ENCRYPTION_KEY is unset, which is a server
+        # misconfiguration — not a data-state recovery scenario. Letting it
+        # propagate as a 500 fails fast and signals "fix the env var" rather
+        # than misdirecting the user to a "your keys have changed" recovery
+        # banner they cannot actually act on (save_key would also crash for
+        # the same reason).
     return has_decryptable, has_undecryptable
 
 
