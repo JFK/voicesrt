@@ -18,7 +18,13 @@ from src.errors import (
     unknown_setting,
 )
 from src.models import Setting
-from src.services.crypto import DecryptionError, decrypt_credential, encrypt
+from src.services.crypto import (
+    ENCRYPTION_KEY_FINGERPRINT_SETTING,
+    DecryptionError,
+    decrypt_credential,
+    encrypt,
+    get_fingerprint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +55,56 @@ class GeneralSettingInput(BaseModel):
     value: str
 
 
+async def _get_stored_fingerprint(session: AsyncSession) -> str | None:
+    """Return the ENCRYPTION_KEY fingerprint persisted at the last save_key call.
+
+    None means "never stamped" (legacy / fresh install) — callers must treat
+    None as 'unknown', NOT as 'mismatch', so existing users without a stamped
+    fingerprint don't see a false rotation warning until they next save a key.
+    """
+    result = await session.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+    setting = result.scalar_one_or_none()
+    return setting.value if setting else None
+
+
+async def _all_api_keys_decrypt(session: AsyncSession) -> bool:
+    """True iff every encrypted api_key.% row decrypts under the active key.
+
+    Gates the fingerprint stamp in save_key: stamping unconditionally would
+    silently lose the rotation signal during partial recovery. Concretely,
+    if a user has 2 stale rows from a previous ENCRYPTION_KEY and re-saves
+    only one provider, the fingerprint would update to the new key value
+    and list_keys would no longer flag the remaining stale row as
+    key_mismatch — it would still surface decryption_error, but the
+    Settings banner (which keys off key_mismatch) would hide, suggesting
+    "recovery complete" before the second row is fixed.
+    """
+    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
+    for row in result.scalars():
+        try:
+            decrypt_credential(row.value)
+        except DecryptionError:
+            return False
+    return True
+
+
 @router.get("/keys")
 async def list_keys(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Setting).where(Setting.encrypted == True))  # noqa: E712
+    # Scope the query to the api_key.% namespace so the endpoint's contract
+    # matches its name. Filtering on `encrypted=True` alone would also pull
+    # in any other encrypted-flagged setting (now or in future), and the
+    # downstream `k.key.replace("api_key.", "")` provider derivation would
+    # silently produce malformed entries.
+    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
     keys = result.scalars().all()
+
+    # Compare the stamped fingerprint against the active one *before* the
+    # decrypt loop, so we can distinguish a single corrupted row from a
+    # whole-key rotation. A None stored fingerprint stays "unknown" — never
+    # surfaced as a mismatch — to keep legacy installs quiet.
+    stored_fp = await _get_stored_fingerprint(session)
+    key_mismatch = stored_fp is not None and stored_fp != get_fingerprint()
+
     out = []
     for k in keys:
         entry: dict = {
@@ -63,9 +115,16 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
         try:
             entry["masked"] = _mask_key(decrypt_credential(k.value))
         except DecryptionError:
-            logger.warning("Failed to decrypt %s: encryption key mismatch", k.key)
+            # Distinguish whole-key rotation (fingerprint mismatch) from an
+            # isolated corrupted row so the log signal matches the recovery
+            # action: rotation needs all keys re-entered; a single bad row
+            # only needs that one re-entered (or the column repaired).
+            cause = "encryption key rotated" if key_mismatch else "row decryption failed"
+            logger.warning("Failed to decrypt %s: %s", k.key, cause)
             entry["masked"] = "****"
             entry["decryption_error"] = True
+            if key_mismatch:
+                entry["key_mismatch"] = True
         out.append(entry)
     return out
 
@@ -78,6 +137,16 @@ async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depend
     db_key = f"api_key.{provider}"
     encrypted_value = encrypt(body.key)
     await _upsert_setting(session, db_key, encrypted_value, encrypted=True)
+    # Flush the new row so the subsequent decrypt scan can see it.
+    await session.flush()
+    # Stamp the active ENCRYPTION_KEY fingerprint only when every encrypted
+    # api_key.% row decrypts cleanly. If we stamped on every save, a partial
+    # recovery (re-save one of N stale keys) would update the fingerprint to
+    # the active key while N-1 rows remain encrypted under the prior key —
+    # list_keys would then drop the key_mismatch flag on those rows and the
+    # rotation banner would vanish before the recovery is actually complete.
+    if await _all_api_keys_decrypt(session):
+        await _upsert_setting(session, ENCRYPTION_KEY_FINGERPRINT_SETTING, get_fingerprint())
     await session.commit()
     return {"provider": provider, "configured": True}
 

@@ -7,6 +7,12 @@
     <!-- API Keys -->
     <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
         <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.api_keys') }}</h2>
+        <div x-show="keyMismatch" x-cloak
+             class="mb-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-md p-3 text-sm"
+             role="alert">
+            <strong>{{ t('settings.key_mismatch_title') }}</strong>
+            <span>{{ t('settings.key_mismatch_body') }}</span>
+        </div>
         <div class="space-y-4">
             <template x-for="p in providers" :key="p.id">
                 <div class="border rounded-lg p-4">
@@ -292,6 +298,7 @@ function settingsPage() {
             { id: 'openai', label: 'OpenAI', configured: false, masked: '', newKey: '', showKey: false, testResult: null, testError: '' },
             { id: 'google', label: 'Google (Gemini)', configured: false, masked: '', newKey: '', showKey: false, testResult: null, testError: '' },
         ],
+        keyMismatch: false,
         models: { openai: 'gpt-5.4', gemini: 'gemini-3-flash-preview', ollama: 'qwen3:latest' },
         ollamaUrl: 'http://host.docker.internal:11434',
         openaiModels: [],
@@ -343,6 +350,7 @@ function settingsPage() {
             ]);
 
             // API keys
+            this.keyMismatch = keys.some(k => k.key_mismatch);
             for (const k of keys) {
                 const p = this.providers.find(p => p.id === k.provider);
                 if (p) { p.configured = true; p.masked = k.masked; }

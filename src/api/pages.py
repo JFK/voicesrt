@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.models import Job
+from src.services.crypto import DecryptionError, decrypt_credential
 from src.templating import get_lang, get_translator, templates
 
 router = APIRouter()
@@ -16,11 +17,44 @@ def _i18n_context(request: Request) -> dict:
     return {"t": get_translator(lang), "lang": lang}
 
 
-async def _has_api_keys(session: AsyncSession) -> bool:
+async def _api_key_status(session: AsyncSession) -> tuple[bool, bool]:
+    """Return (has_decryptable, has_undecryptable) for stored api_key.% rows.
+
+    A row is "undecryptable" when DecryptionError is raised — typically because
+    ENCRYPTION_KEY was changed after the row was written. Both flags surface so
+    callers can distinguish "no keys at all" from "keys exist but the active
+    ENCRYPTION_KEY can't decrypt them" — the latter needs a user-visible warning,
+    not a silent /setup redirect followed by a later crash in _get_credential().
+    """
     from src.models import Setting
 
     result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
-    return result.first() is not None
+    has_decryptable = False
+    has_undecryptable = False
+    for row in result.scalars():
+        # Fernet decrypt does signature verification — stop as soon as both
+        # flags are set so request-path callers (landing, upload) don't burn
+        # cycles on every additional row when the answer is already decided.
+        if has_decryptable and has_undecryptable:
+            break
+        try:
+            decrypt_credential(row.value)
+            has_decryptable = True
+        except DecryptionError:
+            has_undecryptable = True
+        # Deliberately *don't* catch RuntimeError here. _get_fernet() raises
+        # RuntimeError when ENCRYPTION_KEY is unset, which is a server
+        # misconfiguration — not a data-state recovery scenario. Letting it
+        # propagate as a 500 fails fast and signals "fix the env var" rather
+        # than misdirecting the user to a "your keys have changed" recovery
+        # banner they cannot actually act on (save_key would also crash for
+        # the same reason).
+    return has_decryptable, has_undecryptable
+
+
+async def _has_api_keys(session: AsyncSession) -> bool:
+    has_decryptable, _ = await _api_key_status(session)
+    return has_decryptable
 
 
 @router.get("/")
@@ -41,8 +75,20 @@ async def upload_page(request: Request, session: AsyncSession = Depends(get_sess
 
 
 @router.get("/setup")
-async def setup_page(request: Request):
-    return templates.TemplateResponse(request, "setup.html", {"active_page": "settings", **_i18n_context(request)})
+async def setup_page(request: Request, session: AsyncSession = Depends(get_session)):
+    # `has_undecryptable_keys` names what we actually measure (≥1 api_key.%
+    # row fails to decrypt) rather than calling it "key_mismatch" — that
+    # name belongs to the fingerprint-based signal in /api/settings/keys,
+    # which is strictly stronger. The /setup banner uses the looser signal
+    # so that single-row corruption still surfaces the recovery flow, not
+    # just full-key rotation.
+    _, has_undecryptable_keys = await _api_key_status(session)
+    ctx = {
+        "active_page": "settings",
+        "has_undecryptable_keys": has_undecryptable_keys,
+        **_i18n_context(request),
+    }
+    return templates.TemplateResponse(request, "setup.html", ctx)
 
 
 @router.get("/history")
