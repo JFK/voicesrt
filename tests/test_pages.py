@@ -113,6 +113,18 @@ async def test_landing_redirects_when_only_undecryptable_keys(make_client):
 
 
 @pytest.mark.asyncio
+async def test_setup_page_omits_banner_in_clean_state(make_client):
+    """When all stored api_key rows decrypt correctly, /setup must NOT render
+    the rotation banner — otherwise users navigating directly to /setup would
+    see a misleading warning even though nothing has rotated.
+    """
+    async with make_client() as c:
+        resp = await c.get("/setup")
+    assert resp.status_code == 200
+    assert "Encryption key has changed" not in resp.text
+
+
+@pytest.mark.asyncio
 async def test_setup_page_flags_key_mismatch_when_rows_undecryptable(make_client):
     """The /setup page must expose key_mismatch=True when api_key.% rows exist
     but cannot be decrypted under the active ENCRYPTION_KEY, so the template
@@ -132,16 +144,15 @@ async def test_setup_page_flags_key_mismatch_when_rows_undecryptable(make_client
         async with make_client() as c:
             resp = await c.get("/setup")
         assert resp.status_code == 200
-        # The template doesn't render the banner until task #4 lands, but the
-        # context flag must already be plumbed through so this test can assert
-        # the routing decision without depending on UI text. We confirm by
-        # checking the underlying status helper directly.
-        from src.api.pages import _api_key_status
+        # English banner copy must render so the user understands why the
+        # /setup redirect happened — the localized text key is intentionally
+        # asserted by substring to stay tolerant of i18n wording tweaks.
+        assert "Encryption key has changed" in resp.text
 
-        async with async_session() as s:
-            has_decryptable, has_undecryptable = await _api_key_status(s)
-        assert has_decryptable is False
-        assert has_undecryptable is True
+        async with make_client() as c:
+            resp_ja = await c.get("/setup", cookies={"lang": "ja"})
+        assert resp_ja.status_code == 200
+        assert "暗号化キーが変更されました" in resp_ja.text
     finally:
         from src.services.crypto import encrypt
 
