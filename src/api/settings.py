@@ -19,6 +19,7 @@ from src.errors import (
 )
 from src.models import Setting
 from src.services.crypto import (
+    ENCRYPTED_KEY_PREFIXES,
     ENCRYPTION_KEY_FINGERPRINT_SETTING,
     DecryptionError,
     EncryptionService,
@@ -32,8 +33,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-async def _upsert_setting(session: AsyncSession, key: str, value: str, encrypted: bool = False):
-    """Check if setting exists, update or create it."""
+async def _upsert_setting(
+    session: AsyncSession,
+    key: str,
+    value: str,
+    encrypted: bool | None = None,
+):
+    """Insert or update a Setting row, deriving the encrypted flag from
+    `ENCRYPTED_KEY_PREFIXES` when the caller does not pass one explicitly.
+
+    Auto-classification rules:
+    - `encrypted=None` (default): key matches a prefix in
+      ENCRYPTED_KEY_PREFIXES → True; otherwise → False.
+    - `encrypted=True/False` explicit: used as-is.
+
+    Safety invariant: a key whose prefix is in ENCRYPTED_KEY_PREFIXES
+    cannot be saved with `encrypted=False`. The constant is the *canonical*
+    declaration of which namespaces hold sensitive data; passing a literal
+    False for an api_key.% row would silently store plaintext credentials
+    in the DB. Reject that combination at the contract layer rather than
+    waiting for a future audit to catch it. Plain settings can still use
+    the api_key.% namespace if they truly are non-sensitive (rare) by
+    extending ENCRYPTED_KEY_PREFIXES, not by overriding here.
+    """
+    requires_encryption = any(key.startswith(p) for p in ENCRYPTED_KEY_PREFIXES)
+    if encrypted is None:
+        encrypted = requires_encryption
+    elif requires_encryption and not encrypted:
+        raise ValueError(
+            f"Setting key {key!r} is in ENCRYPTED_KEY_PREFIXES but encrypted=False — "
+            "would store sensitive data in plaintext. Either remove the explicit "
+            "encrypted=False or extend ENCRYPTED_KEY_PREFIXES."
+        )
+
     result = await session.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
     if setting:
@@ -105,7 +137,8 @@ async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depend
 
     db_key = f"api_key.{provider}"
     encrypted_value = encrypt(body.key)
-    await _upsert_setting(session, db_key, encrypted_value, encrypted=True)
+    # encrypted flag is auto-derived from "api_key." in ENCRYPTED_KEY_PREFIXES.
+    await _upsert_setting(session, db_key, encrypted_value)
     # Flush the new row so the subsequent decrypt scan can see it.
     await session.flush()
     # Stamp the active ENCRYPTION_KEY fingerprint only when every encrypted
