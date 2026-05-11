@@ -42,8 +42,10 @@ def test_settings_page(page: Page, base_url: str):
     expect(heading).to_be_visible()
     expect(heading).to_contain_text("Settings")
 
-    # API Keys section
-    expect(page.locator("text=API Keys")).to_be_visible()
+    # API Keys section — anchor on the h2 heading specifically so the locator
+    # stays unique as new descriptive copy is added elsewhere on the page
+    # (e.g. the encryption-key rotation banner body that also contains "API keys").
+    expect(page.get_by_role("heading", name="API Keys")).to_be_visible()
 
     # Ollama section should exist (static h2, not Alpine-rendered)
     expect(page.locator("h2", has_text="Ollama")).to_be_visible()
