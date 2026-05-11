@@ -11,7 +11,7 @@
              class="mb-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-md p-3 text-sm"
              role="alert">
             <strong>{{ t('settings.key_mismatch_title') }}</strong>
-            <span x-text="' ' + '{{ t('settings.key_mismatch_body') }}'"></span>
+            <span>{{ t('settings.key_mismatch_body') }}</span>
         </div>
         <div class="space-y-4">
             <template x-for="p in providers" :key="p.id">
