@@ -18,7 +18,13 @@ from src.errors import (
     unknown_setting,
 )
 from src.models import Setting
-from src.services.crypto import DecryptionError, decrypt_credential, encrypt
+from src.services.crypto import (
+    ENCRYPTION_KEY_FINGERPRINT_SETTING,
+    DecryptionError,
+    decrypt_credential,
+    encrypt,
+    get_fingerprint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +55,30 @@ class GeneralSettingInput(BaseModel):
     value: str
 
 
+async def _get_stored_fingerprint(session: AsyncSession) -> str | None:
+    """Return the ENCRYPTION_KEY fingerprint persisted at the last save_key call.
+
+    None means "never stamped" (legacy / fresh install) — callers must treat
+    None as 'unknown', NOT as 'mismatch', so existing users without a stamped
+    fingerprint don't see a false rotation warning until they next save a key.
+    """
+    result = await session.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+    setting = result.scalar_one_or_none()
+    return setting.value if setting else None
+
+
 @router.get("/keys")
 async def list_keys(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Setting).where(Setting.encrypted == True))  # noqa: E712
     keys = result.scalars().all()
+
+    # Compare the stamped fingerprint against the active one *before* the
+    # decrypt loop, so we can distinguish a single corrupted row from a
+    # whole-key rotation. A None stored fingerprint stays "unknown" — never
+    # surfaced as a mismatch — to keep legacy installs quiet.
+    stored_fp = await _get_stored_fingerprint(session)
+    key_mismatch = stored_fp is not None and stored_fp != get_fingerprint()
+
     out = []
     for k in keys:
         entry: dict = {
@@ -66,6 +92,8 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
             logger.warning("Failed to decrypt %s: encryption key mismatch", k.key)
             entry["masked"] = "****"
             entry["decryption_error"] = True
+            if key_mismatch:
+                entry["key_mismatch"] = True
         out.append(entry)
     return out
 
@@ -78,6 +106,10 @@ async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depend
     db_key = f"api_key.{provider}"
     encrypted_value = encrypt(body.key)
     await _upsert_setting(session, db_key, encrypted_value, encrypted=True)
+    # Stamp the active ENCRYPTION_KEY fingerprint at every successful save so
+    # future list_keys calls can attribute decryption failures to a true
+    # whole-key rotation versus a one-off corrupted row.
+    await _upsert_setting(session, ENCRYPTION_KEY_FINGERPRINT_SETTING, get_fingerprint())
     await session.commit()
     return {"provider": provider, "configured": True}
 

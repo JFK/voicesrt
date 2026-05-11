@@ -209,3 +209,113 @@ async def test_save_key_invalid_provider(make_client):
     async with make_client() as c:
         resp = await c.put("/api/settings/keys/invalid", json={"key": "test-key"})
     assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_save_key_stamps_encryption_key_fingerprint(make_client):
+    """Every successful save_key must persist the current ENCRYPTION_KEY
+    fingerprint so list_keys can later detect rotation.
+    """
+    from sqlalchemy import delete, select
+
+    from src.services.crypto import (
+        ENCRYPTION_KEY_FINGERPRINT_SETTING,
+        get_fingerprint,
+    )
+
+    async with async_session() as s:
+        await s.execute(delete(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+        await s.commit()
+
+    async with make_client() as c:
+        resp = await c.put("/api/settings/keys/openai", json={"key": "sk-fingerprint-test"})
+    assert resp.status_code == 200
+
+    async with async_session() as s:
+        result = await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+        row = result.scalar_one_or_none()
+    assert row is not None
+    assert row.value == get_fingerprint()
+
+
+@pytest.mark.asyncio
+async def test_list_keys_marks_key_mismatch_when_fingerprint_differs(make_client):
+    """When the stamped fingerprint disagrees with the active ENCRYPTION_KEY,
+    list_keys must attach key_mismatch=True to entries that fail to decrypt —
+    distinguishing whole-key rotation from a single corrupted row.
+    """
+    from cryptography.fernet import Fernet
+    from sqlalchemy import delete
+
+    from src.services.crypto import (
+        ENCRYPTION_KEY_FINGERPRINT_SETTING,
+        encrypt,
+    )
+
+    foreign_token = Fernet(Fernet.generate_key()).encrypt(b"sk-foreign").decode()
+
+    async with async_session() as s:
+        await s.execute(delete(Setting).where(Setting.key == "api_key.openai"))
+        await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
+        await s.execute(delete(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+        s.add(Setting(key="api_key.openai", value=encrypt("sk-real"), encrypted=True))
+        s.add(Setting(key="api_key.google", value=foreign_token, encrypted=True))
+        # Stamp a *different* fingerprint to simulate "key rotated since save".
+        s.add(Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value="0" * 64, encrypted=False))
+        await s.commit()
+
+    try:
+        async with make_client() as c:
+            resp = await c.get("/api/settings/keys")
+        assert resp.status_code == 200
+        data = resp.json()
+        google_entry = next((e for e in data if e["provider"] == "google"), None)
+        assert google_entry is not None
+        assert google_entry.get("decryption_error") is True
+        assert google_entry.get("key_mismatch") is True
+        # Decryptable rows must NOT carry key_mismatch — the flag only attributes
+        # *failures* to rotation, not successes.
+        openai_entry = next((e for e in data if e["provider"] == "openai"), None)
+        assert openai_entry is not None
+        assert "key_mismatch" not in openai_entry
+    finally:
+        async with async_session() as s:
+            await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
+            await s.execute(delete(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_list_keys_omits_key_mismatch_when_no_stamped_fingerprint(make_client):
+    """Legacy installs (rows pre-date the fingerprint feature) must not see a
+    false rotation warning. A decryption failure with no stamped fingerprint
+    is "unknown cause" — surface decryption_error but NOT key_mismatch.
+    """
+    from cryptography.fernet import Fernet
+    from sqlalchemy import delete
+
+    from src.services.crypto import (
+        ENCRYPTION_KEY_FINGERPRINT_SETTING,
+    )
+
+    foreign_token = Fernet(Fernet.generate_key()).encrypt(b"sk-foreign").decode()
+
+    async with async_session() as s:
+        await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
+        await s.execute(delete(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+        s.add(Setting(key="api_key.google", value=foreign_token, encrypted=True))
+        await s.commit()
+
+    try:
+        async with make_client() as c:
+            resp = await c.get("/api/settings/keys")
+        assert resp.status_code == 200
+        data = resp.json()
+        google_entry = next((e for e in data if e["provider"] == "google"), None)
+        assert google_entry is not None
+        assert google_entry.get("decryption_error") is True
+        assert "key_mismatch" not in google_entry
+    finally:
+        async with async_session() as s:
+            await s.execute(delete(Setting).where(Setting.key == "api_key.google"))
+            await s.commit()
