@@ -47,14 +47,20 @@ async def _upsert_setting(
       ENCRYPTED_KEY_PREFIXES → True; otherwise → False.
     - `encrypted=True/False` explicit: used as-is.
 
-    Safety invariant: a key whose prefix is in ENCRYPTED_KEY_PREFIXES
-    cannot be saved with `encrypted=False`. The constant is the *canonical*
+    Safety invariant: a key whose prefix is in ENCRYPTED_KEY_PREFIXES MUST
+    be saved with `encrypted=True`. The constant is the *canonical*
     declaration of which namespaces hold sensitive data; passing a literal
-    False for an api_key.% row would silently store plaintext credentials
-    in the DB. Reject that combination at the contract layer rather than
-    waiting for a future audit to catch it. Plain settings can still use
-    the api_key.% namespace if they truly are non-sensitive (rare) by
-    extending ENCRYPTED_KEY_PREFIXES, not by overriding here.
+    False for an api_key.% row would silently store plaintext credentials,
+    so the function raises ValueError instead. There is intentionally no
+    opt-out — to add a new sensitive namespace, extend
+    ENCRYPTED_KEY_PREFIXES so every call site classifies it consistently.
+
+    Existing-row sync: when an `api_key.%` row predates the auto-detect
+    contract (legacy state where `encrypted=False` was somehow written),
+    the update branch also overwrites `encrypted` so the row's metadata
+    converges to what the safety invariant requires. Without this, a stale
+    row would stay invisible to list_keys (which filters on encrypted=True)
+    even after the user re-saved their key.
     """
     requires_encryption = any(key.startswith(p) for p in ENCRYPTED_KEY_PREFIXES)
     if encrypted is None:
@@ -70,6 +76,7 @@ async def _upsert_setting(
     setting = result.scalar_one_or_none()
     if setting:
         setting.value = value
+        setting.encrypted = encrypted
         setting.updated_at = datetime.now(UTC)
     else:
         setting = Setting(key=key, value=value, encrypted=encrypted)

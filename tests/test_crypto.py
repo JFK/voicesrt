@@ -220,10 +220,17 @@ async def test_reencrypt_all_reports_failures_without_aborting():
     under a third unknown key), reencrypt_all records it in `errors` and
     proceeds with the rest. The caller — not the service — decides whether
     a partial result is acceptable.
+
+    Additional invariant: when failed > 0 the stored fingerprint MUST stay
+    stale. Advancing it would silently clear the rotation banner from the
+    Settings page while undecryptable rows remain — exactly the same class
+    of partial-recovery hole that #67 + save_key already guard against.
     """
     old_key = Fernet.generate_key().decode()
     new_key = Fernet.generate_key().decode()
     old_fernet = Fernet(old_key.encode())
+    # Pre-stamp a known fingerprint we can compare against post-call.
+    stale_fp = "deadbeef" * 8
 
     async with isolated_api_keys() as session_factory:
         async with session_factory() as s:
@@ -236,11 +243,21 @@ async def test_reencrypt_all_reports_failures_without_aborting():
             )
             # Row encrypted under a THIRD key — neither old_key nor new_key.
             s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            s.add(Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value=stale_fp, encrypted=False))
             await s.commit()
 
         async with session_factory() as s:
             report = await EncryptionService(s).reencrypt_all(old_key, new_key)
             await s.commit()
-    assert report["success"] == 1
-    assert report["failed"] == 1
-    assert report["errors"] == ["api_key.google"]
+        assert report["success"] == 1
+        assert report["failed"] == 1
+        assert report["errors"] == ["api_key.google"]
+
+        # The fingerprint must NOT have advanced to new_key's hash, because
+        # one row still cannot be decrypted under new_key. Leaving it stale
+        # keeps list_keys' rotation banner alive for the residual row.
+        async with session_factory() as s:
+            fp_row = (
+                await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            ).scalar_one()
+        assert fp_row.value == stale_fp, "partial-failure rotation must not stamp a fresh fingerprint"

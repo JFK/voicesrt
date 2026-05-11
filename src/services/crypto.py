@@ -30,9 +30,10 @@ class EncryptionService:
     Stateless cryptographic primitives are exposed as @staticmethod so
     callers that do not need a DB session can use them directly. The
     DB-aware helpers (`get_stored_fingerprint`, `all_api_keys_decrypt`,
-    `validate_stored_keys`, `reencrypt_all`) are instance methods bound
-    to the AsyncSession passed at construction — that keeps the call
-    sites lock-step with FastAPI's request-scoped session lifecycle.
+    `api_key_status`, `validate_stored_keys`, `reencrypt_all`) are
+    instance methods bound to the AsyncSession passed at construction —
+    that keeps the call sites lock-step with FastAPI's request-scoped
+    session lifecycle.
 
     Module-level shims (`encrypt`, `decrypt`, `decrypt_credential`,
     `get_fingerprint`) below preserve the pre-refactor import surface so
@@ -198,6 +199,16 @@ class EncryptionService:
         is left as-is); the caller decides whether to abort or proceed
         based on the report.
 
+        Fingerprint stamping is gated on `failed == 0` for the same
+        reason save_key gates on `all_api_keys_decrypt`: if we advanced
+        the fingerprint while undecryptable rows remained, list_keys
+        would stop emitting `key_mismatch` against them — the rotation
+        banner would disappear from the Settings page even though the
+        rotation is genuinely incomplete. Leaving the fingerprint stale
+        keeps the rotation signal visible for the residual rows until
+        the operator clears them manually (or supplies a key under which
+        they decrypt).
+
         Transaction contract — DO NOT MIX with _upsert_setting in the
         same transaction. This method handles the fingerprint row with a
         direct ORM mutation / session.add() so it aligns with the row
@@ -226,17 +237,21 @@ class EncryptionService:
             row.updated_at = datetime.now(UTC)
             success += 1
 
-        # Refresh the fingerprint so list_keys stops reporting key_mismatch
-        # against the rows that were just re-encrypted. The caller's commit
-        # carries this change atomically with the row updates.
-        new_fingerprint = hashlib.sha256(new_key.encode()).hexdigest()
-        fp_result = await self.session.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
-        fp_row = fp_result.scalar_one_or_none()
-        if fp_row is not None:
-            fp_row.value = new_fingerprint
-            fp_row.updated_at = datetime.now(UTC)
-        else:
-            self.session.add(Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value=new_fingerprint, encrypted=False))
+        # Only stamp the new fingerprint when the rotation is fully complete.
+        # See docstring for why partial-success cases must leave it stale.
+        if failed == 0:
+            new_fingerprint = hashlib.sha256(new_key.encode()).hexdigest()
+            fp_result = await self.session.execute(
+                select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING)
+            )
+            fp_row = fp_result.scalar_one_or_none()
+            if fp_row is not None:
+                fp_row.value = new_fingerprint
+                fp_row.updated_at = datetime.now(UTC)
+            else:
+                self.session.add(
+                    Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value=new_fingerprint, encrypted=False)
+                )
 
         return {"success": success, "failed": failed, "errors": errors}
 
