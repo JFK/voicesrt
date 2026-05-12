@@ -332,3 +332,68 @@ async def test_list_keys_omits_key_mismatch_when_no_stamped_fingerprint(make_cli
         assert google_entry is not None
         assert google_entry.get("decryption_error") is True
         assert "key_mismatch" not in google_entry
+
+
+# ─── _upsert_setting auto-detect contract (#71) ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_upsert_setting_auto_encrypts_api_key_namespace():
+    """api_key.<provider> keys must be persisted with encrypted=True when the
+    caller omits the explicit flag. This is the safety net that #71 adds —
+    forgetting to pass encrypted=True would previously have written
+    plaintext credentials to the DB.
+    """
+    from sqlalchemy import select
+
+    from src.api.settings import _upsert_setting
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            await _upsert_setting(s, "api_key.openai", "stub-ciphertext")
+            await s.commit()
+
+        async with session_factory() as s:
+            row = (await s.execute(select(Setting).where(Setting.key == "api_key.openai"))).scalar_one()
+        assert row.encrypted is True
+
+
+@pytest.mark.asyncio
+async def test_upsert_setting_defaults_plain_for_non_prefixed_keys():
+    """Keys outside ENCRYPTED_KEY_PREFIXES default to encrypted=False — the
+    _meta.encryption_key_fingerprint row is the canonical example. A
+    regression here would write the SHA-256 hash through Fernet and break
+    the rotation detector.
+    """
+    from sqlalchemy import select
+
+    from src.api.settings import _upsert_setting
+
+    test_key = "_meta.test_upsert_classification_marker"
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            await _upsert_setting(s, test_key, "plaintext-marker")
+            await s.commit()
+
+        async with session_factory() as s:
+            row = (await s.execute(select(Setting).where(Setting.key == test_key))).scalar_one()
+        assert row.encrypted is False
+        assert row.value == "plaintext-marker"
+
+
+@pytest.mark.asyncio
+async def test_upsert_setting_rejects_plaintext_for_encrypted_prefix():
+    """`encrypted=False` for a key in ENCRYPTED_KEY_PREFIXES is a contract
+    violation — the prefix declaration is exactly what the safety net
+    relies on. The function must raise instead of silently writing
+    plaintext credentials.
+    """
+    from src.api.settings import _upsert_setting
+    from src.database import async_session
+
+    async with async_session() as s:
+        with pytest.raises(ValueError, match="ENCRYPTED_KEY_PREFIXES"):
+            await _upsert_setting(s, "api_key.openai", "would-be-plaintext", encrypted=False)
+        # Roll back so the bad write does not persist even though we raised
+        # before the commit.
+        await s.rollback()

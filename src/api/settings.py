@@ -19,8 +19,10 @@ from src.errors import (
 )
 from src.models import Setting
 from src.services.crypto import (
+    ENCRYPTED_KEY_PREFIXES,
     ENCRYPTION_KEY_FINGERPRINT_SETTING,
     DecryptionError,
+    EncryptionService,
     decrypt_credential,
     encrypt,
     get_fingerprint,
@@ -31,12 +33,50 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-async def _upsert_setting(session: AsyncSession, key: str, value: str, encrypted: bool = False):
-    """Check if setting exists, update or create it."""
+async def _upsert_setting(
+    session: AsyncSession,
+    key: str,
+    value: str,
+    encrypted: bool | None = None,
+):
+    """Insert or update a Setting row, deriving the encrypted flag from
+    `ENCRYPTED_KEY_PREFIXES` when the caller does not pass one explicitly.
+
+    Auto-classification rules:
+    - `encrypted=None` (default): key matches a prefix in
+      ENCRYPTED_KEY_PREFIXES → True; otherwise → False.
+    - `encrypted=True/False` explicit: used as-is.
+
+    Safety invariant: a key whose prefix is in ENCRYPTED_KEY_PREFIXES MUST
+    be saved with `encrypted=True`. The constant is the *canonical*
+    declaration of which namespaces hold sensitive data; passing a literal
+    False for an api_key.% row would silently store plaintext credentials,
+    so the function raises ValueError instead. There is intentionally no
+    opt-out — to add a new sensitive namespace, extend
+    ENCRYPTED_KEY_PREFIXES so every call site classifies it consistently.
+
+    Existing-row sync: when an `api_key.%` row predates the auto-detect
+    contract (legacy state where `encrypted=False` was somehow written),
+    the update branch also overwrites `encrypted` so the row's metadata
+    converges to what the safety invariant requires. Without this, a stale
+    row would stay invisible to list_keys (which filters on encrypted=True)
+    even after the user re-saved their key.
+    """
+    requires_encryption = any(key.startswith(p) for p in ENCRYPTED_KEY_PREFIXES)
+    if encrypted is None:
+        encrypted = requires_encryption
+    elif requires_encryption and not encrypted:
+        raise ValueError(
+            f"Setting key {key!r} is in ENCRYPTED_KEY_PREFIXES but encrypted=False — "
+            "would store sensitive data in plaintext. Either remove the explicit "
+            "encrypted=False or extend ENCRYPTED_KEY_PREFIXES."
+        )
+
     result = await session.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
     if setting:
         setting.value = value
+        setting.encrypted = encrypted
         setting.updated_at = datetime.now(UTC)
     else:
         setting = Setting(key=key, value=value, encrypted=encrypted)
@@ -55,39 +95,6 @@ class GeneralSettingInput(BaseModel):
     value: str
 
 
-async def _get_stored_fingerprint(session: AsyncSession) -> str | None:
-    """Return the ENCRYPTION_KEY fingerprint persisted at the last save_key call.
-
-    None means "never stamped" (legacy / fresh install) — callers must treat
-    None as 'unknown', NOT as 'mismatch', so existing users without a stamped
-    fingerprint don't see a false rotation warning until they next save a key.
-    """
-    result = await session.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
-    setting = result.scalar_one_or_none()
-    return setting.value if setting else None
-
-
-async def _all_api_keys_decrypt(session: AsyncSession) -> bool:
-    """True iff every encrypted api_key.% row decrypts under the active key.
-
-    Gates the fingerprint stamp in save_key: stamping unconditionally would
-    silently lose the rotation signal during partial recovery. Concretely,
-    if a user has 2 stale rows from a previous ENCRYPTION_KEY and re-saves
-    only one provider, the fingerprint would update to the new key value
-    and list_keys would no longer flag the remaining stale row as
-    key_mismatch — it would still surface decryption_error, but the
-    Settings banner (which keys off key_mismatch) would hide, suggesting
-    "recovery complete" before the second row is fixed.
-    """
-    result = await session.execute(select(Setting).where(Setting.key.like("api_key.%"), Setting.encrypted.is_(True)))
-    for row in result.scalars():
-        try:
-            decrypt_credential(row.value)
-        except DecryptionError:
-            return False
-    return True
-
-
 @router.get("/keys")
 async def list_keys(session: AsyncSession = Depends(get_session)):
     # Scope the query to the api_key.% namespace so the endpoint's contract
@@ -102,7 +109,8 @@ async def list_keys(session: AsyncSession = Depends(get_session)):
     # decrypt loop, so we can distinguish a single corrupted row from a
     # whole-key rotation. A None stored fingerprint stays "unknown" — never
     # surfaced as a mismatch — to keep legacy installs quiet.
-    stored_fp = await _get_stored_fingerprint(session)
+    crypto = EncryptionService(session)
+    stored_fp = await crypto.get_stored_fingerprint()
     key_mismatch = stored_fp is not None and stored_fp != get_fingerprint()
 
     out = []
@@ -136,7 +144,8 @@ async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depend
 
     db_key = f"api_key.{provider}"
     encrypted_value = encrypt(body.key)
-    await _upsert_setting(session, db_key, encrypted_value, encrypted=True)
+    # encrypted flag is auto-derived from "api_key." in ENCRYPTED_KEY_PREFIXES.
+    await _upsert_setting(session, db_key, encrypted_value)
     # Flush the new row so the subsequent decrypt scan can see it.
     await session.flush()
     # Stamp the active ENCRYPTION_KEY fingerprint only when every encrypted
@@ -145,7 +154,7 @@ async def save_key(provider: str, body: KeyInput, session: AsyncSession = Depend
     # the active key while N-1 rows remain encrypted under the prior key —
     # list_keys would then drop the key_mismatch flag on those rows and the
     # rotation banner would vanish before the recovery is actually complete.
-    if await _all_api_keys_decrypt(session):
+    if await EncryptionService(session).all_api_keys_decrypt():
         await _upsert_setting(session, ENCRYPTION_KEY_FINGERPRINT_SETTING, get_fingerprint())
     await session.commit()
     return {"provider": provider, "configured": True}

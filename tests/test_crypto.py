@@ -1,17 +1,24 @@
 """Tests for src.services.crypto."""
 
+import hashlib
+
 import pytest
 from cryptography.fernet import Fernet
+from sqlalchemy import select
 
 from src.config import settings as app_settings
+from src.models import Setting
 from src.services.crypto import (
+    ENCRYPTED_KEY_PREFIXES,
+    ENCRYPTION_KEY_FINGERPRINT_SETTING,
     DecryptionError,
+    EncryptionService,
     decrypt,
     decrypt_credential,
     encrypt,
     get_fingerprint,
 )
-from tests.helpers import foreign_fernet_token
+from tests.helpers import foreign_fernet_token, isolated_api_keys
 
 
 def test_encrypt_decrypt_roundtrip():
@@ -71,3 +78,186 @@ def test_get_fingerprint_raises_when_key_unset(monkeypatch):
     monkeypatch.setattr(app_settings, "encryption_key", "")
     with pytest.raises(RuntimeError):
         get_fingerprint()
+
+
+# ─── EncryptionService class — same contracts via the class API ────────────
+
+
+def test_encryption_service_static_methods_match_module_wrappers():
+    """The class-level API and the module-level shims must return identical
+    results — the shims are intentionally thin and must not diverge.
+    """
+    token = EncryptionService.encrypt("sk-class-vs-module")
+    assert EncryptionService.decrypt(token) == "sk-class-vs-module"
+    assert EncryptionService.decrypt(token) == decrypt(token)
+    assert EncryptionService.get_fingerprint() == get_fingerprint()
+
+
+def test_encryption_service_decrypt_credential_raises_decryption_error():
+    """The class method honors the same DecryptionError contract as the shim,
+    so callers can migrate from `decrypt_credential(...)` to
+    `EncryptionService.decrypt_credential(...)` without changing their
+    `except` clause.
+    """
+    with pytest.raises(DecryptionError):
+        EncryptionService.decrypt_credential(foreign_fernet_token())
+
+
+def test_encrypted_key_prefixes_contains_api_key():
+    """The api_key.<provider> namespace is the canonical encrypted slot.
+    Removing it from this set would silently downgrade live API keys to
+    plaintext on the next save — pin the membership.
+    """
+    assert "api_key." in ENCRYPTED_KEY_PREFIXES
+
+
+def test_encrypted_key_prefixes_excludes_meta_namespace():
+    """The _meta.* namespace must NOT be in the encrypted-by-default set —
+    fingerprint rows and similar metadata are intentionally plaintext.
+    A regression here would write hashes to the DB encrypted under a
+    rotating key, defeating their purpose as rotation detectors.
+    """
+    assert not any(p.startswith("_meta.") for p in ENCRYPTED_KEY_PREFIXES)
+    # The active fingerprint key explicitly does not match any prefix.
+    assert not any(ENCRYPTION_KEY_FINGERPRINT_SETTING.startswith(p) for p in ENCRYPTED_KEY_PREFIXES)
+
+
+# ─── DB-aware methods (validate_stored_keys, api_key_status, reencrypt_all) ──
+
+
+@pytest.mark.asyncio
+async def test_validate_stored_keys_reports_per_row_status():
+    """validate_stored_keys returns a {Setting.key: bool} map so an endpoint
+    can render granular per-row recovery state, not just the binary
+    all-decrypt signal that all_api_keys_decrypt provides.
+    """
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.openai", value=encrypt("sk-real"), encrypted=True))
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
+
+        async with session_factory() as s:
+            status = await EncryptionService(s).validate_stored_keys()
+        assert status == {"api_key.openai": True, "api_key.google": False}
+
+
+@pytest.mark.asyncio
+async def test_api_key_status_short_circuits_when_both_flags_set():
+    """api_key_status pairs the two flags so callers can route on either
+    signal. The implementation should stop iterating once both flags are
+    set — verified indirectly by mixing a decryptable and an undecryptable
+    row and asserting both flags are True.
+    """
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(Setting(key="api_key.openai", value=encrypt("sk-real"), encrypted=True))
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            await s.commit()
+
+        async with session_factory() as s:
+            has_decryptable, has_undecryptable = await EncryptionService(s).api_key_status()
+        assert has_decryptable is True
+        assert has_undecryptable is True
+
+
+@pytest.mark.asyncio
+async def test_reencrypt_all_rewrites_rows_and_updates_fingerprint():
+    """Happy-path rotation: every encrypted row is re-encrypted from old_key
+    to new_key, the active fingerprint is set to new_key's, and the report
+    reflects success=N / failed=0.
+    """
+    old_key = Fernet.generate_key().decode()
+    new_key = Fernet.generate_key().decode()
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            # Two rows encrypted under the OLD key — what a real pre-rotation
+            # DB looks like.
+            old_fernet = Fernet(old_key.encode())
+            s.add(
+                Setting(
+                    key="api_key.openai",
+                    value=old_fernet.encrypt(b"sk-openai").decode(),
+                    encrypted=True,
+                )
+            )
+            s.add(
+                Setting(
+                    key="api_key.google",
+                    value=old_fernet.encrypt(b"sk-google").decode(),
+                    encrypted=True,
+                )
+            )
+            await s.commit()
+
+        async with session_factory() as s:
+            report = await EncryptionService(s).reencrypt_all(old_key, new_key)
+            await s.commit()
+        assert report == {"success": 2, "failed": 0, "errors": []}
+
+        # Verify rows are now decryptable under new_key.
+        new_fernet = Fernet(new_key.encode())
+        async with session_factory() as s:
+            result = await s.execute(select(Setting).where(Setting.key.like("api_key.%")))
+            for row in result.scalars():
+                # If the value was correctly re-encrypted, new_fernet.decrypt
+                # succeeds and returns the original plaintext.
+                assert new_fernet.decrypt(row.value.encode()) in (b"sk-openai", b"sk-google")
+
+            # Fingerprint row points to the NEW key — list_keys downstream will
+            # match against the active fingerprint and stop flagging mismatch.
+            fp_result = await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            fp_row = fp_result.scalar_one_or_none()
+        expected_new_fp = hashlib.sha256(new_key.encode()).hexdigest()
+        assert fp_row is not None
+        assert fp_row.value == expected_new_fp
+
+
+@pytest.mark.asyncio
+async def test_reencrypt_all_reports_failures_without_aborting():
+    """If a row fails to decrypt under old_key (e.g. it was already encrypted
+    under a third unknown key), reencrypt_all records it in `errors` and
+    proceeds with the rest. The caller — not the service — decides whether
+    a partial result is acceptable.
+
+    Additional invariant: when failed > 0 the stored fingerprint MUST stay
+    stale. Advancing it would silently clear the rotation banner from the
+    Settings page while undecryptable rows remain — exactly the same class
+    of partial-recovery hole that #67 + save_key already guard against.
+    """
+    old_key = Fernet.generate_key().decode()
+    new_key = Fernet.generate_key().decode()
+    old_fernet = Fernet(old_key.encode())
+    # Pre-stamp a known fingerprint we can compare against post-call.
+    stale_fp = "deadbeef" * 8
+
+    async with isolated_api_keys() as session_factory:
+        async with session_factory() as s:
+            s.add(
+                Setting(
+                    key="api_key.openai",
+                    value=old_fernet.encrypt(b"sk-recoverable").decode(),
+                    encrypted=True,
+                )
+            )
+            # Row encrypted under a THIRD key — neither old_key nor new_key.
+            s.add(Setting(key="api_key.google", value=foreign_fernet_token(), encrypted=True))
+            s.add(Setting(key=ENCRYPTION_KEY_FINGERPRINT_SETTING, value=stale_fp, encrypted=False))
+            await s.commit()
+
+        async with session_factory() as s:
+            report = await EncryptionService(s).reencrypt_all(old_key, new_key)
+            await s.commit()
+        assert report["success"] == 1
+        assert report["failed"] == 1
+        assert report["errors"] == ["api_key.google"]
+
+        # The fingerprint must NOT have advanced to new_key's hash, because
+        # one row still cannot be decrypted under new_key. Leaving it stale
+        # keeps list_keys' rotation banner alive for the residual row.
+        async with session_factory() as s:
+            fp_row = (
+                await s.execute(select(Setting).where(Setting.key == ENCRYPTION_KEY_FINGERPRINT_SETTING))
+            ).scalar_one()
+        assert fp_row.value == stale_fp, "partial-failure rotation must not stamp a fresh fingerprint"
