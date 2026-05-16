@@ -96,11 +96,27 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         if transcription_provider == "whisper":
             audio_path = settings.audio_dir / f"{job.id}.wav"
-            duration = await extract_audio(upload_path, audio_path)
+            extractor = extract_audio
         else:
             audio_path = settings.audio_dir / f"{job.id}.mp3"
-            duration = await extract_audio_mp3(upload_path, audio_path)
+            extractor = extract_audio_mp3
 
+        try:
+            duration = await extractor(upload_path, audio_path)
+        except BaseException:
+            # ffmpeg may leave a partial/empty output behind when it fails
+            # or the task is cancelled. Drop it so it doesn't get picked up
+            # later by ``/audio`` (the file is the source of truth once
+            # ``job.audio_path`` is set) or surface as a phantom-success
+            # half-state for jobs whose transcription then fails.
+            if audio_path is not None:
+                audio_path.unlink(missing_ok=True)
+            raise
+
+        # Persist the extracted audio path so the editor can play it back
+        # with timestamps matching the SRT timeline. MP4/MOV edit lists and
+        # codec delay otherwise produce a drift of up to a few hundred ms.
+        job.audio_path = str(audio_path)
         job.audio_duration = duration
         await session.commit()
 
@@ -266,15 +282,19 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         await status_manager.publish(job.id, STATUS_COMPLETED)
 
     finally:
-        # Cleanup temporary files regardless of success/failure
-        _cleanup_temp_files(job.id, audio_path)
+        # Cleanup transcription-only chunk files regardless of success/failure.
+        # The main extracted audio is kept (see job.audio_path).
+        _cleanup_temp_files(audio_path)
 
 
-def _cleanup_temp_files(job_id: str, audio_path: Path | None) -> None:
-    """Remove temporary audio files. MP4 is kept for video embedding."""
+def _cleanup_temp_files(audio_path: Path | None) -> None:
+    """Remove transcription-only intermediate chunks.
+
+    The main extracted audio is intentionally kept and recorded in
+    ``Job.audio_path``: the editor needs to play it back so subtitle
+    timestamps match the audio timeline.
+    """
     if audio_path:
-        audio_path.unlink(missing_ok=True)
-        # Clean up chunks
         for chunk in audio_path.parent.glob(f"{audio_path.stem}_chunk*"):
             chunk.unlink(missing_ok=True)
 

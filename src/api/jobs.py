@@ -407,33 +407,77 @@ async def download_vtt(
     )
 
 
+_MEDIA_TYPES = {
+    ".mp4": "video/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".webm": "audio/webm",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+}
+
+
+def _find_upload_path(job_id: str) -> Path | None:
+    """Return the original uploaded file for this job, or None if missing.
+
+    Callers can treat a non-None result as existing on disk; ``Path.glob``
+    only yields entries that exist at iteration time, so no extra stat is
+    needed here.
+    """
+    for f in settings.uploads_dir.glob(f"{job_id}.*"):
+        return f
+    return None
+
+
+def _resolve_playback_path(job: Job) -> Path | None:
+    """Pick the file the editor should play to keep timestamps aligned.
+
+    Prefer the persisted extracted audio (``job.audio_path``) because the
+    transcription timeline is anchored to it. Fall back to the original
+    upload for legacy jobs that predate the column or had their extracted
+    audio removed.
+
+    Returns a Path that is guaranteed to exist, or None if neither source
+    is available.
+    """
+    if job.audio_path:
+        p = Path(job.audio_path)
+        if p.exists():
+            return p
+    return _find_upload_path(job.id)
+
+
 @router.get("/{job_id}/media")
 async def get_media(job_id: str, session: AsyncSession = Depends(get_session)):
-    """Serve the original uploaded media file for audio playback."""
+    """Serve the original uploaded media file (download / future video preview)."""
     job = await _get_job_or_404(session, job_id)
 
-    # Find uploaded file
-    media_path = None
-    for f in settings.uploads_dir.glob(f"{job.id}.*"):
-        media_path = f
-        break
-    if not media_path or not media_path.exists():
+    media_path = _find_upload_path(job.id)
+    if media_path is None:
         raise media_not_found()
 
-    ext = media_path.suffix.lower()
-    media_types = {
-        ".mp4": "video/mp4",
-        ".mp3": "audio/mpeg",
-        ".wav": "audio/wav",
-        ".m4a": "audio/mp4",
-        ".ogg": "audio/ogg",
-        ".flac": "audio/flac",
-        ".webm": "audio/webm",
-        ".mov": "video/quicktime",
-        ".avi": "video/x-msvideo",
-        ".mkv": "video/x-matroska",
-    }
-    return FileResponse(media_path, media_type=media_types.get(ext, "application/octet-stream"))
+    return FileResponse(media_path, media_type=_MEDIA_TYPES.get(media_path.suffix.lower(), "application/octet-stream"))
+
+
+@router.get("/{job_id}/audio")
+async def get_audio(job_id: str, session: AsyncSession = Depends(get_session)):
+    """Serve the audio whose timeline matches the SRT segments.
+
+    Prefers the extracted audio recorded in ``job.audio_path`` so the editor's
+    `<audio>` playhead stays aligned with subtitle timestamps. Falls back to
+    the original upload for legacy jobs.
+    """
+    job = await _get_job_or_404(session, job_id)
+
+    audio_path = _resolve_playback_path(job)
+    if audio_path is None:
+        raise media_not_found()
+
+    return FileResponse(audio_path, media_type=_MEDIA_TYPES.get(audio_path.suffix.lower(), "application/octet-stream"))
 
 
 @router.get("/{job_id}/peaks")
@@ -443,15 +487,14 @@ async def get_peaks(job_id: str, session: AsyncSession = Depends(get_session)):
 
     job = await _get_job_or_404(session, job_id)
 
-    media_path = None
-    for f in settings.uploads_dir.glob(f"{job.id}.*"):
-        media_path = f
-        break
-    if not media_path or not media_path.exists():
+    # Generate peaks from the same source the editor plays back so the
+    # waveform timeline matches the SRT segments byte-for-byte.
+    source_path = _resolve_playback_path(job)
+    if source_path is None:
         raise media_not_found()
 
     try:
-        return await get_or_generate_peaks(job.id, media_path, settings.peaks_dir)
+        return await get_or_generate_peaks(job.id, source_path, settings.peaks_dir)
     except Exception as e:
         logger.warning("Peak generation failed for job %s: %s", job.id, e)
         raise AppError(500, "PEAKS_FAILED", "Could not generate waveform peaks") from e
@@ -881,15 +924,26 @@ async def delete_job(job_id: str, session: AsyncSession = Depends(get_session)):
     await session.delete(job)
     await session.commit()
 
-    # Clean up files (best effort)
-    for path_str in [job.srt_path]:
+    # Clean up files (best effort). Persisted paths first — the SRT and the
+    # extracted audio both live at locations recorded on the row, so we delete
+    # them explicitly in case they ever move outside the default data dirs.
+    for path_str in [job.srt_path, job.audio_path]:
         if path_str:
             Path(path_str).unlink(missing_ok=True)
 
-    # Clean up upload and audio files (any extension)
-    for d in [settings.uploads_dir, settings.audio_dir]:
+    # Sweep the default data dirs as a backstop for peaks files and any
+    # leftover artifacts whose paths aren't recorded on the row. Including
+    # peaks_dir here is what prevents data/peaks/{job_id}.json from leaking.
+    for d in [settings.uploads_dir, settings.audio_dir, settings.peaks_dir]:
         for f in d.glob(f"{job.id}.*"):
             f.unlink(missing_ok=True)
+
+    # Transcription chunks (split_audio output) use ``_chunk`` suffix —
+    # the dot-glob above misses them. Normal pipelines clean these in
+    # transcribe._cleanup_temp_files, but a crash before that ran can
+    # leave them behind, so sweep on delete as a backstop.
+    for f in settings.audio_dir.glob(f"{job.id}_chunk*"):
+        f.unlink(missing_ok=True)
 
     status_manager.forget_terminal(job_id)
     return {"deleted": True}

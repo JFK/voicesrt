@@ -58,9 +58,11 @@ async def test_get_or_generate_peaks_caches_to_disk(tmp_path):
     cache_file = cache_dir / f"{job_id}.json"
     assert cache_file.exists()
 
-    # Second call must read from cache, not regenerate — corrupt the source
-    # path and confirm we still get the original result.
-    second = await get_or_generate_peaks(job_id, Path("/nonexistent.mp3"), cache_dir)
+    # Second call with the same source must hit the cache. We can't probe a
+    # bogus path here anymore — the source-stamp would invalidate the entry
+    # (see test_get_or_generate_peaks_regenerates_when_source_changes) — so
+    # the cache-hit assertion is on a same-source repeat instead.
+    second = await get_or_generate_peaks(job_id, FIXTURE, cache_dir)
     assert second == first
 
 
@@ -69,11 +71,61 @@ async def test_get_or_generate_peaks_returns_cached_value(tmp_path):
     cache_dir = tmp_path / "peaks"
     cache_dir.mkdir()
     job_id = "preseeded"
-    expected = {"peaks": [0.1, 0.2, 0.3], "duration": 12.5}
-    (cache_dir / f"{job_id}.json").write_text(json.dumps(expected))
+    source = "/nonexistent.mp3"
+    stored = {"peaks": [0.1, 0.2, 0.3], "duration": 12.5, "source": source}
+    (cache_dir / f"{job_id}.json").write_text(json.dumps(stored))
 
-    result = await get_or_generate_peaks(job_id, Path("/nonexistent.mp3"), cache_dir)
-    assert result == expected
+    result = await get_or_generate_peaks(job_id, Path(source), cache_dir)
+    assert result == {"peaks": [0.1, 0.2, 0.3], "duration": 12.5}
+    assert "source" not in result
+
+
+@pytest.mark.asyncio
+async def test_get_or_generate_peaks_regenerates_when_source_changes(tmp_path):
+    """A cache stamped with a different source must be invalidated.
+
+    This is the contract that keeps issue #73's waveform aligned with the
+    SRT timeline: switching the playback source from the original upload
+    to the extracted audio must force a regeneration instead of returning
+    the previously cached envelope.
+    """
+    cache_dir = tmp_path / "peaks"
+    cache_dir.mkdir()
+    job_id = "stale"
+    stale = {"peaks": [0.0], "duration": 1.0, "source": "/old/source.mp3"}
+    (cache_dir / f"{job_id}.json").write_text(json.dumps(stale))
+
+    fake_result = {"peaks": [0.9], "duration": 9.0}
+    with patch("src.services.peaks.generate_peaks", new=AsyncMock(return_value=fake_result)) as mock_gen:
+        result = await get_or_generate_peaks(job_id, Path("/new/source.mp3"), cache_dir)
+
+    mock_gen.assert_awaited_once()
+    assert result["peaks"] == [0.9]
+    assert "source" not in result
+
+    # The on-disk cache, in contrast, keeps the source stamp for invalidation.
+    on_disk = json.loads((cache_dir / f"{job_id}.json").read_text())
+    assert on_disk["source"] == "/new/source.mp3"
+
+
+@pytest.mark.asyncio
+async def test_get_or_generate_peaks_treats_corrupt_cache_as_miss(tmp_path):
+    """A partial / corrupt cache write (concurrent writer) regenerates cleanly.
+
+    Treating ``json.JSONDecodeError`` as a cache miss keeps a transient mid-
+    flush window from surfacing as a 500 to the client.
+    """
+    cache_dir = tmp_path / "peaks"
+    cache_dir.mkdir()
+    job_id = "corrupt"
+    (cache_dir / f"{job_id}.json").write_text("{not valid json")
+
+    fake_result = {"peaks": [0.5], "duration": 5.0}
+    with patch("src.services.peaks.generate_peaks", new=AsyncMock(return_value=fake_result)) as mock_gen:
+        result = await get_or_generate_peaks(job_id, Path("/some/source.mp3"), cache_dir)
+
+    mock_gen.assert_awaited_once()
+    assert result["peaks"] == [0.5]
 
 
 # ---- ffmpeg-mocked tests: exercise the bucketing/cache/locking logic on CI
@@ -154,7 +206,9 @@ async def test_get_or_generate_peaks_writes_compact_cache(tmp_path):
     # Compact separators keep the JSON small for transfer.
     assert ", " not in text
     assert ": " not in text
-    assert json.loads(text) == fake_result
+    # On-disk cache also carries the source stamp used for invalidation —
+    # the HTTP-facing payload strips it, but persistence keeps it.
+    assert json.loads(text) == {**fake_result, "source": "/fake.mp3"}
 
 
 @pytest.mark.asyncio

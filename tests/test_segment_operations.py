@@ -126,7 +126,7 @@ async def test_get_segments_includes_glossary(make_client):
 
 
 # ---------------------------------------------------------------------------
-# Media endpoint
+# Media / audio endpoints
 # ---------------------------------------------------------------------------
 
 
@@ -140,6 +140,141 @@ async def test_media_endpoint_returns_file(make_client):
         # test.mp3 upload file exists (4 bytes), should serve it
         assert resp.status_code == 200
         assert "audio" in resp.headers.get("content-type", "")
+    finally:
+        await cleanup_job(make_client, job_id)
+
+
+async def _set_audio_path(job_id: str, audio_path) -> None:
+    from sqlalchemy import select
+
+    from src.database import async_session
+    from src.models import Job
+
+    async with async_session() as session:
+        result = await session.execute(select(Job).where(Job.id == job_id))
+        job = result.scalar_one()
+        job.audio_path = str(audio_path)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_audio_endpoint_uses_audio_path_when_present(make_client):
+    """When job.audio_path points to an extracted file, /audio serves that file.
+
+    This is the fix for #73: the editor must play the same audio whose timeline
+    the SRT segments are anchored to, not the original upload that may drift
+    due to MP4 edit lists or codec delay.
+    """
+    from src.config import settings
+
+    job_id = await create_test_job(make_client)
+    audio_path = settings.audio_dir / f"{job_id}.wav"
+    audio_path.parent.mkdir(parents=True, exist_ok=True)
+    extracted_payload = b"EXTRACTED_AUDIO_BYTES"
+    audio_path.write_bytes(extracted_payload)
+    try:
+        await _set_audio_path(job_id, audio_path)
+        async with make_client() as c:
+            resp = await c.get(f"/api/jobs/{job_id}/audio")
+        assert resp.status_code == 200
+        assert resp.content == extracted_payload
+        assert resp.headers.get("content-type") == "audio/wav"
+    finally:
+        await cleanup_job(make_client, job_id)
+
+
+@pytest.mark.asyncio
+async def test_audio_endpoint_falls_back_to_upload_for_legacy_jobs(make_client):
+    """Jobs created before the audio_path column was added still play back.
+
+    audio_path is NULL → endpoint falls back to the original upload, preserving
+    backward compatibility for any job in the DB before this migration ran.
+    """
+    job_id = await create_test_job(make_client)
+    try:
+        async with make_client() as c:
+            resp = await c.get(f"/api/jobs/{job_id}/audio")
+        assert resp.status_code == 200
+        assert "audio" in resp.headers.get("content-type", "")
+    finally:
+        await cleanup_job(make_client, job_id)
+
+
+@pytest.mark.asyncio
+async def test_audio_endpoint_404_when_both_sources_missing(make_client):
+    """Neither audio_path file nor uploads file → 404, not crash."""
+    from src.config import settings
+
+    job_id = await create_test_job(make_client)
+    try:
+        await _set_audio_path(job_id, "/nonexistent/path.wav")
+        for f in settings.uploads_dir.glob(f"{job_id}.*"):
+            f.unlink(missing_ok=True)
+        async with make_client() as c:
+            resp = await c.get(f"/api/jobs/{job_id}/audio")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "MEDIA_NOT_FOUND"
+    finally:
+        await cleanup_job(make_client, job_id)
+
+
+@pytest.mark.asyncio
+async def test_delete_job_sweeps_chunk_files(make_client):
+    """Chunk files (``{job_id}_chunkNNN.{ext}``) must be cleaned on delete.
+
+    ``split_audio`` produces these as siblings of the main extracted audio.
+    They have an underscore separator so the dot-glob ``{job_id}.*`` misses
+    them; ``delete_job`` needs an explicit chunk sweep as a backstop for
+    pipelines that crashed before transcribe.py's own cleanup ran.
+    """
+    from src.config import settings
+
+    job_id = await create_test_job(make_client)
+    settings.audio_dir.mkdir(parents=True, exist_ok=True)
+    main_audio = settings.audio_dir / f"{job_id}.wav"
+    chunk_a = settings.audio_dir / f"{job_id}_chunk000.wav"
+    chunk_b = settings.audio_dir / f"{job_id}_chunk001.wav"
+    main_audio.write_bytes(b"AUDIO")
+    chunk_a.write_bytes(b"CHUNK0")
+    chunk_b.write_bytes(b"CHUNK1")
+    try:
+        await _set_audio_path(job_id, main_audio)
+        async with make_client() as c:
+            resp = await c.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert not main_audio.exists()
+        assert not chunk_a.exists()
+        assert not chunk_b.exists()
+    finally:
+        # cleanup_job is idempotent — calling it after a successful delete
+        # just returns 404, which the helper tolerates.
+        await cleanup_job(make_client, job_id)
+        for stray in (main_audio, chunk_a, chunk_b):
+            stray.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_media_endpoint_serves_original_when_audio_path_set(make_client):
+    """`/media` keeps serving the upload even when audio_path is populated.
+
+    The two endpoints have separate responsibilities: /media is for the
+    original media file (download, future video preview), /audio is for the
+    timestamp-aligned playback. Conflating them was the bug that gate1 caught.
+    """
+    from src.config import settings
+
+    job_id = await create_test_job(make_client)
+    audio_path = settings.audio_dir / f"{job_id}.wav"
+    audio_path.parent.mkdir(parents=True, exist_ok=True)
+    audio_path.write_bytes(b"EXTRACTED")
+    try:
+        await _set_audio_path(job_id, audio_path)
+        async with make_client() as c:
+            resp = await c.get(f"/api/jobs/{job_id}/media")
+        assert resp.status_code == 200
+        # Upload file is `test.mp3` (4 bytes "fake") — not the extracted bytes.
+        assert resp.content != b"EXTRACTED"
+        assert resp.content == b"fake"
     finally:
         await cleanup_job(make_client, job_id)
 
