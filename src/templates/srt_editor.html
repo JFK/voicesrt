@@ -286,7 +286,7 @@ window.srtEditor = function () {
             </select>
             <span x-show="activeSegmentIdx !== null" class="text-xs text-blue-600 font-medium flex-shrink-0" x-text="'#' + (activeSegmentIdx + 1)"></span>
         </div>
-        <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/media'" preload="metadata"
+        <audio x-ref="audio" :src="'/api/jobs/{{ job.id }}/audio'" preload="metadata"
                @timeupdate="onTimeUpdate()"
                @loadedmetadata="audioDuration = $refs.audio.duration; applyPlaybackRate(); initWaveform()"
                @canplay="_audioCanPlay = true"

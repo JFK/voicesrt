@@ -114,22 +114,55 @@ async def _job_lock(job_id: str) -> asyncio.Lock:
         return lock
 
 
-async def get_or_generate_peaks(job_id: str, media_path: Path, cache_dir: Path) -> dict:
-    """Return cached peaks JSON, generating it on first request."""
-    cache_path = cache_dir / f"{job_id}.json"
-    if cache_path.exists():
+async def _read_cached(cache_path: Path, source_key: str) -> dict | None:
+    """Return cached peaks JSON only if it was generated from the same source.
+
+    A bare ``{job_id}.json`` cache would happily serve stale peaks if the
+    source path changed between requests — which is exactly what happens
+    when a job's playback source moves from the original upload to the
+    extracted audio. Stamping the cache with the source path and re-checking
+    it on read invalidates the file without needing a separate migration.
+
+    Treats a partial/corrupt write (concurrent writer mid-flush) as a miss
+    so the caller regenerates rather than 500ing.
+    """
+    if not cache_path.exists():
+        return None
+    try:
         async with aiofiles.open(cache_path, "r") as f:
-            return json.loads(await f.read())
+            cached = json.loads(await f.read())
+    except (json.JSONDecodeError, OSError):
+        return None
+    if cached.get("source") != source_key:
+        return None
+    return cached
+
+
+async def get_or_generate_peaks(job_id: str, media_path: Path, cache_dir: Path) -> dict:
+    """Return cached peaks JSON, generating it on first request.
+
+    The cache is keyed by ``job_id`` and stamped with the source media path
+    so a change in the underlying file (e.g. switching from the original
+    upload to the extracted audio) forces a regeneration instead of
+    returning the previously cached envelope.
+    """
+    cache_path = cache_dir / f"{job_id}.json"
+    source_key = str(media_path)
+
+    cached = await _read_cached(cache_path, source_key)
+    if cached is not None:
+        return cached
 
     lock = await _job_lock(job_id)
     async with lock:
         # Re-check inside the lock — another waiter may have produced it.
-        if cache_path.exists():
-            async with aiofiles.open(cache_path, "r") as f:
-                return json.loads(await f.read())
+        cached = await _read_cached(cache_path, source_key)
+        if cached is not None:
+            return cached
 
         logger.info("Generating waveform peaks for job %s from %s", job_id, media_path.name)
         result = await generate_peaks(media_path)
+        result["source"] = source_key
         cache_dir.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(cache_path, "w") as f:
             await f.write(json.dumps(result, separators=(",", ":")))
