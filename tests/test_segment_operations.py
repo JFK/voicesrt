@@ -219,6 +219,41 @@ async def test_audio_endpoint_404_when_both_sources_missing(make_client):
 
 
 @pytest.mark.asyncio
+async def test_delete_job_sweeps_chunk_files(make_client):
+    """Chunk files (``{job_id}_chunkNNN.{ext}``) must be cleaned on delete.
+
+    ``split_audio`` produces these as siblings of the main extracted audio.
+    They have an underscore separator so the dot-glob ``{job_id}.*`` misses
+    them; ``delete_job`` needs an explicit chunk sweep as a backstop for
+    pipelines that crashed before transcribe.py's own cleanup ran.
+    """
+    from src.config import settings
+
+    job_id = await create_test_job(make_client)
+    settings.audio_dir.mkdir(parents=True, exist_ok=True)
+    main_audio = settings.audio_dir / f"{job_id}.wav"
+    chunk_a = settings.audio_dir / f"{job_id}_chunk000.wav"
+    chunk_b = settings.audio_dir / f"{job_id}_chunk001.wav"
+    main_audio.write_bytes(b"AUDIO")
+    chunk_a.write_bytes(b"CHUNK0")
+    chunk_b.write_bytes(b"CHUNK1")
+    try:
+        await _set_audio_path(job_id, main_audio)
+        async with make_client() as c:
+            resp = await c.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert not main_audio.exists()
+        assert not chunk_a.exists()
+        assert not chunk_b.exists()
+    finally:
+        # cleanup_job is idempotent — calling it after a successful delete
+        # just returns 404, which the helper tolerates.
+        await cleanup_job(make_client, job_id)
+        for stray in (main_audio, chunk_a, chunk_b):
+            stray.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
 async def test_media_endpoint_serves_original_when_audio_path_set(make_client):
     """`/media` keeps serving the upload even when audio_path is populated.
 

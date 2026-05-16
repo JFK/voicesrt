@@ -299,6 +299,52 @@ async def test_refine_failure_populates_error_detail(monkeypatch):
     assert "upstream refine failure" in detail["raw_message"]
 
 
+@pytest.mark.asyncio
+async def test_extraction_failure_removes_partial_audio(monkeypatch):
+    """ffmpeg crashing mid-write must not leave a partial file at audio_path.
+
+    The persisted ``audio_path`` is the source of truth for ``/audio`` and
+    ``/peaks``; if extraction half-wrote a file and then the call raised,
+    the cleanup must drop that partial output before the exception
+    propagates. Otherwise the editor would stream gibberish later.
+    """
+    from src.models import Job
+    from src.services import transcribe as transcribe_mod
+
+    job = Job(id="test-extract-fail", filename="x.wav", file_size=1, provider="whisper")
+
+    async def fake_get_credential(_session, _provider):
+        return "fake-key"
+
+    async def fake_extract(_in_path, out_path):
+        # Simulate ffmpeg writing a partial output then bailing.
+        out_path.write_bytes(b"partial-junk")
+        raise RuntimeError("ffmpeg command failed: simulated crash")
+
+    monkeypatch.setattr(transcribe_mod, "_get_credential", fake_get_credential)
+    monkeypatch.setattr(transcribe_mod, "extract_audio", fake_extract)
+
+    upload_dir = transcribe_mod.settings.uploads_dir
+    audio_dir = transcribe_mod.settings.audio_dir
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    (upload_dir / f"{job.id}.wav").write_bytes(b"")
+    expected_audio_path = audio_dir / f"{job.id}.wav"
+
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=lambda: None))
+
+    try:
+        with pytest.raises(RuntimeError, match="simulated crash"):
+            await transcribe_mod.process_transcription(job, session)
+        assert not expected_audio_path.exists(), "partial audio_path must be removed when extraction fails"
+        assert job.audio_path is None, "audio_path should not be persisted on extraction failure"
+    finally:
+        (upload_dir / f"{job.id}.wav").unlink(missing_ok=True)
+        expected_audio_path.unlink(missing_ok=True)
+
+
 # -- Whisper prompt tests --
 
 

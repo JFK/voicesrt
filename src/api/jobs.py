@@ -931,12 +931,19 @@ async def delete_job(job_id: str, session: AsyncSession = Depends(get_session)):
         if path_str:
             Path(path_str).unlink(missing_ok=True)
 
-    # Sweep the default data dirs as a backstop for chunks, peaks files, and
-    # any leftover artifacts whose paths aren't recorded on the row. Including
+    # Sweep the default data dirs as a backstop for peaks files and any
+    # leftover artifacts whose paths aren't recorded on the row. Including
     # peaks_dir here is what prevents data/peaks/{job_id}.json from leaking.
     for d in [settings.uploads_dir, settings.audio_dir, settings.peaks_dir]:
         for f in d.glob(f"{job.id}.*"):
             f.unlink(missing_ok=True)
+
+    # Transcription chunks (split_audio output) use ``_chunk`` suffix —
+    # the dot-glob above misses them. Normal pipelines clean these in
+    # transcribe._cleanup_temp_files, but a crash before that ran can
+    # leave them behind, so sweep on delete as a backstop.
+    for f in settings.audio_dir.glob(f"{job.id}_chunk*"):
+        f.unlink(missing_ok=True)
 
     status_manager.forget_terminal(job_id)
     return {"deleted": True}
