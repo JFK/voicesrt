@@ -72,11 +72,12 @@ async def test_get_or_generate_peaks_returns_cached_value(tmp_path):
     cache_dir.mkdir()
     job_id = "preseeded"
     source = "/nonexistent.mp3"
-    expected = {"peaks": [0.1, 0.2, 0.3], "duration": 12.5, "source": source}
-    (cache_dir / f"{job_id}.json").write_text(json.dumps(expected))
+    stored = {"peaks": [0.1, 0.2, 0.3], "duration": 12.5, "source": source}
+    (cache_dir / f"{job_id}.json").write_text(json.dumps(stored))
 
     result = await get_or_generate_peaks(job_id, Path(source), cache_dir)
-    assert result == expected
+    assert result == {"peaks": [0.1, 0.2, 0.3], "duration": 12.5}
+    assert "source" not in result
 
 
 @pytest.mark.asyncio
@@ -100,7 +101,11 @@ async def test_get_or_generate_peaks_regenerates_when_source_changes(tmp_path):
 
     mock_gen.assert_awaited_once()
     assert result["peaks"] == [0.9]
-    assert result["source"] == "/new/source.mp3"
+    assert "source" not in result
+
+    # The on-disk cache, in contrast, keeps the source stamp for invalidation.
+    on_disk = json.loads((cache_dir / f"{job_id}.json").read_text())
+    assert on_disk["source"] == "/new/source.mp3"
 
 
 @pytest.mark.asyncio

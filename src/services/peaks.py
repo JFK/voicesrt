@@ -138,32 +138,43 @@ async def _read_cached(cache_path: Path, source_key: str) -> dict | None:
     return cached
 
 
+def _public_payload(stored: dict) -> dict:
+    """Project the on-disk cache payload into the HTTP response shape.
+
+    The ``source`` field is a cache-invalidation invariant (see
+    ``_read_cached``); exposing it in the HTTP response would leak the
+    server-side media path layout to the client.
+    """
+    return {k: v for k, v in stored.items() if k != "source"}
+
+
 async def get_or_generate_peaks(job_id: str, media_path: Path, cache_dir: Path) -> dict:
     """Return cached peaks JSON, generating it on first request.
 
     The cache is keyed by ``job_id`` and stamped with the source media path
     so a change in the underlying file (e.g. switching from the original
     upload to the extracted audio) forces a regeneration instead of
-    returning the previously cached envelope.
+    returning the previously cached envelope. The stamp lives only on disk
+    and is stripped from the returned payload.
     """
     cache_path = cache_dir / f"{job_id}.json"
     source_key = str(media_path)
 
     cached = await _read_cached(cache_path, source_key)
     if cached is not None:
-        return cached
+        return _public_payload(cached)
 
     lock = await _job_lock(job_id)
     async with lock:
         # Re-check inside the lock — another waiter may have produced it.
         cached = await _read_cached(cache_path, source_key)
         if cached is not None:
-            return cached
+            return _public_payload(cached)
 
         logger.info("Generating waveform peaks for job %s from %s", job_id, media_path.name)
         result = await generate_peaks(media_path)
-        result["source"] = source_key
+        to_store = {**result, "source": source_key}
         cache_dir.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(cache_path, "w") as f:
-            await f.write(json.dumps(result, separators=(",", ":")))
+            await f.write(json.dumps(to_store, separators=(",", ":")))
         return result
