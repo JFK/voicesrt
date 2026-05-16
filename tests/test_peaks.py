@@ -206,7 +206,9 @@ async def test_get_or_generate_peaks_writes_compact_cache(tmp_path):
     # Compact separators keep the JSON small for transfer.
     assert ", " not in text
     assert ": " not in text
-    assert json.loads(text) == fake_result
+    # On-disk cache also carries the source stamp used for invalidation —
+    # the HTTP-facing payload strips it, but persistence keeps it.
+    assert json.loads(text) == {**fake_result, "source": "/fake.mp3"}
 
 
 @pytest.mark.asyncio
