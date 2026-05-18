@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-05-19
+
+**ENCRYPTION_KEY lifecycle completion** — rotation API + settings backup/recovery. Closes the disaster-recovery story opened by the encryption-batch family (v1.0.1–v1.0.4): operators can now rotate the `ENCRYPTION_KEY` without losing stored API keys, and back up / restore the full settings envelope without exposing plaintext credentials.
+
+### Added
+- **`POST /api/settings/rotate-encryption-key`** — re-encrypt every stored API key under a new `ENCRYPTION_KEY`. Proof-of-possession via fingerprint match (`compute_fingerprint(body.old_key) == stored_fingerprint`); partial-failure rollback leaves the rotation banner stale so residual undecryptable rows stay visible until each affected key is re-entered. `.env` update + restart is operator-driven — the response carries the instruction. (#85, closes #68)
+- **`GET /api/settings/export`** — download a `schema_version=1` JSON envelope of all non-`_meta.*` Setting rows. Encrypted rows are exported as ciphertext (no plaintext credentials in the file). The envelope carries the source `ENCRYPTION_KEY` fingerprint so the import side can reject cross-key imports without trying to decrypt. (#85, closes #72)
+- **`POST /api/settings/import/preview` + `POST /api/settings/import/apply`** — 2-stage flow. Preview validates schema + fingerprint and returns row counts without writing. Apply re-validates defensively (nothing structurally links it to preview) and upserts every non-`_meta.*` row. The `encrypted` flag on each row is derived from the key prefix via `_should_be_encrypted`, not trusted from the envelope — so a forged envelope with `encrypted=False` on an `api_key.*` row still lands as `encrypted=True`. (#85, closes #72)
+- **First-run setup backup warning** — `/setup` page shows an amber banner until the `_meta.encryption_key_fingerprint` row is first stamped (via the first `save_key` call). Teaches operators to back up `ENCRYPTION_KEY` before they need disaster recovery. (#85)
+- **`docs/backup-and-recovery.md`** — full operator procedure for export, import, and rotation, plus an error-code reference for the new `AppError` factories (`ROTATION_WRONG_KEY`, `ROTATION_INVALID_NEW_KEY`, `ROTATION_PARTIAL_FAILURE`, `EXPORT_FINGERPRINT_MISSING`, `IMPORT_FINGERPRINT_MISMATCH`, `IMPORT_FINGERPRINT_MISSING`, `IMPORT_SCHEMA_UNSUPPORTED`). README links to it. (#85)
+
+### Changed
+- **`compute_fingerprint(key)` is now the canonical SHA-256 helper** in `src/services/crypto.py`. `EncryptionService.get_fingerprint()` delegates to it. Endpoints and helpers that need to fingerprint a request-body key (e.g. rotation proof-of-possession) call this directly instead of inlining `hashlib.sha256(...)`. Single source of truth for the hashing strategy. (#85)
+- **`META_KEY_PREFIX = "_meta."` promoted to `src/services/crypto.py`** as the canonical declaration of the reserved internal-metadata namespace. Removes stringly-typed `"_meta."` literals from `src/services/settings_io.py` and `tests/test_settings_io.py`. (#85)
+
+### Tests
+- **`tests/test_settings_io.py` (new)** — 19 service-layer unit tests covering envelope shape, schema versioning, fingerprint mismatch / missing / unset paths, `_meta.*` exclusion on both export and import, `encrypted` flag invariant on both INSERT and UPDATE branches, and full export-import round-trip. (#85)
+- **`tests/test_settings_api.py` (+8)** — endpoint integration tests for rotate-key (POP correct / wrong / legacy / invalid Fernet format / partial-failure preserves stale fingerprint) and export/import (JSON download headers, preview counts, fingerprint-mismatch rejection, apply overwrites). (#85)
+
 ## [1.0.4] - 2026-05-19
 
 **Encryption-key safety + external-API timeout hardening** — a cluster of fixes around ENCRYPTION_KEY mismatch detection, decrypt-error containment, and explicit timeouts on every OpenAI/Gemini call to satisfy the project's async-first rule. Also unblocks the SRT editor on jobs whose audio container reports media offsets, and unifies the glossary placeholder format.
