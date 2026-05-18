@@ -195,15 +195,27 @@ async def test_key(provider: str, session: AsyncSession = Depends(get_session)):
 
     try:
         if provider == "openai":
-            import openai
+            import httpx
 
-            client = openai.AsyncOpenAI(api_key=api_key)
+            from src.services.utils import (
+                OPENAI_CONNECT_TIMEOUT_SEC,
+                SHORT_RPC_TIMEOUT_SEC,
+                create_openai_compatible_client,
+            )
+
+            client = create_openai_compatible_client(
+                "openai",
+                api_key,
+                timeout=httpx.Timeout(SHORT_RPC_TIMEOUT_SEC, connect=OPENAI_CONNECT_TIMEOUT_SEC),
+            )
             await client.models.list()
         elif provider == "google":
             from google import genai
 
+            from src.services.utils import SHORT_RPC_TIMEOUT_SEC, call_gemini_with_timeout
+
             client = genai.Client(api_key=api_key)
-            client.models.list()
+            await call_gemini_with_timeout(client.models.list, timeout=SHORT_RPC_TIMEOUT_SEC)
         return {"valid": True}
     except Exception as e:
         return {"valid": False, "error": str(e)}

@@ -4,7 +4,12 @@ from pathlib import Path
 from google import genai
 from google.genai.types import GenerateContentConfig
 
-from src.services.utils import call_gemini_with_timeout, extract_gemini_tokens, parse_json_response
+from src.services.utils import (
+    SHORT_RPC_TIMEOUT_SEC,
+    call_gemini_with_timeout,
+    extract_gemini_tokens,
+    parse_json_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +60,9 @@ Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]{glossary_hint
     segments = parse_json_response(response.text, context="Gemini transcription")
     input_tokens, output_tokens = extract_gemini_tokens(response)
 
-    # Clean up uploaded file (best-effort; timeout or API error must not fail the job)
+    # Best-effort cleanup; a stuck delete must not stall job teardown.
     try:
-        await call_gemini_with_timeout(client.files.delete, name=uploaded.name)
+        await call_gemini_with_timeout(client.files.delete, name=uploaded.name, timeout=SHORT_RPC_TIMEOUT_SEC)
     except Exception:
         logger.warning("Failed to delete uploaded file: %s", uploaded.name)
 

@@ -93,9 +93,14 @@ class TestCallGeminiWithTimeout:
             await call_gemini_with_timeout(boom)
 
     @pytest.mark.asyncio
-    async def test_default_timeout_is_gemini_timeout_sec(self):
-        # Inspect the helper's default timeout without actually waiting it out.
-        import inspect
+    async def test_default_timeout_is_gemini_timeout_sec(self, monkeypatch):
+        captured: dict = {}
+        real_wait_for = asyncio.wait_for
 
-        sig = inspect.signature(call_gemini_with_timeout)
-        assert sig.parameters["timeout"].default == GEMINI_TIMEOUT_SEC
+        async def spy(coro, timeout):
+            captured["timeout"] = timeout
+            return await real_wait_for(coro, timeout)
+
+        monkeypatch.setattr("src.services.utils.asyncio.wait_for", spy)
+        await call_gemini_with_timeout(lambda: "ok")
+        assert captured["timeout"] == GEMINI_TIMEOUT_SEC

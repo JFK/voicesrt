@@ -222,7 +222,6 @@ async def _generate_gemini(prompt: str, api_key: str, model: str) -> tuple[dict,
     from google import genai
 
     client = genai.Client(api_key=api_key)
-    # Run synchronous Gemini client in thread pool with explicit timeout
     response = await call_gemini_with_timeout(
         client.models.generate_content,
         model=model,

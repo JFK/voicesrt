@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 OPENAI_TIMEOUT_SEC: float = 600.0
 OPENAI_CONNECT_TIMEOUT_SEC: float = 10.0
 GEMINI_TIMEOUT_SEC: float = 600.0
+# Short budget for cheap RPCs (API-key validation, file deletion). The full
+# 600s budget would let a hung lightweight call block job teardown for 10
+# minutes — exactly the failure mode the timeout is meant to prevent.
+SHORT_RPC_TIMEOUT_SEC: float = 30.0
 
 T = TypeVar("T")
 
