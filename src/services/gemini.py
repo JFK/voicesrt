@@ -26,9 +26,27 @@ async def transcribe_with_gemini(
     Returns (segments, input_tokens, output_tokens).
     """
     client = genai.Client(api_key=api_key)
-
     uploaded = await call_gemini_with_timeout(client.files.upload, file=str(audio_path))
 
+    try:
+        return await _transcribe_uploaded(client, uploaded, model, language, glossary)
+    finally:
+        # Best-effort cleanup — runs even if transcription raises/times out so
+        # uploaded files don't pile up on Gemini's side. A stuck delete must not
+        # stall job teardown, hence the short budget.
+        try:
+            await call_gemini_with_timeout(client.files.delete, name=uploaded.name, timeout=SHORT_RPC_TIMEOUT_SEC)
+        except Exception:
+            logger.warning("Failed to delete uploaded file: %s", uploaded.name)
+
+
+async def _transcribe_uploaded(
+    client,
+    uploaded,
+    model: str,
+    language: str | None,
+    glossary: str,
+) -> tuple[list[dict], int, int]:
     lang_hint = f" The audio is in {language}." if language else ""
     glossary_hint = ""
     if glossary.strip():
@@ -59,11 +77,4 @@ Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]{glossary_hint
 
     segments = parse_json_response(response.text, context="Gemini transcription")
     input_tokens, output_tokens = extract_gemini_tokens(response)
-
-    # Best-effort cleanup; a stuck delete must not stall job teardown.
-    try:
-        await call_gemini_with_timeout(client.files.delete, name=uploaded.name, timeout=SHORT_RPC_TIMEOUT_SEC)
-    except Exception:
-        logger.warning("Failed to delete uploaded file: %s", uploaded.name)
-
     return segments, input_tokens, output_tokens
