@@ -2,7 +2,12 @@
 
 import logging
 
-from src.services.utils import create_openai_compatible_client, extract_gemini_tokens, parse_json_response
+from src.services.utils import (
+    call_gemini_with_timeout,
+    create_openai_compatible_client,
+    extract_gemini_tokens,
+    parse_json_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +67,10 @@ async def _generate_openai_compat(
 
 
 async def _generate_gemini(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
-    import asyncio
-
     from google import genai
 
     client = genai.Client(api_key=api_key)
-    response = await asyncio.to_thread(
+    response = await call_gemini_with_timeout(
         client.models.generate_content,
         model=model,
         contents=prompt,

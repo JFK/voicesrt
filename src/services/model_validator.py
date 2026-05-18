@@ -21,7 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import get_provider_name
 from src.errors import model_not_available
-from src.services.utils import create_openai_compatible_client, fetch_ollama_models
+from src.services.utils import (
+    SHORT_RPC_TIMEOUT_SEC,
+    call_gemini_with_timeout,
+    create_openai_compatible_client,
+    fetch_ollama_models,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +127,7 @@ async def _check_gemini(model: str, credential: str) -> None:
         return client.models.get(model=full_name)
 
     try:
-        await asyncio.to_thread(_retrieve)
+        await call_gemini_with_timeout(_retrieve, timeout=SHORT_RPC_TIMEOUT_SEC)
     except Exception as e:
         # google-genai does not expose structured 404 — fall back to string match.
         msg = str(e)

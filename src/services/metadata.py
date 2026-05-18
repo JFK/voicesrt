@@ -1,5 +1,10 @@
 from src.constants import get_provider_name
-from src.services.utils import create_openai_compatible_client, extract_gemini_tokens, parse_json_response
+from src.services.utils import (
+    call_gemini_with_timeout,
+    create_openai_compatible_client,
+    extract_gemini_tokens,
+    parse_json_response,
+)
 
 METADATA_SYSTEM_PROMPT = (
     "You are an expert at generating YouTube video metadata. "
@@ -179,17 +184,15 @@ async def optimize_meta_prompt(
         )
         return response.choices[0].message.content or current_prompt
     else:
-        import asyncio
-
         from google import genai
 
         client = genai.Client(api_key=api_key)
-        response = await asyncio.to_thread(
+        response = await call_gemini_with_timeout(
             client.models.generate_content,
             model=model,
             contents=prompt,
         )
-        return response.text.strip() or current_prompt
+        return (response.text or "").strip() or current_prompt
 
 
 async def _generate_openai_compat(
@@ -216,13 +219,10 @@ async def _generate_openai_compat(
 
 
 async def _generate_gemini(prompt: str, api_key: str, model: str) -> tuple[dict, int, int]:
-    import asyncio
-
     from google import genai
 
     client = genai.Client(api_key=api_key)
-    # Run synchronous Gemini client in thread pool to avoid blocking event loop
-    response = await asyncio.to_thread(
+    response = await call_gemini_with_timeout(
         client.models.generate_content,
         model=model,
         contents=f"{METADATA_SYSTEM_PROMPT}\n\n{prompt}",

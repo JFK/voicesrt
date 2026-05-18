@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import openai
+from src.services.utils import create_openai_compatible_client
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ async def transcribe_with_whisper(
 
     Returns list of segments: [{"start": float, "end": float, "text": str}, ...]
     """
-    client = openai.AsyncOpenAI(api_key=api_key)
+    client = create_openai_compatible_client("openai", api_key)
 
     kwargs: dict[str, Any] = {
         "model": "whisper-1",
