@@ -9,6 +9,13 @@
     </div>
     {% endif %}
 
+    {% if not has_stamped_fingerprint %}
+    <div class="mb-6 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 rounded-md p-4 text-sm" role="alert">
+        <p class="font-semibold mb-1">{{ t('setup.backup_warning_title') }}</p>
+        <p>{{ t('setup.backup_warning_body') }}</p>
+    </div>
+    {% endif %}
+
     <!-- Progress -->
     <div class="flex items-center justify-center mb-8 gap-2">
         <template x-for="s in 3" :key="s">

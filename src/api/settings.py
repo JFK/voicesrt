@@ -1,7 +1,10 @@
+import json
 import logging
 from datetime import UTC, datetime
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Request
+from cryptography.fernet import Fernet
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,12 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings as app_settings
 from src.database import get_session
 from src.errors import (
+    AppError,
     invalid_key_provider,
     invalid_model_provider,
     invalid_ollama_url,
     invalid_refine_mode,
     key_not_configured,
     key_not_found,
+    rotation_partial_failure,
+    rotation_wrong_key,
     unknown_setting,
 )
 from src.models import Setting
@@ -23,9 +29,15 @@ from src.services.crypto import (
     ENCRYPTION_KEY_FINGERPRINT_SETTING,
     DecryptionError,
     EncryptionService,
+    compute_fingerprint,
     decrypt_credential,
     encrypt,
     get_fingerprint,
+)
+from src.services.settings_io import (
+    apply_import_envelope,
+    export_settings_envelope,
+    preview_import_envelope,
 )
 
 logger = logging.getLogger(__name__)
@@ -500,3 +512,114 @@ def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return "****"
     return key[:4] + "..." + key[-4:]
+
+
+# --- ENCRYPTION_KEY rotation ----------------------------------------------------------
+
+
+class RotateKeyRequest(BaseModel):
+    old_key: str  # proof-of-possession: must hash to the stored fingerprint
+    new_key: str
+
+
+def _rotation_invalid_new_key(detail: str) -> AppError:
+    return AppError(
+        400,
+        "ROTATION_INVALID_NEW_KEY",
+        "The new key is not a valid Fernet key. Generate one with: "
+        'python -c "from cryptography.fernet import Fernet; '
+        f'print(Fernet.generate_key().decode())". ({detail})',
+    )
+
+
+@router.post("/rotate-key")
+async def rotate_encryption_key(
+    body: RotateKeyRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Re-encrypt every api_key.% row from `old_key` to `new_key`.
+
+    Proof-of-possession: `old_key` must hash to the stored
+    `_meta.encryption_key_fingerprint`. If no fingerprint is stamped yet
+    (legacy/first-run), the check is skipped so the user can bootstrap.
+
+    Does NOT rewrite `.env`. The response carries an instruction telling the
+    operator to update `ENCRYPTION_KEY` in `.env` and restart the app
+    (Docker bind mounts and file-permission edge cases make in-process
+    `.env` rewrites brittle — see Q1 in the design discussion).
+
+    On partial failure, the session is rolled back and a 500 with
+    `ROTATION_PARTIAL_FAILURE` is returned; the stored fingerprint stays
+    stale so the existing rotation banner stays visible for residual rows.
+    """
+    # Validate new_key format up front so we fail fast with a clean 400
+    # instead of letting `reencrypt_all`'s Fernet constructor raise mid-loop.
+    try:
+        Fernet(body.new_key.encode())
+    except Exception as e:
+        raise _rotation_invalid_new_key(str(e)) from e
+
+    service = EncryptionService(session)
+    stored_fp = await service.get_stored_fingerprint()
+    if stored_fp is not None and compute_fingerprint(body.old_key) != stored_fp:
+        raise rotation_wrong_key()
+
+    report = await service.reencrypt_all(body.old_key, body.new_key)
+
+    if report["failed"] > 0:
+        await session.rollback()
+        raise rotation_partial_failure(report["errors"])
+
+    await session.commit()
+    return {
+        "success": report["success"],
+        "failed": 0,
+        "errors": [],
+        "instruction": (
+            "Re-encryption complete. Update ENCRYPTION_KEY in your .env file to the new value and restart the app."
+        ),
+    }
+
+
+# --- Settings export / import ---------------------------------------------------------
+
+
+@router.get("/export")
+async def export_settings(session: AsyncSession = Depends(get_session)):
+    """Download all non-`_meta.*` Setting rows as a JSON envelope.
+
+    The envelope carries the source `ENCRYPTION_KEY` fingerprint so the
+    import endpoint can reject mismatched-key imports without trying to
+    decrypt (and crashing mid-batch with InvalidToken).
+
+    The file is intended to be saved locally and re-uploaded on the same
+    instance after a `.env` restore — same `ENCRYPTION_KEY` required.
+    """
+    envelope = await export_settings_envelope(session)
+    body = json.dumps(envelope, indent=2, ensure_ascii=False)
+    filename = f"voicesrt-settings-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename, safe='')}"},
+    )
+
+
+@router.post("/import/preview")
+async def import_settings_preview(
+    envelope: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Stage 1 of import: validate envelope, return row counts. No DB writes."""
+    return await preview_import_envelope(session, envelope)
+
+
+@router.post("/import/apply")
+async def import_settings_apply(
+    envelope: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Stage 2 of import: write all non-`_meta.*` rows; caller commits."""
+    report = await apply_import_envelope(session, envelope)
+    await session.commit()
+    return report

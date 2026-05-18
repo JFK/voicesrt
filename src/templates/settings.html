@@ -278,6 +278,80 @@
         </template>
     </div>
 
+    <!-- Backup & Recovery -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.backup_recovery') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.backup_recovery_desc') }}</p>
+
+        <!-- Export -->
+        <div class="mb-6">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('settings.export_title') }}</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.export_desc') }}</p>
+            <a href="/api/settings/export" download
+               class="inline-block px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">{{ t('settings.export_button') }}</a>
+        </div>
+
+        <!-- Import -->
+        <div class="mb-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('settings.import_title') }}</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.import_desc') }}</p>
+            <input type="file" accept=".json,application/json" @change="handleImportFile($event)" x-ref="importFile"
+                   class="block text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-blue-600 file:text-white file:hover:bg-blue-700">
+            <p x-show="importError" x-cloak class="mt-2 text-sm text-red-600 dark:text-red-400" x-text="importError"></p>
+            <div x-show="importPreview" x-cloak class="mt-3 p-3 rounded-md bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('settings.import_preview_title') }}</p>
+                <p class="text-xs text-gray-600 dark:text-gray-300"
+                   x-text="'{{ t('settings.import_preview_summary') }}'.replace('{rows_total}', importPreview?.rows_total).replace('{rows_encrypted}', importPreview?.rows_encrypted).replace('{rows_plaintext}', importPreview?.rows_plaintext).replace('{rows_overwrite}', importPreview?.rows_overwrite)"></p>
+                <div class="flex gap-2 mt-3">
+                    <button @click="openImportConfirm()" :disabled="importApplying"
+                            class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:hover:bg-gray-400">{{ t('settings.import_confirm_action') }}</button>
+                    <button @click="cancelImport()"
+                            class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('settings.cancel') }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rotate encryption key -->
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ t('settings.rotate_key_title') }}</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.rotate_key_desc') }}</p>
+            <div class="space-y-2">
+                <input type="password" x-model="rotateForm.oldKey"
+                       :placeholder="'{{ t('settings.rotate_old_key_label') }}'"
+                       class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100 font-mono">
+                <input type="password" x-model="rotateForm.newKey"
+                       :placeholder="'{{ t('settings.rotate_new_key_label') }}'"
+                       class="w-full rounded-md border-gray-300 dark:border-gray-600 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100 font-mono">
+                <button @click="openRotateConfirm()" :disabled="!rotateForm.oldKey || !rotateForm.newKey || rotateForm.loading"
+                        class="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:bg-gray-400 disabled:hover:bg-gray-400">
+                    {{ t('settings.rotate_button') }}
+                </button>
+            </div>
+            <p x-show="rotateForm.error" x-cloak class="mt-2 text-sm text-red-600 dark:text-red-400" x-text="rotateForm.error"></p>
+            <div x-show="rotateForm.result" x-cloak class="mt-3 p-3 rounded-md bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-800 dark:text-green-200 text-sm">
+                <p class="font-medium mb-1" x-text="'{{ t('settings.rotate_success') }}'.replace('{n}', rotateForm.result?.success)"></p>
+                <p class="text-xs" x-text="rotateForm.result?.instruction"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared confirmation modal (rotate-key + import-apply) -->
+    <div x-show="modal.show" x-cloak
+         @keydown.escape.window="closeModal()"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-xl"
+             @click.stop>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2" x-text="modal.title"></h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mb-4" x-text="modal.message"></p>
+            <div class="flex gap-3 justify-end">
+                <button @click="closeModal()"
+                        class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-600">{{ t('settings.cancel') }}</button>
+                <button @click="confirmModal()" x-text="modal.action"
+                        class="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Status Message (fixed toast) -->
     <div x-show="statusMsg" x-cloak
          x-transition:enter="transition ease-out duration-300"
@@ -330,6 +404,14 @@ function settingsPage() {
         pricing: {},
         refinePrompts: { verbatim: '', standard: '', caption: '' },
         statusMsg: '',
+
+        // Backup & Recovery
+        modal: { show: false, title: '', message: '', action: '', onConfirm: null },
+        rotateForm: { oldKey: '', newKey: '', result: null, error: null, loading: false },
+        importEnvelope: null,
+        importPreview: null,
+        importError: null,
+        importApplying: false,
 
         async loadSettings() {
             // Fetch all settings in parallel (ModelLoader caches available-models internally)
@@ -532,6 +614,157 @@ function settingsPage() {
         showStatus(msg) {
             this.statusMsg = msg;
             setTimeout(() => this.statusMsg = '', 3000);
+        },
+
+        // --- Shared modal helpers --------------------------------------------------------
+        openModal(cfg) {
+            Object.assign(this.modal, cfg);
+            this.modal.show = true;
+        },
+        closeModal() {
+            this.modal.show = false;
+            this.modal.onConfirm = null;
+        },
+        confirmModal() {
+            const fn = this.modal.onConfirm;
+            this.closeModal();
+            if (fn) fn();
+        },
+
+        // --- Rotate encryption key -------------------------------------------------------
+        openRotateConfirm() {
+            if (!this.rotateForm.oldKey || !this.rotateForm.newKey) return;
+            this.openModal({
+                title: '{{ t("settings.rotate_confirm_title") }}',
+                message: '{{ t("settings.rotate_confirm_msg") }}',
+                action: '{{ t("settings.rotate_confirm_action") }}',
+                onConfirm: () => this.rotateKey(),
+            });
+        },
+        async rotateKey() {
+            if (this.rotateForm.loading) return;  // guard against double-click
+            this.rotateForm.loading = true;
+            this.rotateForm.error = null;
+            this.rotateForm.result = null;
+            try {
+                const res = await fetch('/api/settings/rotate-key', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        old_key: this.rotateForm.oldKey,
+                        new_key: this.rotateForm.newKey,
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.rotateForm.result = { success: data.success, instruction: data.instruction };
+                    this.rotateForm.oldKey = '';
+                    this.rotateForm.newKey = '';
+                    // Deliberately NOT calling loadSettings() here: after a successful
+                    // rotation the rows are under new_key but the running process still
+                    // holds old_key in env, so list_keys would correctly mark every row
+                    // as key_mismatch. That is technically accurate but the rotation
+                    // success message already instructs the user to restart, so re-
+                    // fetching would just paint a misleading alarm banner over the
+                    // success state. The Settings page reloads on next page load.
+                    return;
+                }
+                const code = data.error?.code;
+                if (code === 'ROTATION_WRONG_KEY') {
+                    this.rotateForm.error = '{{ t("settings.rotate_error_wrong_key") }}';
+                } else if (code === 'ROTATION_INVALID_NEW_KEY') {
+                    this.rotateForm.error = '{{ t("settings.rotate_error_invalid_new_key") }}';
+                } else if (code === 'ROTATION_PARTIAL_FAILURE') {
+                    const n = (data.error.errors || []).length;
+                    this.rotateForm.error = '{{ t("settings.rotate_error_partial") }}'.replace('{n}', n);
+                } else {
+                    this.rotateForm.error = data.error?.message || '{{ t("settings.error_unknown") }}';
+                }
+            } finally {
+                this.rotateForm.loading = false;
+            }
+        },
+
+        // --- Import settings -------------------------------------------------------------
+        async handleImportFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            this.importError = null;
+            this.importPreview = null;
+            this.importEnvelope = null;
+            // Guard against an accidentally selected huge file (50 MB JSON
+            // would block the tab on file.text()). Realistic envelopes are
+            // a few KB; 1 MB is comfortably permissive.
+            if (file.size > 1024 * 1024) {
+                this.importError = '{{ t("settings.import_error_too_large") }}';
+                return;
+            }
+            let envelope;
+            try {
+                envelope = JSON.parse(await file.text());
+            } catch (err) {
+                this.importError = err.message;
+                return;
+            }
+            const res = await fetch('/api/settings/import/preview', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(envelope),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                this.importEnvelope = envelope;
+                this.importPreview = data;
+                return;
+            }
+            const code = data.error?.code;
+            if (code === 'IMPORT_FINGERPRINT_MISMATCH') {
+                this.importError = '{{ t("settings.import_error_fingerprint") }}';
+            } else if (code === 'IMPORT_SCHEMA_UNSUPPORTED') {
+                this.importError = '{{ t("settings.import_error_schema") }}';
+            } else {
+                this.importError = data.error?.message || '{{ t("settings.error_unknown") }}';
+            }
+        },
+        cancelImport() {
+            this.importPreview = null;
+            this.importEnvelope = null;
+            this.importError = null;
+            if (this.$refs.importFile) this.$refs.importFile.value = '';
+        },
+        openImportConfirm() {
+            if (!this.importEnvelope || !this.importPreview) return;
+            this.openModal({
+                title: '{{ t("settings.import_confirm_title") }}',
+                message: '{{ t("settings.import_confirm_msg") }}'.replace('{rows_overwrite}', this.importPreview.rows_overwrite),
+                action: '{{ t("settings.import_confirm_action") }}',
+                onConfirm: () => this.applyImport(),
+            });
+        },
+        async applyImport() {
+            if (this.importApplying) return;  // guard against double-click
+            this.importApplying = true;
+            try {
+                const res = await fetch('/api/settings/import/apply', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(this.importEnvelope),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const msg = '{{ t("settings.import_success") }}'
+                        .replace('{imported}', data.imported)
+                        .replace('{overwritten}', data.overwritten)
+                        .replace('{new}', data.new);
+                    this.showStatus(msg);
+                    this.cancelImport();
+                    this.loadSettings();
+                    return;
+                }
+                this.importError = data.error?.message || '{{ t("settings.error_unknown") }}';
+            } finally {
+                this.importApplying = false;
+            }
         }
     };
 }

@@ -47,10 +47,17 @@ async def setup_page(request: Request, session: AsyncSession = Depends(get_sessi
     # which is strictly stronger. The /setup banner uses the looser signal
     # so that single-row corruption still surfaces the recovery flow, not
     # just full-key rotation.
-    _, has_undecryptable_keys = await EncryptionService(session).api_key_status()
+    service = EncryptionService(session)
+    _, has_undecryptable_keys = await service.api_key_status()
+    # First-run vs returning-user signal: when the fingerprint row has never
+    # been stamped, this is a fresh install — show the ENCRYPTION_KEY backup
+    # warning. After the first save_key, the row exists and the banner stops
+    # showing on subsequent setup-page visits (e.g. partial-recovery flows).
+    has_stamped_fingerprint = (await service.get_stored_fingerprint()) is not None
     ctx = {
         "active_page": "settings",
         "has_undecryptable_keys": has_undecryptable_keys,
+        "has_stamped_fingerprint": has_stamped_fingerprint,
         **_i18n_context(request),
     }
     return templates.TemplateResponse(request, "setup.html", ctx)

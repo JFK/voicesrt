@@ -141,6 +141,51 @@ def unknown_setting(key: str) -> AppError:
     return AppError(400, "UNKNOWN_SETTING", f"Unknown setting: {key}")
 
 
+def rotation_wrong_key() -> AppError:
+    return AppError(
+        400,
+        "ROTATION_WRONG_KEY",
+        "The current encryption key does not match what is stored. "
+        "Rotation aborted — verify the value you entered for the current key.",
+    )
+
+
+def rotation_partial_failure(errors: list[str]) -> AppError:
+    return AppError(
+        500,
+        "ROTATION_PARTIAL_FAILURE",
+        f"Re-encryption failed for {len(errors)} row(s); the active fingerprint was left stale "
+        "so the rotation banner stays visible. Re-enter the affected keys, then retry.",
+        payload={"errors": errors},
+    )
+
+
+def export_fingerprint_missing() -> AppError:
+    return AppError(
+        500,
+        "EXPORT_FINGERPRINT_MISSING",
+        "Cannot export — ENCRYPTION_KEY is not configured.",
+    )
+
+
+def import_fingerprint_mismatch(source: str, current: str) -> AppError:
+    return AppError(
+        409,
+        "IMPORT_FINGERPRINT_MISMATCH",
+        "This backup was created under a different ENCRYPTION_KEY. "
+        "Restore the original key in .env first, or import on the source instance.",
+        payload={"source_fingerprint": source, "current_fingerprint": current},
+    )
+
+
+def import_schema_unsupported(version: object) -> AppError:
+    return AppError(
+        422,
+        "IMPORT_SCHEMA_UNSUPPORTED",
+        f"Settings export schema_version={version!r} is not supported by this version of the app.",
+    )
+
+
 def classify_error(exc: Exception) -> str:
     """Classify an exception into a user-friendly message with actionable hint."""
     msg = str(exc)
