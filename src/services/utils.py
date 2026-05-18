@@ -189,11 +189,25 @@ async def call_gemini_with_timeout(
     ``asyncio.to_thread``. Without ``asyncio.wait_for`` the thread can wait
     indefinitely if the API hangs (.claude/rules/async-first.md). Use this
     helper for every Gemini call site so the timeout policy stays uniform.
+
+    Note: ``asyncio.wait_for`` cancels the awaiting coroutine, not the
+    underlying worker thread — a hung SDK call keeps occupying its
+    ``asyncio.to_thread`` slot until the network layer finally errors out.
+    The warning log gives operational visibility into that condition so
+    repeated timeouts can be diagnosed before they pile up.
     """
-    return await asyncio.wait_for(
-        asyncio.to_thread(fn, *args, **kwargs),
-        timeout=timeout,
-    )
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(fn, *args, **kwargs),
+            timeout=timeout,
+        )
+    except TimeoutError:
+        logger.warning(
+            "Gemini call timed out after %.1fs (fn=%s) — worker thread may still be running",
+            timeout,
+            getattr(fn, "__qualname__", getattr(fn, "__name__", repr(fn))),
+        )
+        raise
 
 
 def extract_gemini_tokens(response) -> tuple[int, int]:
