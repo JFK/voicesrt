@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.errors import (
     export_fingerprint_missing,
     import_fingerprint_mismatch,
+    import_fingerprint_missing,
     import_schema_unsupported,
 )
 from src.models import Setting
@@ -83,7 +84,13 @@ def _validate_envelope(envelope: dict[str, Any]) -> None:
     if not isinstance(source_fp, str) or not source_fp:
         raise import_schema_unsupported(version)
 
-    current_fp = EncryptionService.get_fingerprint()
+    # Symmetric with export_settings_envelope: surface "ENCRYPTION_KEY unset"
+    # as a structured AppError instead of letting the bare RuntimeError
+    # propagate to FastAPI as an unhandled 500.
+    try:
+        current_fp = EncryptionService.get_fingerprint()
+    except RuntimeError as e:
+        raise import_fingerprint_missing() from e
     if source_fp != current_fp:
         raise import_fingerprint_mismatch(source_fp, current_fp)
 

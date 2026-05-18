@@ -178,6 +178,14 @@ def import_fingerprint_mismatch(source: str, current: str) -> AppError:
     )
 
 
+def import_fingerprint_missing() -> AppError:
+    return AppError(
+        500,
+        "IMPORT_FINGERPRINT_MISSING",
+        "Cannot import — ENCRYPTION_KEY is not configured.",
+    )
+
+
 def import_schema_unsupported(version: object) -> AppError:
     return AppError(
         422,

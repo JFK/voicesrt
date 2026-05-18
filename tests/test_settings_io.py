@@ -180,6 +180,33 @@ class TestPreviewImport:
             assert exc.value.code == "IMPORT_SCHEMA_UNSUPPORTED"
 
     @pytest.mark.asyncio
+    async def test_raises_when_encryption_key_unset(self):
+        # Symmetric with export_settings_envelope's export_fingerprint_missing —
+        # _validate_envelope must catch RuntimeError from get_fingerprint() and
+        # surface a structured AppError instead of an unhandled 500.
+        from src.config import settings as app_settings
+
+        async with isolated_settings() as session_factory:
+            envelope = {
+                "schema_version": 1,
+                "exported_at": "2026-01-01T00:00:00+00:00",
+                "source_fingerprint": "deadbeef" * 8,
+                "settings": [],
+            }
+            # Manual set/restore — pytest's monkeypatch fixture would not be
+            # reverted until after isolated_settings's teardown runs, and that
+            # teardown calls encrypt() which needs the key.
+            original_key = app_settings.encryption_key
+            app_settings.encryption_key = ""
+            try:
+                async with session_factory() as session:
+                    with pytest.raises(AppError) as exc:
+                        await preview_import_envelope(session, envelope)
+                assert exc.value.code == "IMPORT_FINGERPRINT_MISSING"
+            finally:
+                app_settings.encryption_key = original_key
+
+    @pytest.mark.asyncio
     async def test_returns_counts(self):
         async with isolated_settings() as session_factory:
             await _seed(session_factory, [("api_key.openai", encrypt("sk-existing"), True)])
