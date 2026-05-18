@@ -3,7 +3,12 @@
 import json
 import logging
 
-from src.services.utils import create_openai_compatible_client, extract_gemini_tokens, parse_json_response
+from src.services.utils import (
+    call_gemini_with_timeout,
+    create_openai_compatible_client,
+    extract_gemini_tokens,
+    parse_json_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -195,13 +200,11 @@ async def _refine_openai_compat(
 
 
 async def _refine_gemini(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
-    import asyncio
-
     from google import genai
     from google.genai.types import GenerateContentConfig
 
     client = genai.Client(api_key=api_key)
-    response = await asyncio.to_thread(
+    response = await call_gemini_with_timeout(
         client.models.generate_content,
         model=model,
         contents=f"{REFINE_SYSTEM_PROMPT}\n\n{prompt}",
@@ -347,13 +350,11 @@ async def _verify_openai_compat(
 
 
 async def _verify_gemini(prompt: str, api_key: str, model: str) -> tuple[list[dict], int, int]:
-    import asyncio
-
     from google import genai
     from google.genai.types import GenerateContentConfig
 
     client = genai.Client(api_key=api_key)
-    response = await asyncio.to_thread(
+    response = await call_gemini_with_timeout(
         client.models.generate_content,
         model=model,
         contents=f"{VERIFY_SYSTEM_PROMPT}\n\n{prompt}",
@@ -466,13 +467,11 @@ async def _suggest_openai_compat(
 
 
 async def _suggest_gemini(prompt: str, api_key: str, model: str) -> tuple[str, str, int, int]:
-    import asyncio
-
     from google import genai
     from google.genai.types import GenerateContentConfig
 
     client = genai.Client(api_key=api_key)
-    response = await asyncio.to_thread(
+    response = await call_gemini_with_timeout(
         client.models.generate_content,
         model=model,
         contents=f"{SUGGEST_SYSTEM_PROMPT}\n\n{prompt}",

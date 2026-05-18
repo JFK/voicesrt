@@ -1,15 +1,12 @@
-import asyncio
 import logging
 from pathlib import Path
 
 from google import genai
 from google.genai.types import GenerateContentConfig
 
-from src.services.utils import extract_gemini_tokens, parse_json_response
+from src.services.utils import call_gemini_with_timeout, extract_gemini_tokens, parse_json_response
 
 logger = logging.getLogger(__name__)
-
-GEMINI_TIMEOUT_SEC = 600  # 10 minutes
 
 
 async def transcribe_with_gemini(
@@ -25,7 +22,7 @@ async def transcribe_with_gemini(
     """
     client = genai.Client(api_key=api_key)
 
-    uploaded = await asyncio.to_thread(client.files.upload, file=str(audio_path))
+    uploaded = await call_gemini_with_timeout(client.files.upload, file=str(audio_path))
 
     lang_hint = f" The audio is in {language}." if language else ""
     glossary_hint = ""
@@ -45,25 +42,22 @@ Return ONLY a JSON array, no other text or markdown. Each element must have:
 Keep segments at natural sentence boundaries, roughly 1-10 seconds each.
 Example: [{{"start": 0.0, "end": 2.5, "text": "Hello, welcome."}}]{glossary_hint}"""
 
-    response = await asyncio.wait_for(
-        asyncio.to_thread(
-            client.models.generate_content,
-            model=model,
-            contents=[uploaded, prompt],
-            config=GenerateContentConfig(
-                max_output_tokens=65536,
-                response_mime_type="application/json",
-            ),
+    response = await call_gemini_with_timeout(
+        client.models.generate_content,
+        model=model,
+        contents=[uploaded, prompt],
+        config=GenerateContentConfig(
+            max_output_tokens=65536,
+            response_mime_type="application/json",
         ),
-        timeout=GEMINI_TIMEOUT_SEC,
     )
 
     segments = parse_json_response(response.text, context="Gemini transcription")
     input_tokens, output_tokens = extract_gemini_tokens(response)
 
-    # Clean up uploaded file
+    # Clean up uploaded file (best-effort; timeout or API error must not fail the job)
     try:
-        await asyncio.to_thread(client.files.delete, name=uploaded.name)
+        await call_gemini_with_timeout(client.files.delete, name=uploaded.name)
     except Exception:
         logger.warning("Failed to delete uploaded file: %s", uploaded.name)
 

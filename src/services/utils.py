@@ -1,7 +1,21 @@
+import asyncio
 import json
 import logging
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+import httpx
 
 logger = logging.getLogger(__name__)
+
+# Timeout policy for external LLM calls (CLAUDE.md / .claude/rules/async-first.md).
+# Long enough for Whisper / Gemini to process multi-minute audio, with a short
+# connect deadline so a dead endpoint fails fast.
+OPENAI_TIMEOUT_SEC: float = 600.0
+OPENAI_CONNECT_TIMEOUT_SEC: float = 10.0
+GEMINI_TIMEOUT_SEC: float = 600.0
+
+T = TypeVar("T")
 
 
 def strip_markdown_fence(text: str) -> str:
@@ -100,8 +114,6 @@ async def fetch_ollama_models(base_url: str, timeout: float = 5.0) -> list[str] 
         - `None` when the request itself failed (network error, non-200,
           non-JSON body). Callers must distinguish this from an empty list.
     """
-    import httpx
-
     url = _resolve_ollama_url(base_url.rstrip("/"))
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -135,16 +147,49 @@ def _resolve_ollama_url(url: str) -> str:
     return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
-def create_openai_compatible_client(provider: str, credential: str):
-    """Create an AsyncOpenAI client for OpenAI or Ollama (OpenAI-compatible)."""
+def create_openai_compatible_client(
+    provider: str,
+    credential: str,
+    *,
+    timeout: httpx.Timeout | float | None = None,
+):
+    """Create an AsyncOpenAI client for OpenAI or Ollama (OpenAI-compatible).
+
+    Sets an explicit httpx timeout so calls cannot hang indefinitely
+    (.claude/rules/async-first.md). Callers may override via the ``timeout``
+    kwarg; ``None`` selects the default ``OPENAI_TIMEOUT_SEC`` /
+    ``OPENAI_CONNECT_TIMEOUT_SEC`` policy.
+    """
     import openai
+
+    if timeout is None:
+        timeout = httpx.Timeout(OPENAI_TIMEOUT_SEC, connect=OPENAI_CONNECT_TIMEOUT_SEC)
 
     if provider == "ollama":
         base = _resolve_ollama_url(credential.rstrip("/"))
         if base.endswith("/v1"):
             base = base[:-3]
-        return openai.AsyncOpenAI(base_url=f"{base}/v1", api_key="ollama")
-    return openai.AsyncOpenAI(api_key=credential)
+        return openai.AsyncOpenAI(base_url=f"{base}/v1", api_key="ollama", timeout=timeout)
+    return openai.AsyncOpenAI(api_key=credential, timeout=timeout)
+
+
+async def call_gemini_with_timeout(
+    fn: Callable[..., T],
+    *args: Any,
+    timeout: float = GEMINI_TIMEOUT_SEC,
+    **kwargs: Any,
+) -> T:
+    """Run a synchronous Gemini SDK call in a worker thread with an asyncio timeout.
+
+    The Gemini Python SDK is blocking, so the project wraps every call in
+    ``asyncio.to_thread``. Without ``asyncio.wait_for`` the thread can wait
+    indefinitely if the API hangs (.claude/rules/async-first.md). Use this
+    helper for every Gemini call site so the timeout policy stays uniform.
+    """
+    return await asyncio.wait_for(
+        asyncio.to_thread(fn, *args, **kwargs),
+        timeout=timeout,
+    )
 
 
 def extract_gemini_tokens(response) -> tuple[int, int]:
