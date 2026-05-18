@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-05-19
+
+**Encryption-key safety + external-API timeout hardening** — a cluster of fixes around ENCRYPTION_KEY mismatch detection, decrypt-error containment, and explicit timeouts on every OpenAI/Gemini call to satisfy the project's async-first rule. Also unblocks the SRT editor on jobs whose audio container reports media offsets, and unifies the glossary placeholder format.
+
+### Fixed
+- **API key validation no longer hangs the event loop** — `POST /api/settings/keys/{provider}/test` (Google branch) was calling `client.models.list()` synchronously inside an async route handler. Under concurrent "Test key" presses, the entire FastAPI loop blocked for the duration of the round-trip. The call is now routed through `call_gemini_with_timeout` with a 30-second budget. (#84, closes #74 / #75)
+- **Indefinite hangs on OpenAI and Gemini API calls** — every external LLM call now has an explicit timeout. New `call_gemini_with_timeout` helper in `src/services/utils.py` wraps `asyncio.wait_for(asyncio.to_thread(...))` for the blocking google-genai SDK; `create_openai_compatible_client` now sets an `httpx.Timeout(600s, connect=10s)`. Cheap RPCs (file deletion, key validation) get a 30-second `SHORT_RPC_TIMEOUT_SEC` so a stuck lightweight call cannot stall job teardown for 10 minutes. (#84, closes #74 / #75)
+- **Uploaded Gemini files no longer leak when transcription raises** — `transcribe_with_gemini` was running `client.files.delete` only on the success path; an exception from `generate_content` or `parse_json_response` skipped cleanup. Restructured into `try/finally` per the project's "always clean up in `finally` blocks" rule. (#84)
+- **SRT editor audio drifts against subtitle timeline** — videos whose container had a non-zero edit-list offset (elst) reported a `start_time` in `ffprobe` but WaveSurfer played from `0`, so every subtitle ended up shifted. The editor now extracts the canonical audio track to a peaks-aligned source and threads the offset through the timeline. (#83, closes #73)
+- **InvalidToken errors during decrypt no longer regenerate ENCRYPTION_KEY** — the recovery path used to silently mint a fresh Fernet key when `_get_credential()` hit `InvalidToken`, which then corrupted every other stored credential. Decrypt failures now propagate as `DecryptionError`; `EncryptionService.api_key_status` surfaces the mismatch in the UI so the operator can re-enter the affected keys. (#81, closes #67 / #76 — initial detection landed in #79 for #66 / #69)
+- **`_has_api_keys()` can detect decrypt-failed rows** — previously it only checked whether the row existed, so a row with an undecryptable value still counted as "configured". Now uses `EncryptionService.all_api_keys_decrypt()` to require successful decryption. (#81, closes #76)
+- **Glossary placeholder format unified to `reading:term`** — both UI and parser now expect `読み:漢字` ordering. The previous mixed `term:reading` / `reading:term` lookup silently dropped half the entries depending on the active locale. (#80, closes #77)
+
+### Changed
+- **Encryption logic consolidated into `EncryptionService`** — `src/services/crypto.py` now exposes a class that owns `encrypt` / `decrypt_credential` / fingerprint / `all_api_keys_decrypt` / `validate_stored_keys` / `api_key_status` / `reencrypt_all`. Module-level shims remain as backward-compat wrappers; new code should prefer the class. (#82, closes #70)
+- **`ENCRYPTED_KEY_PREFIXES` is now the canonical declaration of sensitive settings** — `_upsert_setting` derives the `encrypted` flag from the key prefix by default, and raises `ValueError` if a caller explicitly tries to store an `api_key.*` value with `encrypted=False`. To add a new encrypted-by-default namespace, extend `ENCRYPTED_KEY_PREFIXES` rather than passing `encrypted=True` at every call site. (#82, closes #71)
+
+### Added
+- **Timeout policy constants** in `src/services/utils.py` — `OPENAI_TIMEOUT_SEC=600`, `OPENAI_CONNECT_TIMEOUT_SEC=10`, `GEMINI_TIMEOUT_SEC=600`, `SHORT_RPC_TIMEOUT_SEC=30`. (#84)
+- **`tests/test_timeout.py`** — 10 unit tests covering the new helper, the OpenAI client timeout policy, the short-RPC budget, and timeout-firing behavior. (#84)
+- **`httpx>=0.27.0,<1.0.0` to runtime dependencies** — promoted from `[project.optional-dependencies].dev` so production installs no longer rely on `openai`'s transitive `httpx` to satisfy our module-level import. (#84)
+
+### CI
+- **ffmpeg-mocked peak test cases** — `tests/test_peaks.py` now exercises a synthetic int16 PCM stream and zero-duration error path so the new `src/services/peaks.py` module stays above the project coverage gate even on CI runners without the ffmpeg binary. (5071f41, 4742963, 6a0762c)
+
 ## [1.0.3] - 2026-05-09
 
 **SRT editor stability + metadata provider routing** — fixes a browser freeze on large media and a misrouted LLM call when picking a different provider for metadata than for transcription.
