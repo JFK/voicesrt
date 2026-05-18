@@ -36,6 +36,9 @@ async def transcribe_with_gemini(
         # stall job teardown, hence the short budget.
         try:
             await call_gemini_with_timeout(client.files.delete, name=uploaded.name, timeout=SHORT_RPC_TIMEOUT_SEC)
+        except TimeoutError:
+            # call_gemini_with_timeout() already logs timeout warnings.
+            pass
         except Exception:
             logger.warning("Failed to delete uploaded file: %s", uploaded.name)
 
