@@ -19,6 +19,25 @@ ENCRYPTED_KEY_PREFIXES: frozenset[str] = frozenset({"api_key."})
 # (and failing) to decrypt every row.
 ENCRYPTION_KEY_FINGERPRINT_SETTING = "_meta.encryption_key_fingerprint"
 
+# Reserved prefix for app-internal Setting rows (plaintext, never user-visible
+# in export/import flows). Canonical declaration — import in settings_io and
+# tests/helpers instead of inlining "_meta.".
+META_KEY_PREFIX = "_meta."
+
+
+def compute_fingerprint(key: str) -> str:
+    """SHA-256 hex of a Fernet key string's UTF-8 bytes.
+
+    Public helper for endpoints that need to fingerprint a key supplied in a
+    request body (e.g. rotation's proof-of-possession check) without going
+    through the env-bound `EncryptionService.get_fingerprint()`. The hashing
+    strategy is identical to `get_fingerprint()` so the two values are
+    directly comparable.
+    """
+    if not key:
+        raise ValueError("Cannot fingerprint an empty key.")
+    return hashlib.sha256(key.encode()).hexdigest()
+
 
 class DecryptionError(RuntimeError):
     """Stored value cannot be decrypted — encryption key was rotated or replaced."""
@@ -91,7 +110,7 @@ class EncryptionService:
         """
         if not settings.encryption_key:
             raise RuntimeError("ENCRYPTION_KEY is not set; cannot compute fingerprint.")
-        return hashlib.sha256(settings.encryption_key.encode()).hexdigest()
+        return compute_fingerprint(settings.encryption_key)
 
     async def get_stored_fingerprint(self) -> str | None:
         """Return the ENCRYPTION_KEY fingerprint persisted at the last save_key call.

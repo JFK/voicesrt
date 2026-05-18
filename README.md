@@ -112,6 +112,9 @@ History → **Meta** → Metadata Editor. Set channel info, choose LLM model, ge
 ### 5. Catchphrases & Quiz
 History → **Catchphrase** / **Quiz** → Select model in modal → Generate.
 
+### 6. Backup & Recovery
+Settings → **Backup & Recovery** → Export settings JSON, import a backup, or rotate the `ENCRYPTION_KEY`. See [docs/backup-and-recovery.md](docs/backup-and-recovery.md) for the full procedure, including `data/` volume snapshots and disaster-recovery error codes.
+
 ## Tech Stack
 
 - **Backend**: FastAPI (Python 3.11+), async/await
