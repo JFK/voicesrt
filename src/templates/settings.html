@@ -263,7 +263,7 @@
     <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
         <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.refine_prompts') }}</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.refine_prompts_desc') }}</p>
-        <template x-for="mode in ['verbatim', 'standard', 'caption']" :key="mode">
+        <template x-for="mode in ['verbatim']" :key="mode">
             <div class="mb-4">
                 <div class="flex items-center justify-between mb-1">
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-200" x-text="mode.charAt(0).toUpperCase() + mode.slice(1)"></label>
@@ -402,7 +402,7 @@ function settingsPage() {
         glossary: '',
         toneReferences: '',
         pricing: {},
-        refinePrompts: { verbatim: '', standard: '', caption: '' },
+        refinePrompts: { verbatim: '' },
         statusMsg: '',
 
         // Backup & Recovery
@@ -459,7 +459,7 @@ function settingsPage() {
             this.glossary = glossaryData.glossary || '';
             this.pricing = pricingData.pricing || {};
             this.toneReferences = toneData.tone_references || '';
-            for (const mode of ['verbatim', 'standard', 'caption']) {
+            for (const mode of ['verbatim']) {
                 this.refinePrompts[mode] = promptsData[mode]?.custom || promptsData[mode]?.default || '';
             }
         },

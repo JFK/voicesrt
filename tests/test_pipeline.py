@@ -26,8 +26,8 @@ def _patch_openai():
 
 
 @pytest.mark.asyncio
-async def test_refine_openai_standard():
-    """Standard mode should call OpenAI and return refined segments."""
+async def test_refine_openai_returns_segments():
+    """Refine should call OpenAI and return refined segments with token counts."""
     resp = mock_openai_response(
         '{"segments": [{"start": 0.0, "end": 2.5, "text": "Hello, world."}]}',
         prompt_tokens=100,
@@ -40,7 +40,7 @@ async def test_refine_openai_standard():
         mock_client.chat.completions.create = AsyncMock(return_value=resp)
 
         segments, inp, out = await refine_with_llm(
-            MOCK_SEGMENTS, "fake-key", "openai", "gpt-test", refine_mode="standard"
+            MOCK_SEGMENTS, "fake-key", "openai", "gpt-test", refine_mode="verbatim"
         )
 
     assert len(segments) == 1
@@ -49,7 +49,8 @@ async def test_refine_openai_standard():
     assert out == 50
 
     prompt_content = mock_client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
-    assert "Remove filler words" in prompt_content
+    # verbatim is the only mode: it must preserve timestamps
+    assert "Timestamps" in prompt_content
 
 
 @pytest.mark.asyncio
@@ -70,22 +71,6 @@ async def test_refine_verbatim_keeps_fillers():
 
 
 @pytest.mark.asyncio
-async def test_refine_caption_allows_splitting():
-    """Caption mode prompt should allow segment splitting."""
-    resp = mock_openai_response('{"segments": [{"start": 0.0, "end": 1.0, "text": "test"}]}')
-
-    with _patch_openai() as mock_cls:
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-        mock_client.chat.completions.create = AsyncMock(return_value=resp)
-
-        await refine_with_llm(MOCK_SEGMENTS, "fake-key", "openai", "gpt-test", refine_mode="caption")
-
-    prompt = mock_client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
-    assert "split" in prompt.lower()
-
-
-@pytest.mark.asyncio
 async def test_refine_custom_prompt_overrides_default():
     """Custom prompts should override default templates."""
     custom = "Custom: fix everything. {glossary_section}\n{segments_json}"
@@ -101,8 +86,8 @@ async def test_refine_custom_prompt_overrides_default():
             "fake-key",
             "openai",
             "gpt-test",
-            refine_mode="standard",
-            custom_prompts={"standard": custom},
+            refine_mode="verbatim",
+            custom_prompts={"verbatim": custom},
         )
 
     prompt = mock_client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
@@ -111,7 +96,7 @@ async def test_refine_custom_prompt_overrides_default():
 
 @pytest.mark.asyncio
 async def test_refine_custom_prompt_fallback():
-    """Custom prompt for different mode should not affect current mode."""
+    """A custom prompt for a different mode should not affect the current mode."""
     resp = mock_openai_response('{"segments": [{"start": 0.0, "end": 1.0, "text": "test"}]}')
 
     with _patch_openai() as mock_cls:
@@ -124,13 +109,14 @@ async def test_refine_custom_prompt_fallback():
             "fake-key",
             "openai",
             "gpt-test",
-            refine_mode="standard",
-            custom_prompts={"caption": "custom caption {glossary_section}\n{segments_json}"},
+            refine_mode="verbatim",
+            custom_prompts={"other": "custom other {glossary_section}\n{segments_json}"},
         )
 
     prompt = mock_client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
-    assert "custom caption" not in prompt
-    assert "Remove filler words" in prompt
+    assert "custom other" not in prompt
+    # falls back to the built-in verbatim template
+    assert "verbatim accuracy" in prompt.lower()
 
 
 @pytest.mark.asyncio
@@ -169,6 +155,38 @@ async def test_refine_temperature():
         await refine_with_llm(MOCK_SEGMENTS, "fake-key", "openai", "gpt-test")
 
     assert mock_client.chat.completions.create.call_args.kwargs["temperature"] == 0.3
+
+
+@pytest.mark.asyncio
+async def test_run_refinement_normalizes_legacy_mode_to_verbatim(monkeypatch):
+    """Batch refine path (_run_refinement, used when verify is enabled) must force
+    verbatim even for legacy/None refine_mode, so a custom verbatim prompt applies (#86)."""
+    import src.services.refine as refine_mod
+    import src.services.transcribe as transcribe_mod
+
+    captured = {}
+
+    async def fake_refine_with_llm(segments, api_key, provider, model, glossary, refine_mode, **kwargs):
+        captured["refine_mode"] = refine_mode
+        captured["custom_prompts"] = kwargs.get("custom_prompts")
+        return segments, 1, 1
+
+    monkeypatch.setattr(refine_mod, "refine_with_llm", fake_refine_with_llm)
+    monkeypatch.setattr(transcribe_mod, "_get_refine_model", AsyncMock(return_value="gpt-test"))
+    monkeypatch.setattr(transcribe_mod, "_load_custom_prompts", AsyncMock(return_value={"verbatim": "custom v"}))
+    monkeypatch.setattr(transcribe_mod, "estimate_llm_cost", lambda *a, **k: 0.0)
+    monkeypatch.setattr(transcribe_mod, "log_cost", AsyncMock())
+
+    job = MagicMock()
+    job.provider = "openai"
+    job.id = "job-1"
+    job.refine_mode = "caption"  # legacy value that no longer exists
+
+    await transcribe_mod._run_refinement(job, MagicMock(), MOCK_SEGMENTS, "fake-key")
+
+    assert captured["refine_mode"] == "verbatim"
+    # because the mode is verbatim, the custom verbatim prompt is reachable
+    assert captured["custom_prompts"] == {"verbatim": "custom v"}
 
 
 # -- error_detail tests --

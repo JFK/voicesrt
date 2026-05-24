@@ -41,60 +41,21 @@ Format: {{"segments": [{{"start": 0.0, "end": 2.5, "text": "corrected text"}}, .
 Input segments:
 {segments_json}"""
 
-# --- Standard mode: error correction + filler removal ---
-REFINE_STANDARD_PROMPT = """Review and correct the following subtitle segments transcribed from audio.
-
-Fix:
-- Misrecognized words (especially proper nouns, technical terms)
-- Homophones and kanji errors (for Japanese)
-- Punctuation and readability
-- Remove filler words (um, uh, えー, あのー) unless they are meaningful
-
-Do NOT change:
-- Timestamps (start/end values must remain exactly the same)
-- The meaning or intent of what was said
-- Sentence boundaries or segment splits - keep original segmentation
-- Segments that are already correct
-
-You MUST return a JSON object with a "segments" key containing the corrected array.
-Format: {{"segments": [{{"start": 0.0, "end": 2.5, "text": "corrected text"}}, ...]}}
-{glossary_section}
-Input segments:
-{segments_json}"""
-
-# --- Caption mode: readability-optimized ---
-REFINE_CAPTION_PROMPT = """\
-Review and correct the following subtitle segments transcribed from audio \
-for use as readable captions.
-
-Fix:
-- Misrecognized words (especially proper nouns, technical terms)
-- Homophones and kanji errors (for Japanese)
-- Punctuation and readability
-- Remove all filler words (um, uh, えー, あのー, その, まあ)
-- Smooth out stutters and repeated words
-- Complete incomplete sentences for readability
-- Split overly long segments (>40 chars) into natural reading units
-
-When splitting a segment, divide the original start/end time proportionally among the new segments.
-For example, a segment from 0.0-6.0 split into 2 parts becomes 0.0-3.0 and 3.0-6.0.
-
-Do NOT change:
-- The meaning or intent of what was said
-
-Priority: readability. Make captions easy to read at a glance.
-
-You MUST return a JSON object with a "segments" key containing the corrected array.
-Format: {{"segments": [{{"start": 0.0, "end": 2.5, "text": "corrected text"}}, ...]}}
-{glossary_section}
-Input segments:
-{segments_json}"""
-
+# Verbatim is the only supported refine mode: it preserves timestamps and
+# segmentation so the SRT stays aligned with the audio. The former "standard"
+# and "caption" modes shifted timing (caption re-segments by design; standard
+# dropped fillers) and were removed in #86.
 _PROMPT_MAP = {
     "verbatim": REFINE_VERBATIM_PROMPT,
-    "standard": REFINE_STANDARD_PROMPT,
-    "caption": REFINE_CAPTION_PROMPT,
 }
+
+# Canonical declaration of valid refine modes (single source of truth).
+# jobs.py imports and re-exports this; settings.py imports it from jobs.py.
+VALID_REFINE_MODES = frozenset(_PROMPT_MAP.keys())
+
+# The mode every job normalizes to (legacy rows stored as standard/caption fall
+# back to this at read time — see transcribe.py).
+DEFAULT_REFINE_MODE = "verbatim"
 
 
 def _extract_segments(result: object) -> list[dict]:
@@ -136,7 +97,7 @@ async def refine_with_llm(
     provider: str,
     model: str,
     glossary: str = "",
-    refine_mode: str = "standard",
+    refine_mode: str = DEFAULT_REFINE_MODE,
     custom_prompts: dict[str, str] | None = None,
     context_before: list[dict] | None = None,
 ) -> tuple[list[dict], int, int]:
@@ -165,7 +126,7 @@ Prior context (do NOT modify or include in your output, for reference only):
     if custom_prompts and refine_mode in custom_prompts:
         template = custom_prompts[refine_mode]
     else:
-        template = _PROMPT_MAP.get(refine_mode, REFINE_STANDARD_PROMPT)
+        template = _PROMPT_MAP.get(refine_mode, REFINE_VERBATIM_PROMPT)
     prompt = context_section + template.format(segments_json=segments_json, glossary_section=glossary_section)
 
     if provider in ("openai", "ollama"):

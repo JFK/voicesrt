@@ -100,27 +100,9 @@
             </label>
         </div>
 
-        <!-- Refine Mode -->
+        <!-- Refine details (verify) -->
         <div x-show="enableRefine" x-transition class="ml-6">
-            <div class="flex items-center mb-1">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('upload.refine_mode') }}</label>
-                <div class="relative inline-block group ml-1">
-                    <span class="cursor-help text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-sm">?</span>
-                    <div class="invisible group-hover:visible absolute z-10 w-64 sm:w-72 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg -top-2 left-6 max-w-[calc(100vw-4rem)]">
-                        <p class="mb-2"><span class="font-semibold">Verbatim:</span> {{ t('upload.refine_verbatim_desc') }}</p>
-                        <p class="mb-2"><span class="font-semibold">Standard:</span> {{ t('upload.refine_standard_desc') }}</p>
-                        <p><span class="font-semibold">Caption:</span> {{ t('upload.refine_caption_desc') }}</p>
-                    </div>
-                </div>
-            </div>
-            <select x-model="refineMode" class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border dark:bg-gray-800 dark:text-gray-100">
-                <option value="verbatim">{{ t('upload.refine_verbatim') }}</option>
-                <option value="standard">{{ t('upload.refine_standard') }}</option>
-                <option value="caption">{{ t('upload.refine_caption') }}</option>
-            </select>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="refineMode === 'verbatim'">{{ t('upload.refine_verbatim_desc') }}</p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="refineMode === 'standard'">{{ t('upload.refine_standard_desc') }}</p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="refineMode === 'caption'">{{ t('upload.refine_caption_desc') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('upload.refine_verbatim_desc') }}</p>
 
             <!-- Verify -->
             <div class="flex items-center mt-3">
@@ -200,7 +182,6 @@ function uploadForm() {
         language: '',
         enableRefine: true,
         enableVerify: false,
-        refineMode: 'standard',
         glossary: '',
         statusHtml: '',
         _statusClient: null,
@@ -221,15 +202,12 @@ function uploadForm() {
             // The Settings/post-processing model still applies as configured.
             if (persona === 'youtuber') {
                 this.enableRefine = true;
-                this.refineMode = 'caption';
                 this.personaHint = this.$root.dataset.i18nPersonaYoutuber;
             } else if (persona === 'meeting') {
                 this.enableRefine = true;
-                this.refineMode = 'verbatim';
                 this.personaHint = this.$root.dataset.i18nPersonaMeeting;
             } else if (persona === 'editor') {
                 this.enableRefine = true;
-                this.refineMode = 'standard';
                 this.personaHint = this.$root.dataset.i18nPersonaEditor;
             }
         },
@@ -313,7 +291,6 @@ function uploadForm() {
             if (this.selectedModel && this.enableRefine) params.set('model', this.selectedModel);
             if (this.language) params.set('language', this.language);
             params.set('enable_refine', this.enableRefine);
-            if (this.enableRefine) params.set('refine_mode', this.refineMode);
             if (this.enableRefine && this.enableVerify) params.set('enable_verify', 'true');
 
             try {

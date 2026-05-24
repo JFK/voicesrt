@@ -2,9 +2,8 @@
 
 from src.services.refine import (
     _PROMPT_MAP,
-    REFINE_CAPTION_PROMPT,
-    REFINE_STANDARD_PROMPT,
     REFINE_VERBATIM_PROMPT,
+    VALID_REFINE_MODES,
     VERIFY_PROMPT,
     _build_full_text,
     _extract_corrections,
@@ -12,10 +11,10 @@ from src.services.refine import (
 )
 
 
-def test_prompt_map_has_all_modes():
-    assert "verbatim" in _PROMPT_MAP
-    assert "standard" in _PROMPT_MAP
-    assert "caption" in _PROMPT_MAP
+def test_prompt_map_only_verbatim():
+    """verbatim is the only supported mode; standard/caption were removed (#86)."""
+    assert set(_PROMPT_MAP) == {"verbatim"}
+    assert VALID_REFINE_MODES == frozenset({"verbatim"})
 
 
 def test_prompt_map_values_are_strings():
@@ -37,15 +36,9 @@ def test_verbatim_keeps_fillers():
     assert "filler" in REFINE_VERBATIM_PROMPT.lower()
 
 
-def test_standard_removes_fillers():
-    """Standard prompt should instruct to remove filler words."""
-    assert "remove" in REFINE_STANDARD_PROMPT.lower() or "filler" in REFINE_STANDARD_PROMPT.lower()
-
-
-def test_caption_allows_splitting():
-    """Caption prompt should allow segment splitting."""
-    lower = REFINE_CAPTION_PROMPT.lower()
-    assert "split" in lower
+def test_verbatim_preserves_timestamps():
+    """Verbatim prompt must instruct to keep timestamps unchanged."""
+    assert "timestamp" in REFINE_VERBATIM_PROMPT.lower()
 
 
 def test_extract_segments_from_dict():
