@@ -149,7 +149,9 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
 
         if use_streaming:
             custom_prompts = await _load_custom_prompts(session)
-            refine_mode = job.refine_mode or "standard"
+            # Only verbatim remains; legacy jobs stored as standard/caption
+            # fall back to it at read time (#86) — no migration needed.
+            refine_mode = "verbatim"
             context_before_n = 3
 
             async def _streaming_on_chunk(chunk_segments: list[dict]) -> None:
@@ -502,8 +504,10 @@ _DEFAULT_REFINE_MODELS = {
 
 async def _load_custom_prompts(session: AsyncSession) -> dict[str, str]:
     """Load custom refine prompts from DB settings."""
+    from src.services.refine import VALID_REFINE_MODES
+
     custom_prompts: dict[str, str] = {}
-    for mode in ("verbatim", "standard", "caption"):
+    for mode in VALID_REFINE_MODES:
         key = f"general.refine_prompt_{mode}"
         result = await session.execute(select(Setting).where(Setting.key == key))
         setting = result.scalar_one_or_none()
@@ -533,7 +537,10 @@ async def _run_refinement(
     provider_name = get_provider_name(job.provider)
     refine_model = await _get_refine_model(session, provider_name)
 
-    refine_mode = job.refine_mode or "standard"
+    # Only verbatim remains; legacy jobs stored as standard/caption fall back
+    # to it at read time (#86). Mirrors the streaming path so a custom verbatim
+    # prompt is honored on the verify pipeline too.
+    refine_mode = "verbatim"
 
     custom_prompts = await _load_custom_prompts(session)
 

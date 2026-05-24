@@ -38,6 +38,10 @@ from src.errors import (
     upload_failed,
 )
 from src.models import Job
+
+# Canonical declaration lives in refine.py (single source of truth).
+# Re-exported here because settings.py imports VALID_REFINE_MODES from src.api.jobs.
+from src.services.refine import VALID_REFINE_MODES
 from src.services.status import status_manager
 from src.templating import templates
 
@@ -148,9 +152,6 @@ async def _process_job(job_id: str) -> None:
             )
             await session.commit()
             await status_manager.publish(job_id, STATUS_FAILED, job.error_message)
-
-
-VALID_REFINE_MODES = {"verbatim", "standard", "caption"}
 
 
 @router.post("")

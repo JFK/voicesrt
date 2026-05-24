@@ -103,12 +103,9 @@ def test_landing_persona_presets(page: Page, base_url: str):
         data={"key": "sk-test-fake-key-for-e2e-testing-only"},
     )
 
-    cases = [
-        ("youtuber", "caption"),
-        ("meeting", "verbatim"),
-        ("editor", "standard"),
-    ]
-    for persona, expected_mode in cases:
+    # Refine is verbatim-only now (#86); each persona just enables refine and
+    # shows its hint banner.
+    for persona in ("youtuber", "meeting", "editor"):
         page.goto(f"{base_url}/upload?persona={persona}")
         page.wait_for_function("window.Alpine !== undefined")
         # Wait until applyPersona() has run and personaHint is populated
@@ -118,12 +115,9 @@ def test_landing_persona_presets(page: Page, base_url: str):
         )
         state = page.evaluate(
             "() => { const d = Alpine.$data(document.querySelector('main [x-data]')); "
-            "return { enableRefine: d.enableRefine, refineMode: d.refineMode, personaHint: d.personaHint }; }"
+            "return { enableRefine: d.enableRefine, personaHint: d.personaHint }; }"
         )
         assert state["enableRefine"] is True, f"persona={persona} should enable refine"
-        assert state["refineMode"] == expected_mode, (
-            f"persona={persona} expected refineMode={expected_mode}, got {state['refineMode']}"
-        )
         assert state["personaHint"], f"persona={persona} should set a hint banner"
 
 

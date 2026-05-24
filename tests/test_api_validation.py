@@ -19,18 +19,30 @@ async def test_create_job_invalid_refine_mode(make_client):
 
 
 @pytest.mark.asyncio
-async def test_create_job_valid_refine_modes(make_client):
-    """Valid refine_modes should not cause validation error."""
-    for mode in ("verbatim", "standard", "caption"):
+async def test_create_job_valid_refine_mode(make_client):
+    """verbatim is the only valid refine_mode and must pass validation."""
+    async with make_client() as c:
+        resp = await c.post(
+            "/api/jobs?provider=whisper&refine_mode=verbatim",
+            files={"file": ("test.mp3", b"fake", "audio/mpeg")},
+        )
+    # Should pass validation (may fail later due to no real file, but not 400 for refine_mode)
+    assert resp.status_code != 400 or "refine_mode" not in resp.json().get("detail", "")
+    if resp.status_code == 200:
+        await cleanup_job(make_client, resp.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_create_job_removed_refine_modes_rejected(make_client):
+    """standard and caption were removed (#86) and must now return 400."""
+    for mode in ("standard", "caption"):
         async with make_client() as c:
             resp = await c.post(
                 f"/api/jobs?provider=whisper&refine_mode={mode}",
                 files={"file": ("test.mp3", b"fake", "audio/mpeg")},
             )
-        # Should pass validation (may fail later due to no real file, but not 400 for refine_mode)
-        assert resp.status_code != 400 or "refine_mode" not in resp.json().get("detail", "")
-        if resp.status_code == 200:
-            await cleanup_job(make_client, resp.json()["id"])
+        assert resp.status_code == 400, f"{mode} should be rejected"
+        assert resp.json()["error"]["code"] == "INVALID_REFINE_MODE"
 
 
 @pytest.mark.asyncio
@@ -103,8 +115,9 @@ async def test_refine_prompt_valid_modes(make_client):
         resp = await c.get("/api/settings/refine-prompts")
     assert resp.status_code == 200
     data = resp.json()
-    for mode in ("verbatim", "standard", "caption"):
-        assert mode in data
+    assert "verbatim" in data
+    assert "standard" not in data
+    assert "caption" not in data
 
 
 @pytest.mark.asyncio
