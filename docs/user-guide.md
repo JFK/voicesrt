@@ -43,41 +43,21 @@ Each optional step is **non-fatal** — if refinement or verification fails, the
 
 ---
 
-## Refine Modes
+## Refine
 
-Refinement is LLM post-processing that cleans up the raw transcription. Choose a mode that matches your use case:
-
-### Verbatim
-
-Keeps the transcription as close to the spoken words as possible.
+Refinement is LLM post-processing that cleans up the raw transcription. VoiceSRT uses a single **verbatim** mode, which keeps the transcription faithful to the spoken audio:
 
 - Fixes only misrecognized words, proper nouns, and technical terms
 - **Preserves all filler words**: "um", "uh", "えー", "あのー"
+- **Preserves timestamps and segment boundaries**, so the SRT stays aligned with the audio
 - Does not change sentence boundaries or punctuation
-- Best for: legal transcripts, research records, meeting minutes where exact wording matters
+- Best for: any subtitle work where the on-screen text must line up with what was said
 
-### Standard (recommended)
+> Earlier versions also offered `standard` and `caption` modes, but they shifted the SRT timing — `caption` re-segmented and redistributed timestamps, and `standard` dropped fillers and could desync the displayed text from the audio — so they were removed in v1.1.0. Jobs created before then are read back as `verbatim`.
 
-Balances accuracy with readability.
+### Custom Prompt
 
-- Fixes misrecognized words and proper nouns
-- Removes meaningless filler words while keeping intentional ones
-- Improves punctuation
-- Preserves segment boundaries
-- Best for: general transcription, interviews, podcasts
-
-### Caption
-
-Optimizes for on-screen readability.
-
-- Removes all filler words and stutters
-- Smooths incomplete sentences
-- **Splits long segments** (>40 characters) automatically with proportional timestamps
-- Best for: YouTube subtitles, presentations, audience-facing content
-
-### Custom Prompts
-
-Admins can override the built-in prompt for each mode via **Settings → Refine Prompts**. This is useful for domain-specific requirements (e.g., medical terminology rules).
+Admins can override the built-in verbatim prompt via **Settings → Refine Prompts**. This is useful for domain-specific requirements (e.g., medical terminology rules).
 
 ---
 
@@ -267,7 +247,7 @@ Terms entered here apply to all jobs. See the [Glossary](#glossary) section for 
 
 ### Refine Prompts
 
-View or override the built-in prompts for each refine mode. Click **Reset** to restore defaults.
+View or override the built-in verbatim refine prompt. Click **Reset** to restore the default.
 
 ---
 
