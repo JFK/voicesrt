@@ -148,10 +148,12 @@ async def process_transcription(job: Job, session: AsyncSession) -> None:
         refined_accumulator: list[dict] = []
 
         if use_streaming:
+            from src.services.refine import DEFAULT_REFINE_MODE
+
             custom_prompts = await _load_custom_prompts(session)
-            # Only verbatim remains; legacy jobs stored as standard/caption
-            # fall back to it at read time (#86) — no migration needed.
-            refine_mode = "verbatim"
+            # refine is verbatim-only (#86); normalize every job to the canonical
+            # default regardless of any legacy standard/caption value on the row.
+            refine_mode = DEFAULT_REFINE_MODE
             context_before_n = 3
 
             async def _streaming_on_chunk(chunk_segments: list[dict]) -> None:
@@ -532,15 +534,15 @@ async def _run_refinement(
     glossary: str = "",
 ) -> list[dict]:
     """Refine segments using LLM post-processing and log cost."""
-    from src.services.refine import refine_with_llm
+    from src.services.refine import DEFAULT_REFINE_MODE, refine_with_llm
 
     provider_name = get_provider_name(job.provider)
     refine_model = await _get_refine_model(session, provider_name)
 
-    # Only verbatim remains; legacy jobs stored as standard/caption fall back
-    # to it at read time (#86). Mirrors the streaming path so a custom verbatim
-    # prompt is honored on the verify pipeline too.
-    refine_mode = "verbatim"
+    # refine is verbatim-only (#86); normalize every job to the canonical default
+    # regardless of any legacy standard/caption value on the row. Mirrors the
+    # streaming path so a custom verbatim prompt is honored on the verify pipeline.
+    refine_mode = DEFAULT_REFINE_MODE
 
     custom_prompts = await _load_custom_prompts(session)
 
