@@ -15,7 +15,7 @@ Generate SRT subtitles from audio/video with AI transcription, then refine, edit
 - **Streaming Editor**: Segments appear in real-time as transcription progresses — no waiting for completion
 - **Multi-format**: MP4, MP3, WAV, MOV, AVI, MKV, M4A, FLAC, OGG, WebM
 - **Silence-aware Chunking**: Audio splits at silence gaps for cleaner segment boundaries
-- **LLM Post-processing**: 3 refine modes (Verbatim / Standard / Caption) with glossary
+- **LLM Post-processing**: Verbatim refine (preserves timestamps & segmentation) with glossary
 - **Verify Pass**: Full-text consistency check for proper nouns and kanji
 - **Ollama Support**: Use local LLM models (Qwen3, etc.) for post-processing
 

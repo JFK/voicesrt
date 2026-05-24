@@ -110,7 +110,7 @@ src/
 │   ├── audio.py         # ffmpeg: extract, split, duration
 │   ├── whisper.py       # OpenAI Whisper API client
 │   ├── gemini.py        # Google Gemini API client
-│   ├── refine.py        # LLM post-processing (3 modes + verify + suggest)
+│   ├── refine.py        # LLM post-processing (verbatim refine + verify + suggest)
 │   ├── srt.py           # SRT parse/generate/save
 │   ├── metadata.py      # YouTube metadata + prompt optimization
 │   ├── catchphrase.py   # Thumbnail text generation
@@ -155,7 +155,7 @@ src/
 | catchphrases | JSON String? | Cached catchphrase results |
 | quiz | JSON String? | Cached quiz results |
 | enable_refine | Boolean | LLM post-processing enabled |
-| refine_mode | String? | verbatim / standard / caption |
+| refine_mode | String? | verbatim (legacy standard/caption normalized to verbatim) |
 | enable_verify | Boolean | Full-text verification enabled |
 | glossary | String? | Per-job glossary terms |
 | audio_duration | Float? | Duration in seconds |

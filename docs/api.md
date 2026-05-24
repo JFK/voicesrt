@@ -6,7 +6,7 @@ Base URL: `http://localhost:8000`
 
 ### Create Job
 ```
-POST /api/jobs?provider=gemini&enable_refine=true&refine_mode=standard&enable_verify=true
+POST /api/jobs?provider=gemini&enable_refine=true&refine_mode=verbatim&enable_verify=true
 Content-Type: multipart/form-data
 
 file: <binary>
@@ -20,7 +20,7 @@ glossary: "term:reading\nOpenAI:oh-pen-ay-eye"  (optional, form field)
 | model | string? | null | Override model (e.g., "qwen3:30b") |
 | language | string? | null | "ja", "en", "zh", "ko" (null = auto-detect) |
 | enable_refine | bool | false | Enable LLM post-processing |
-| refine_mode | string? | null | "verbatim", "standard", or "caption" |
+| refine_mode | string? | null | "verbatim" (only supported mode; defaults to verbatim when refine is enabled). `standard`/`caption` are rejected with 400 `INVALID_REFINE_MODE`. |
 | enable_verify | bool | false | Enable full-text verification |
 
 **Response:** `{"id": "uuid", "status": "pending"}`
@@ -297,7 +297,7 @@ PUT    /api/settings/refine-prompts/{mode}    # Save custom prompt
 DELETE /api/settings/refine-prompts/{mode}    # Reset to default
 ```
 
-Modes: `verbatim`, `standard`, `caption`
+Mode: `verbatim` (the only supported mode)
 
 ## Costs API (`/api/costs`)
 
