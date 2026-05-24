@@ -49,8 +49,8 @@ _PROMPT_MAP = {
     "verbatim": REFINE_VERBATIM_PROMPT,
 }
 
-# Canonical declaration of valid refine modes. jobs.py and settings.py import
-# this so there is a single source of truth.
+# Canonical declaration of valid refine modes (single source of truth).
+# jobs.py imports and re-exports this; settings.py imports it from jobs.py.
 VALID_REFINE_MODES = frozenset(_PROMPT_MAP)
 
 # The mode every job normalizes to (legacy rows stored as standard/caption fall

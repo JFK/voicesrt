@@ -39,9 +39,9 @@ from src.errors import (
 )
 from src.models import Job
 
-# Canonical declaration lives in refine.py (single source of truth).
-# Re-exported here because settings.py imports VALID_REFINE_MODES from src.api.jobs.
-from src.services.refine import VALID_REFINE_MODES
+# Canonical declarations live in refine.py (single source of truth).
+# VALID_REFINE_MODES is re-exported here because settings.py imports it from src.api.jobs.
+from src.services.refine import DEFAULT_REFINE_MODE, VALID_REFINE_MODES
 from src.services.status import status_manager
 from src.templating import templates
 
@@ -174,6 +174,11 @@ async def create_job(
     if refine_mode and refine_mode not in VALID_REFINE_MODES:
         valid = ", ".join(VALID_REFINE_MODES)
         raise invalid_refine_mode(valid)
+
+    # Persist the effective refine mode so History shows it (refine is
+    # verbatim-only since #86; the UI no longer sends refine_mode).
+    if enable_refine and not refine_mode:
+        refine_mode = DEFAULT_REFINE_MODE
 
     supported = {".mp4", ".mp3", ".wav", ".mov", ".avi", ".mkv", ".m4a", ".flac", ".ogg", ".webm"}
     if not file.filename:
