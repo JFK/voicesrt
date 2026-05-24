@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-25
+
+**Refine post-processing is now verbatim-only.** The `standard` and `caption` refine modes shifted SRT timing — `caption` re-segments and redistributes start/end times by design, and `standard` dropped filler words while the LLM did not reliably preserve the original segmentation — so subtitles drifted out of sync with the audio. Consolidating to `verbatim`, the only mode that preserves timestamps and segmentation, keeps the SRT aligned. (#86)
+
+### Changed
+- Post-processing (refine) always uses `verbatim`. The upload page no longer shows a refine-mode selector, and new jobs persist `refine_mode=verbatim` so the History view stays self-describing. (#86)
+- `VALID_REFINE_MODES` and `DEFAULT_REFINE_MODE` are now declared canonically in `src/services/refine.py` (single source of truth) and re-exported via `src/api/jobs.py`. (#86)
+
+### Removed
+- The `standard` and `caption` refine modes — their prompts, the Settings custom-prompt editors for them, and the related i18n strings. The API now rejects `refine_mode=standard|caption` with `INVALID_REFINE_MODE` (HTTP 400). (#86)
+
+### Docs
+- Updated README (en/ja) and `docs/` (user-guide, api, architecture) to describe the verbatim-only refine behavior. (#88)
+
+### Migration
+- No database migration required. Existing jobs whose stored `refine_mode` is `standard` or `caption` are normalized to `verbatim` at read time; any saved custom prompts for the removed modes become inert.
+
 ## [1.0.5] - 2026-05-19
 
 **ENCRYPTION_KEY lifecycle completion** — rotation API + settings backup/recovery. Closes the disaster-recovery story opened by the encryption-batch family (v1.0.1–v1.0.4): operators can now rotate the `ENCRYPTION_KEY` without losing stored API keys, and back up / restore the full settings envelope without exposing plaintext credentials.
