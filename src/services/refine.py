@@ -51,7 +51,7 @@ _PROMPT_MAP = {
 
 # Canonical declaration of valid refine modes (single source of truth).
 # jobs.py imports and re-exports this; settings.py imports it from jobs.py.
-VALID_REFINE_MODES = frozenset(_PROMPT_MAP)
+VALID_REFINE_MODES = frozenset(_PROMPT_MAP.keys())
 
 # The mode every job normalizes to (legacy rows stored as standard/caption fall
 # back to this at read time — see transcribe.py).

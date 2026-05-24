@@ -26,10 +26,13 @@ async def test_create_job_valid_refine_mode(make_client):
             "/api/jobs?provider=whisper&refine_mode=verbatim",
             files={"file": ("test.mp3", b"fake", "audio/mpeg")},
         )
-    # Must not be rejected specifically for refine_mode. AppError serializes as
-    # {"error": {"code": ...}} (see src/main.py), so check that shape — not "detail".
-    if resp.status_code == 400:
-        assert resp.json().get("error", {}).get("code") != "INVALID_REFINE_MODE"
+    # verbatim must never be rejected as an invalid refine mode. Assert this
+    # unconditionally so an unexpected 422/500 can't make the test pass silently.
+    # We deliberately do NOT pin to {200, 400}: the downstream status depends on
+    # API-key presence in the test env, which is orthogonal to refine_mode
+    # validation. AppError serializes as {"error": {"code": ...}} (see src/main.py).
+    body = resp.json()
+    assert body.get("error", {}).get("code") != "INVALID_REFINE_MODE", body
     if resp.status_code == 200:
         await cleanup_job(make_client, resp.json()["id"])
 
